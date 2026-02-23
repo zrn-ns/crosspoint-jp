@@ -1,8 +1,6 @@
 #pragma once
 
-#include <uzlib.h>
-
-#include <cstdint>
+#include <InflateReader.h>
 
 #include "EpdFontData.h"
 
@@ -46,7 +44,7 @@ class FontDecompressor {
 
  private:
   Stats stats;
-  struct uzlib_uncomp decomp = {};
+  InflateReader inflateReader;
 
   // Page buffer: flat array of prewarmed glyph bitmaps with sorted lookup
   struct PageGlyphEntry {

@@ -5,13 +5,11 @@
 #include <Utf8.h>
 
 #include <cstdlib>
-#include <cstring>
 
 FontDecompressor::~FontDecompressor() { deinit(); }
 
 bool FontDecompressor::init() {
   clearCache();
-  memset(&decomp, 0, sizeof(decomp));
   return true;
 }
 
@@ -64,23 +62,16 @@ uint16_t FontDecompressor::getGroupIndex(const EpdFontData* fontData, uint32_t g
 bool FontDecompressor::decompressGroup(const EpdFontData* fontData, uint16_t groupIndex, uint8_t* outBuf,
                                        uint32_t outSize) {
   const EpdFontGroup& group = fontData->groups[groupIndex];
-  const uint8_t* inputBuf = &fontData->bitmap[group.compressedOffset];
 
   const uint32_t tDecomp = millis();
-  uzlib_uncompress_init(&decomp, NULL, 0);
-  decomp.source = inputBuf;
-  decomp.source_limit = inputBuf + group.compressedSize;
-  decomp.dest_start = outBuf;
-  decomp.dest = outBuf;
-  decomp.dest_limit = outBuf + outSize;
-
-  int res = uzlib_uncompress(&decomp);
-  stats.decompressTimeMs += millis() - tDecomp;
-
-  if (res < 0 || decomp.dest != decomp.dest_limit) {
-    LOG_ERR("FDC", "Decompression failed for group %u (status %d)", groupIndex, res);
+  inflateReader.init(false);
+  inflateReader.setSource(&fontData->bitmap[group.compressedOffset], group.compressedSize);
+  if (!inflateReader.read(outBuf, outSize)) {
+    stats.decompressTimeMs += millis() - tDecomp;
+    LOG_ERR("FDC", "Decompression failed for group %u", groupIndex);
     return false;
   }
+  stats.decompressTimeMs += millis() - tDecomp;
   return true;
 }
 
