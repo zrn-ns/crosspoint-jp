@@ -11,19 +11,28 @@ void Activity::renderTaskLoop() {
   while (true) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     {
-      HalPowerManager::Lock powerLock;  // Ensure we don't go into low-power mode while rendering
+      // RenderLock MUST be constructed before PowerLock so it is destroyed LAST.
+      // C++ destroys in reverse order: ~PowerLock runs first (cleanup done),
+      // then ~RenderLock releases the mutex. This prevents vTaskDelete from
+      // killing this task while PowerLock cleanup is still pending.
       RenderLock lock(*this);
+      HalPowerManager::Lock powerLock;
       render(std::move(lock));
+    }
+    // Log stack high water mark to detect near-overflow conditions
+    const auto hwm = uxTaskGetStackHighWaterMark(nullptr);
+    if (hwm < 1024) {
+      LOG_ERR("ACT", "[%s] Stack dangerously low! HWM=%u bytes", name.c_str(), hwm * sizeof(StackType_t));
     }
   }
 }
 
 void Activity::onEnter() {
   xTaskCreate(&renderTaskTrampoline, name.c_str(),
-              10240,             // Stack size (increased from 8192 for CJK rendering)
-              this,              // Parameters
-              1,                 // Priority
-              &renderTaskHandle  // Task handle
+              renderStackSize,       // Stack size (configurable per activity)
+              this,                  // Parameters
+              1,                     // Priority
+              &renderTaskHandle      // Task handle
   );
   assert(renderTaskHandle != nullptr && "Failed to create render task");
   LOG_DBG("ACT", "Entering activity: %s", name.c_str());

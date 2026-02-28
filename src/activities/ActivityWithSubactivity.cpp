@@ -8,13 +8,19 @@ void ActivityWithSubactivity::renderTaskLoop() {
   while (true) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     {
-      HalPowerManager::Lock powerLock;  // Ensure we don't go into low-power mode while rendering
+      // RenderLock MUST be constructed before PowerLock (see Activity::renderTaskLoop)
       RenderLock lock(*this);
+      HalPowerManager::Lock powerLock;
       if (!subActivity) {
         render(std::move(lock));
       }
       // If subActivity is set, consume the notification but skip parent render
       // Note: the sub-activity will call its render() from its own display task
+    }
+    // Log stack high water mark to detect near-overflow conditions
+    const auto hwm = uxTaskGetStackHighWaterMark(nullptr);
+    if (hwm < 1024) {
+      LOG_ERR("ACT", "[%s] Stack dangerously low! HWM=%u bytes", name.c_str(), hwm * sizeof(StackType_t));
     }
   }
 }

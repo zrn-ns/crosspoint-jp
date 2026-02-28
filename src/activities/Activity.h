@@ -19,6 +19,9 @@ class Activity {
   MappedInputManager& mappedInput;
 
   // Task to render and display the activity
+  // Render task stack must be large enough for XML parsing (expat recursive callbacks
+  // consume ~250-300 bytes per HTML nesting level) and CJK font rendering paths.
+  size_t renderStackSize = 16384;
   TaskHandle_t renderTaskHandle = nullptr;
   [[noreturn]] static void renderTaskTrampoline(void* param);
   [[noreturn]] virtual void renderTaskLoop();
