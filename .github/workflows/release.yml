@@ -28,23 +28,45 @@ jobs:
         run: uv pip install --system -U https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip
 
       - name: Build CrossPoint (Simplified Chinese)
-        run: pio run -e gh_release
+        run: |
+          set -euo pipefail
+          pio run -e gh_release
+
+          sc_firmware="$(find .pio/build -maxdepth 3 -type f -path "*/firmware.bin" | grep "/gh_release/" | head -n1)"
+          sc_bootloader="$(find .pio/build -maxdepth 3 -type f -path "*/bootloader.bin" | grep "/gh_release/" | head -n1)"
+          sc_partitions="$(find .pio/build -maxdepth 3 -type f -path "*/partitions.bin" | grep "/gh_release/" | head -n1)"
+
+          if [ -z "${sc_firmware}" ] || [ -z "${sc_bootloader}" ] || [ -z "${sc_partitions}" ]; then
+            echo "Expected gh_release artifacts not found."
+            find .pio/build -maxdepth 4 -type f | sort || true
+            exit 1
+          fi
+
+          cp "${sc_firmware}" firmware-sc.bin
+          cp "${sc_bootloader}" bootloader.bin
+          cp "${sc_partitions}" partitions.bin
 
       - name: Build CrossPoint (Traditional Chinese)
-        run: pio run -e gh_release_tc
-
-      - name: Rename firmware files
         run: |
-          cp .pio/build/gh_release/firmware.bin firmware-sc.bin
-          cp .pio/build/gh_release_tc/firmware.bin firmware-tc.bin
+          set -euo pipefail
+          pio run -e gh_release_tc
+
+          tc_firmware="$(find .pio/build -maxdepth 3 -type f -path "*/firmware.bin" | grep "/gh_release_tc/" | head -n1)"
+          if [ -z "${tc_firmware}" ]; then
+            echo "Expected gh_release_tc firmware not found."
+            find .pio/build -maxdepth 4 -type f | sort || true
+            exit 1
+          fi
+
+          cp "${tc_firmware}" firmware-tc.bin
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: CrossPoint-${{ github.ref_name }}
           path: |
-            .pio/build/gh_release/bootloader.bin
-            .pio/build/gh_release/partitions.bin
+            bootloader.bin
+            partitions.bin
             firmware-sc.bin
             firmware-tc.bin
 
