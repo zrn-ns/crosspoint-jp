@@ -3,6 +3,7 @@
 #include <FontManager.h>
 #include <GfxRenderer.h>
 #include <I18n.h>
+#include <Logging.h>
 
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
@@ -13,8 +14,8 @@ namespace {
 constexpr int kBuiltinReaderFontCount = 3;
 constexpr CrossPointSettings::FONT_FAMILY kBuiltinReaderFonts[kBuiltinReaderFontCount] = {
     CrossPointSettings::BOOKERLY, CrossPointSettings::NOTOSANS, CrossPointSettings::OPENDYSLEXIC};
-constexpr StrId kBuiltinReaderFontLabels[kBuiltinReaderFontCount] = {StrId::BOOKERLY, StrId::NOTO_SANS,
-                                                                     StrId::OPEN_DYSLEXIC};
+constexpr StrId kBuiltinReaderFontLabels[kBuiltinReaderFontCount] = {StrId::STR_BOOKERLY, StrId::STR_NOTO_SANS,
+                                                                     StrId::STR_OPEN_DYSLEXIC};
 }  // namespace
 
 void FontSelectActivity::onEnter() {
@@ -89,37 +90,47 @@ void FontSelectActivity::loop() {
 }
 
 void FontSelectActivity::handleSelection() {
-  Serial.printf("[FONT_SELECT] handleSelection: mode=%d, selectedIndex=%d\n", static_cast<int>(mode), selectedIndex);
+  LOG_DBG("FNT", "handleSelection: mode=%d, selectedIndex=%d", static_cast<int>(mode), selectedIndex);
 
   if (mode == SelectMode::Reader) {
     if (selectedIndex < kBuiltinReaderFontCount) {
       // Select built-in reader font
-      Serial.printf("[FONT_SELECT] Selecting built-in reader font index %d\n", selectedIndex);
+      LOG_DBG("FNT", "Selecting built-in reader font index %d", selectedIndex);
       FontMgr.selectFont(-1);
       SETTINGS.fontFamily = static_cast<uint8_t>(kBuiltinReaderFonts[selectedIndex]);
       SETTINGS.saveToFile();
     } else {
-      // Select external reader font
+      // Select external reader font (skip if glyph too large)
       const int externalIndex = selectedIndex - kBuiltinReaderFontCount;
-      Serial.printf("[FONT_SELECT] Selecting reader font index %d\n", externalIndex);
+      const FontInfo* info = FontMgr.getFontInfo(externalIndex);
+      if (info && !ExternalFont::canFitGlyph(info->width, info->height)) {
+        LOG_DBG("FNT", "Font %s glyph too large (%dx%d), skipping", info->name, info->width, info->height);
+        return;
+      }
+      LOG_DBG("FNT", "Selecting reader font index %d", externalIndex);
       FontMgr.selectFont(externalIndex);
     }
     renderer.setReaderFallbackFontId(SETTINGS.getBuiltInReaderFontId());
   } else {
     if (selectedIndex == 0) {
       // Select built-in UI font (disable external font)
-      Serial.printf("[FONT_SELECT] Disabling UI font\n");
+      LOG_DBG("FNT", "Disabling UI font");
       FontMgr.selectUiFont(-1);
     } else {
-      // Select external UI font
+      // Select external UI font (skip if glyph too large)
       const int externalIndex = selectedIndex - 1;
-      Serial.printf("[FONT_SELECT] Selecting UI font index %d\n", externalIndex);
+      const FontInfo* info = FontMgr.getFontInfo(externalIndex);
+      if (info && !ExternalFont::canFitGlyph(info->width, info->height)) {
+        LOG_DBG("FNT", "Font %s glyph too large (%dx%d), skipping", info->name, info->width, info->height);
+        return;
+      }
+      LOG_DBG("FNT", "Selecting UI font index %d", externalIndex);
       FontMgr.selectUiFont(externalIndex);
     }
   }
 
-  Serial.printf("[FONT_SELECT] After selection: readerIndex=%d, uiIndex=%d\n", FontMgr.getSelectedIndex(),
-                FontMgr.getUiSelectedIndex());
+  LOG_DBG("FNT", "After selection: readerIndex=%d, uiIndex=%d", FontMgr.getSelectedIndex(),
+          FontMgr.getUiSelectedIndex());
 
   // Return to previous page
   onBack();
@@ -133,7 +144,7 @@ void FontSelectActivity::render() {
   auto metrics = UITheme::getInstance().getMetrics();
 
   // Title
-  const char* title = (mode == SelectMode::Reader) ? TR(EXT_READER_FONT) : TR(EXT_UI_FONT);
+  const char* title = (mode == SelectMode::Reader) ? tr(STR_EXT_READER_FONT) : tr(STR_EXT_UI_FONT);
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, title);
 
   // Current active font index (for the ON marker)
@@ -164,28 +175,30 @@ void FontSelectActivity::render() {
           }
           const FontInfo* info = FontMgr.getFontInfo(i - kBuiltinReaderFontCount);
           if (info) {
-            char label[64];
-            snprintf(label, sizeof(label), "%s (%dpt)", info->name, info->size);
+            const bool loadable = ExternalFont::canFitGlyph(info->width, info->height);
+            char label[80];
+            snprintf(label, sizeof(label), "%s (%dpt)%s", info->name, info->size, loadable ? "" : " [!]");
             return std::string(label);
           }
         } else {
           if (i == 0) {
-            return std::string(TR(BUILTIN_DISABLED));
+            return std::string(tr(STR_BUILTIN_DISABLED));
           }
           const FontInfo* info = FontMgr.getFontInfo(i - 1);
           if (info) {
-            char label[64];
-            snprintf(label, sizeof(label), "%s (%dpt)", info->name, info->size);
+            const bool loadable = ExternalFont::canFitGlyph(info->width, info->height);
+            char label[80];
+            snprintf(label, sizeof(label), "%s (%dpt)%s", info->name, info->size, loadable ? "" : " [!]");
             return std::string(label);
           }
         }
         return "";
       },
       nullptr, nullptr,
-      [currentIndex](int i) -> std::string { return (i == currentIndex) ? std::string(TR(ON)) : std::string(""); });
+      [currentIndex](int i) -> std::string { return (i == currentIndex) ? std::string(tr(STR_ON_MARKER)) : std::string(""); });
 
   // Button hints
-  const auto labels = mappedInput.mapLabels(TR(BACK), TR(SELECT), TR(DIR_UP), TR(DIR_DOWN));
+  const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();

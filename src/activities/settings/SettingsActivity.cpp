@@ -1,5 +1,6 @@
 #include "SettingsActivity.h"
 
+#include <FontManager.h>
 #include <GfxRenderer.h>
 #include <Logging.h>
 
@@ -7,6 +8,7 @@
 #include "CalibreSettingsActivity.h"
 #include "ClearCacheActivity.h"
 #include "CrossPointSettings.h"
+#include "FontSelectActivity.h"
 #include "KOReaderSettingsActivity.h"
 #include "LanguageSelectActivity.h"
 #include "MappedInputManager.h"
@@ -53,6 +55,7 @@ void SettingsActivity::onEnter() {
   systemSettings.push_back(SettingInfo::Action(StrId::STR_CHECK_UPDATES, SettingAction::CheckForUpdates));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_LANGUAGE, SettingAction::Language));
   readerSettings.push_back(SettingInfo::Action(StrId::STR_CUSTOMISE_STATUS_BAR, SettingAction::CustomiseStatusBar));
+  displaySettings.push_back(SettingInfo::Action(StrId::STR_EXT_UI_FONT, SettingAction::SelectUiFont));
 
   // Reset selection to first category
   selectedCategoryIndex = 0;
@@ -154,6 +157,20 @@ void SettingsActivity::toggleCurrentSetting() {
     const bool currentValue = SETTINGS.*(setting.valuePtr);
     SETTINGS.*(setting.valuePtr) = !currentValue;
   } else if (setting.type == SettingType::ENUM && setting.valuePtr != nullptr) {
+    // Font Size: skip when external font is selected (fixed bitmap size)
+    if (setting.nameId == StrId::STR_FONT_SIZE && FontMgr.getSelectedIndex() >= 0) {
+      return;
+    }
+    // Font Family: open FontSelectActivity (combined built-in + external fonts)
+    if (setting.nameId == StrId::STR_FONT_FAMILY) {
+      exitActivity();
+      enterNewActivity(new FontSelectActivity(renderer, mappedInput, FontSelectActivity::SelectMode::Reader,
+                                              [this] {
+                                                exitActivity();
+                                                requestUpdate();
+                                              }));
+      return;
+    }
     const uint8_t currentValue = SETTINGS.*(setting.valuePtr);
     SETTINGS.*(setting.valuePtr) = (currentValue + 1) % static_cast<uint8_t>(setting.enumValues.size());
   } else if (setting.type == SettingType::VALUE && setting.valuePtr != nullptr) {
@@ -204,6 +221,10 @@ void SettingsActivity::toggleCurrentSetting() {
       case SettingAction::Language:
         enterSubActivity(new LanguageSelectActivity(renderer, mappedInput, onComplete));
         break;
+      case SettingAction::SelectUiFont:
+        enterSubActivity(
+            new FontSelectActivity(renderer, mappedInput, FontSelectActivity::SelectMode::UI, onComplete));
+        break;
       case SettingAction::None:
         // Do nothing
         break;
@@ -249,10 +270,29 @@ void SettingsActivity::render(Activity::RenderLock&&) {
           const bool value = SETTINGS.*(setting.valuePtr);
           valueText = value ? tr(STR_STATE_ON) : tr(STR_STATE_OFF);
         } else if (setting.type == SettingType::ENUM && setting.valuePtr != nullptr) {
-          const uint8_t value = SETTINGS.*(setting.valuePtr);
-          valueText = I18N.get(setting.enumValues[value]);
+          // Font Family: show external font name when selected
+          if (setting.nameId == StrId::STR_FONT_FAMILY && FontMgr.getSelectedIndex() >= 0) {
+            const FontInfo* info = FontMgr.getFontInfo(FontMgr.getSelectedIndex());
+            valueText = info ? info->name : tr(STR_EXTERNAL_FONT);
+          // Font Size: show actual pixel size when external font is active
+          } else if (setting.nameId == StrId::STR_FONT_SIZE && FontMgr.getSelectedIndex() >= 0) {
+            const FontInfo* info = FontMgr.getFontInfo(FontMgr.getSelectedIndex());
+            valueText = info ? (std::to_string(info->size) + "pt") : "—";
+          } else {
+            const uint8_t value = SETTINGS.*(setting.valuePtr);
+            valueText = I18N.get(setting.enumValues[value]);
+          }
         } else if (setting.type == SettingType::VALUE && setting.valuePtr != nullptr) {
           valueText = std::to_string(SETTINGS.*(setting.valuePtr));
+        } else if (setting.type == SettingType::ACTION && setting.nameId == StrId::STR_EXT_UI_FONT) {
+          // Show current UI font name or "Built-in"
+          if (FontMgr.isUiFontEnabled()) {
+            const int idx = FontMgr.getUiSelectedIndex();
+            const FontInfo* info = FontMgr.getFontInfo(idx);
+            valueText = info ? info->name : tr(STR_EXTERNAL_FONT);
+          } else {
+            valueText = tr(STR_BUILTIN_DISABLED);
+          }
         }
         return valueText;
       },
