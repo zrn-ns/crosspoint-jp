@@ -27,7 +27,10 @@ class MappedInputManager {
   // Returns the raw front button index that was pressed this frame (or -1 if none).
   int getPressedFrontButton() const;
 
-  // Set effective orientation to remap directional buttons for rotated display
+  // Set the effective screen orientation (called by OrientationHelper when
+  // switching activities). Button mapping uses this instead of the raw
+  // SETTINGS.orientation so that UI pages in Portrait mode are not affected
+  // by a landscape setting.
   void setEffectiveOrientation(Orientation o) { effectiveOrientation = o; }
 
  private:
@@ -35,6 +38,4 @@ class MappedInputManager {
   Orientation effectiveOrientation = Orientation::Portrait;
 
   bool mapButton(Button button, bool (HalGPIO::*fn)(uint8_t) const) const;
-  // Remap directional button based on current screen orientation
-  Button remapForOrientation(Button button) const;
 };
