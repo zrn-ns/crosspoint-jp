@@ -14,6 +14,7 @@ class EpubReaderMenuActivity final : public ActivityWithSubactivity {
   // Menu actions available from the reader menu.
   enum class MenuAction {
     SELECT_CHAPTER,
+    READER_SETTINGS,
     GO_TO_PERCENT,
     ROTATE_SCREEN,
     SCREENSHOT,
@@ -49,6 +50,7 @@ class EpubReaderMenuActivity final : public ActivityWithSubactivity {
 
   // Fixed menu layout (order matters for up/down navigation).
   const std::vector<MenuItem> menuItems = {{MenuAction::SELECT_CHAPTER, StrId::STR_SELECT_CHAPTER},
+                                           {MenuAction::READER_SETTINGS, StrId::STR_SETTINGS_TITLE},
                                            {MenuAction::ROTATE_SCREEN, StrId::STR_ORIENTATION},
                                            {MenuAction::GO_TO_PERCENT, StrId::STR_GO_TO_PERCENT},
                                            {MenuAction::SCREENSHOT, StrId::STR_SCREENSHOT_BUTTON},

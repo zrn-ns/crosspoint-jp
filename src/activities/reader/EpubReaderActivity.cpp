@@ -19,6 +19,7 @@
 #include "OrientationHelper.h"
 #include "QrDisplayActivity.h"
 #include "RecentBooksStore.h"
+#include "activities/settings/SettingsActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "util/ScreenshotUtil.h"
@@ -381,6 +382,18 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
             exitActivity();
             requestUpdate();
           }));
+      break;
+    }
+    case EpubReaderMenuActivity::MenuAction::READER_SETTINGS: {
+      // Open settings directly on the Reader category and return to reader on back.
+      exitActivity();
+      enterNewActivity(new SettingsActivity(
+          renderer, mappedInput,
+          [this] {
+            exitActivity();
+            requestUpdate();
+          },
+          1, 1));
       break;
     }
     case EpubReaderMenuActivity::MenuAction::DISPLAY_QR: {

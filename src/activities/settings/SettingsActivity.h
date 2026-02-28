@@ -150,6 +150,8 @@ class SettingsActivity final : public ActivityWithSubactivity {
   const std::vector<SettingInfo>* currentSettings = nullptr;
 
   const std::function<void()> onGoHome;
+  int initialCategoryIndex = 0;
+  int initialSettingIndex = 0;
 
   static constexpr int categoryCount = 4;
   static const StrId categoryNames[categoryCount];
@@ -159,8 +161,12 @@ class SettingsActivity final : public ActivityWithSubactivity {
 
  public:
   explicit SettingsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
-                            const std::function<void()>& onGoHome)
-      : ActivityWithSubactivity("Settings", renderer, mappedInput), onGoHome(onGoHome) {}
+                            const std::function<void()>& onGoHome, int initialCategoryIndex = 0,
+                            int initialSettingIndex = 0)
+      : ActivityWithSubactivity("Settings", renderer, mappedInput),
+        onGoHome(onGoHome),
+        initialCategoryIndex(initialCategoryIndex),
+        initialSettingIndex(initialSettingIndex) {}
   void onEnter() override;
   void onExit() override;
   void loop() override;

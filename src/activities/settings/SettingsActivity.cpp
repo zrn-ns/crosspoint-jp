@@ -31,16 +31,16 @@ void SettingsActivity::onEnter() {
   controlsSettings.clear();
   systemSettings.clear();
 
-  for (auto& setting : getSettingsList()) {
+  for (const auto& setting : getSettingsList()) {
     if (setting.category == StrId::STR_NONE_OPT) continue;
     if (setting.category == StrId::STR_CAT_DISPLAY) {
-      displaySettings.push_back(std::move(setting));
+      displaySettings.push_back(setting);
     } else if (setting.category == StrId::STR_CAT_READER) {
-      readerSettings.push_back(std::move(setting));
+      readerSettings.push_back(setting);
     } else if (setting.category == StrId::STR_CAT_CONTROLS) {
-      controlsSettings.push_back(std::move(setting));
+      controlsSettings.push_back(setting);
     } else if (setting.category == StrId::STR_CAT_SYSTEM) {
-      systemSettings.push_back(std::move(setting));
+      systemSettings.push_back(setting);
     }
     // Web-only categories (KOReader Sync, OPDS Browser) are skipped for device UI
   }
@@ -57,13 +57,37 @@ void SettingsActivity::onEnter() {
   readerSettings.push_back(SettingInfo::Action(StrId::STR_CUSTOMISE_STATUS_BAR, SettingAction::CustomiseStatusBar));
   displaySettings.push_back(SettingInfo::Action(StrId::STR_EXT_UI_FONT, SettingAction::SelectUiFont));
 
-  // Reset selection to first category
-  selectedCategoryIndex = 0;
-  selectedSettingIndex = 0;
+  // Initialize selection based on caller hint.
+  if (initialCategoryIndex < 0 || initialCategoryIndex >= categoryCount) {
+    selectedCategoryIndex = 0;
+  } else {
+    selectedCategoryIndex = initialCategoryIndex;
+  }
 
-  // Initialize with first category (Display)
-  currentSettings = &displaySettings;
-  settingsCount = static_cast<int>(displaySettings.size());
+  switch (selectedCategoryIndex) {
+    case 0:
+      currentSettings = &displaySettings;
+      break;
+    case 1:
+      currentSettings = &readerSettings;
+      break;
+    case 2:
+      currentSettings = &controlsSettings;
+      break;
+    case 3:
+    default:
+      currentSettings = &systemSettings;
+      break;
+  }
+  settingsCount = static_cast<int>(currentSettings->size());
+
+  if (initialSettingIndex < 0) {
+    selectedSettingIndex = 0;
+  } else if (initialSettingIndex > settingsCount) {
+    selectedSettingIndex = settingsCount;
+  } else {
+    selectedSettingIndex = initialSettingIndex;
+  }
 
   // Trigger first update
   requestUpdate();
@@ -156,6 +180,10 @@ void SettingsActivity::toggleCurrentSetting() {
     // Toggle the boolean value using the member pointer
     const bool currentValue = SETTINGS.*(setting.valuePtr);
     SETTINGS.*(setting.valuePtr) = !currentValue;
+    // Apply invert images change immediately
+    if (setting.nameId == StrId::STR_INVERT_IMAGES) {
+      renderer.setInvertImagesInDarkMode(SETTINGS.invertImages);
+    }
   } else if (setting.type == SettingType::ENUM && setting.valuePtr != nullptr) {
     // Font Size: skip when external font is selected (fixed bitmap size)
     if (setting.nameId == StrId::STR_FONT_SIZE && FontMgr.getSelectedIndex() >= 0) {
