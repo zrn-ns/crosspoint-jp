@@ -9,6 +9,8 @@
 #include <esp_task_wdt.h>
 
 #include <algorithm>
+#include <cctype>
+#include <cstring>
 #include <map>
 
 #include "CrossPointSettings.h"
@@ -71,16 +73,117 @@ String normalizeWebPath(const String& inputPath) {
   return result;
 }
 
-bool isProtectedItemName(const String& name) {
-  if (name.startsWith(".")) {
+bool isProtectedItemName(const char* name) {
+  if (name == nullptr || name[0] == '\0') {
+    return false;
+  }
+  if (name[0] == '.') {
     return true;
   }
   for (size_t i = 0; i < HIDDEN_ITEMS_COUNT; i++) {
-    if (name.equals(HIDDEN_ITEMS[i])) {
+    if (strcmp(name, HIDDEN_ITEMS[i]) == 0) {
       return true;
     }
   }
   return false;
+}
+
+bool isProtectedItemName(const String& name) {
+  return isProtectedItemName(name.c_str());
+}
+
+bool endsWithIgnoreCase(const char* value, const char* suffix) {
+  if (value == nullptr || suffix == nullptr) {
+    return false;
+  }
+
+  const size_t valueLen = strlen(value);
+  const size_t suffixLen = strlen(suffix);
+  if (suffixLen > valueLen) {
+    return false;
+  }
+
+  const char* start = value + (valueLen - suffixLen);
+  for (size_t i = 0; i < suffixLen; i++) {
+    const unsigned char left = static_cast<unsigned char>(start[i]);
+    const unsigned char right = static_cast<unsigned char>(suffix[i]);
+    if (std::tolower(left) != std::tolower(right)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+size_t appendEscapedJsonString(char* output, const size_t outputSize, const char* input) {
+  if (output == nullptr || outputSize == 0) {
+    return 0;
+  }
+
+  size_t outPos = 0;
+  const char* src = input == nullptr ? "" : input;
+
+  while (*src != '\0') {
+    const unsigned char c = static_cast<unsigned char>(*src);
+    const char* replacement = nullptr;
+
+    switch (c) {
+      case '"':
+        replacement = "\\\"";
+        break;
+      case '\\':
+        replacement = "\\\\";
+        break;
+      case '\b':
+        replacement = "\\b";
+        break;
+      case '\f':
+        replacement = "\\f";
+        break;
+      case '\n':
+        replacement = "\\n";
+        break;
+      case '\r':
+        replacement = "\\r";
+        break;
+      case '\t':
+        replacement = "\\t";
+        break;
+      default:
+        break;
+    }
+
+    if (replacement != nullptr) {
+      const size_t replacementLen = strlen(replacement);
+      if (outPos + replacementLen >= outputSize) {
+        output[0] = '\0';
+        return 0;
+      }
+      memcpy(output + outPos, replacement, replacementLen);
+      outPos += replacementLen;
+    } else if (c < 0x20) {
+      if (outPos + 6 >= outputSize) {
+        output[0] = '\0';
+        return 0;
+      }
+      const int written = snprintf(output + outPos, outputSize - outPos, "\\u%04x", c);
+      if (written != 6) {
+        output[0] = '\0';
+        return 0;
+      }
+      outPos += 6;
+    } else {
+      if (outPos + 1 >= outputSize) {
+        output[0] = '\0';
+        return 0;
+      }
+      output[outPos++] = static_cast<char>(c);
+    }
+    src++;
+  }
+
+  output[outPos] = '\0';
+  return outPos;
 }
 
 bool isReaderFontFamilySetting(const SettingInfo& s) {
@@ -354,7 +457,7 @@ void CrossPointWebServer::handleStatus() const {
   server->send(200, "application/json", json);
 }
 
-void CrossPointWebServer::scanFiles(const char* path, const std::function<void(FileInfo)>& callback) const {
+void CrossPointWebServer::scanFiles(const char* path, const std::function<void(const FileInfo&)>& callback) const {
   FsFile root = Storage.open(path);
   if (!root) {
     LOG_DBG("WEB", "Failed to open directory: %s", path);
@@ -370,35 +473,25 @@ void CrossPointWebServer::scanFiles(const char* path, const std::function<void(F
   LOG_DBG("WEB", "Scanning files in: %s", path);
 
   FsFile file = root.openNextFile();
-  char name[500];
   while (file) {
-    file.getName(name, sizeof(name));
-    auto fileName = String(name);
-
-    // Skip hidden items (starting with ".")
-    bool shouldHide = fileName.startsWith(".");
-
-    // Check against explicitly hidden items list
-    if (!shouldHide) {
-      for (size_t i = 0; i < HIDDEN_ITEMS_COUNT; i++) {
-        if (fileName.equals(HIDDEN_ITEMS[i])) {
-          shouldHide = true;
-          break;
-        }
-      }
+    FileInfo info;
+    if (!file.getName(info.name, sizeof(info.name))) {
+      LOG_DBG("WEB", "Skipping file entry with invalid name in: %s", path);
+      file.close();
+      yield();
+      esp_task_wdt_reset();
+      file = root.openNextFile();
+      continue;
     }
 
-    if (!shouldHide) {
-      FileInfo info;
-      info.name = fileName;
+    if (!isProtectedItemName(info.name)) {
       info.isDirectory = file.isDirectory();
-
       if (info.isDirectory) {
         info.size = 0;
         info.isEpub = false;
       } else {
         info.size = file.size();
-        info.isEpub = isEpubFile(info.name);
+        info.isEpub = endsWithIgnoreCase(info.name, ".epub");
       }
 
       callback(info);
@@ -413,9 +506,7 @@ void CrossPointWebServer::scanFiles(const char* path, const std::function<void(F
 }
 
 bool CrossPointWebServer::isEpubFile(const String& filename) const {
-  String lower = filename;
-  lower.toLowerCase();
-  return lower.endsWith(".epub");
+  return endsWithIgnoreCase(filename.c_str(), ".epub");
 }
 
 void CrossPointWebServer::handleFileList() const {
@@ -441,21 +532,22 @@ void CrossPointWebServer::handleFileListData() const {
   server->send(200, "application/json", "");
   server->sendContent("[");
   char output[512];
+  char escapedName[FileInfo::NAME_BUFFER_SIZE * 2];
   constexpr size_t outputSize = sizeof(output);
   bool seenFirst = false;
-  JsonDocument doc;
 
-  scanFiles(currentPath.c_str(), [this, &output, &doc, seenFirst](const FileInfo& info) mutable {
-    doc.clear();
-    doc["name"] = info.name;
-    doc["size"] = info.size;
-    doc["isDirectory"] = info.isDirectory;
-    doc["isEpub"] = info.isEpub;
+  scanFiles(currentPath.c_str(), [this, &output, &escapedName, seenFirst](const FileInfo& info) mutable {
+    if (appendEscapedJsonString(escapedName, sizeof(escapedName), info.name) == 0 && info.name[0] != '\0') {
+      LOG_DBG("WEB", "Skipping file entry with oversized escaped JSON name");
+      return;
+    }
 
-    const size_t written = serializeJson(doc, output, outputSize);
-    if (written >= outputSize) {
-      // JSON output truncated; skip this entry to avoid sending malformed JSON
-      LOG_DBG("WEB", "Skipping file entry with oversized JSON for name: %s", info.name.c_str());
+    const int written = snprintf(output, outputSize,
+                                 "{\"name\":\"%s\",\"size\":%llu,\"isDirectory\":%s,\"isEpub\":%s}",
+                                 escapedName, static_cast<unsigned long long>(info.size),
+                                 info.isDirectory ? "true" : "false", info.isEpub ? "true" : "false");
+    if (written < 0 || static_cast<size_t>(written) >= outputSize) {
+      LOG_DBG("WEB", "Skipping file entry with oversized JSON for name: %s", info.name);
       return;
     }
 

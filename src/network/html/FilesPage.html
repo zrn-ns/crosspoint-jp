@@ -1117,7 +1117,8 @@ function uploadFileWebSocket(file, onProgress, onComplete, onError) {
     ws.onclose = function(event) {
       console.log('[WS] Connection closed, code:', event.code, 'reason:', event.reason);
       if (sendingChunks) {
-        reject(new Error('WebSocket closed unexpectedly'));
+        const detail = event.reason ? ` (${event.code}: ${event.reason})` : ` (${event.code})`;
+        reject(new Error('WebSocket closed unexpectedly' + detail));
       }
     };
   });
@@ -1180,6 +1181,15 @@ function uploadFile() {
   const failedFiles = [];
   let useWebSocket = true; // Try WebSocket first
 
+  function isWebSocketTransportError(error) {
+    if (!error || typeof error.message !== 'string') return false;
+    const message = error.message;
+    return message.includes('WebSocket connection failed') ||
+           message.includes('WebSocket error during upload') ||
+           message.includes('WebSocket closed unexpectedly') ||
+           message.includes('Network error');
+  }
+
   async function uploadNextFile() {
     if (currentIndex >= files.length) {
       // All files processed - show summary
@@ -1238,8 +1248,8 @@ function uploadFile() {
       }
     } catch (error) {
       console.error('Upload error:', error);
-      if (useWebSocket && error.message === 'WebSocket connection failed') {
-        // Fall back to HTTP for all subsequent uploads
+      if (useWebSocket && isWebSocketTransportError(error)) {
+        // Fall back to HTTP for all subsequent uploads on transport instability
         console.log('WebSocket failed, falling back to HTTP');
         useWebSocket = false;
         // Retry this file with HTTP
