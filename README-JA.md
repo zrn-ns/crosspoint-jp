@@ -2,6 +2,8 @@
 
 [English](./README.md) | [中文](./README-ZH.md) | **[日本語](./README-JA.md)**
 
+このリポジトリで AI コーディングエージェントを使う場合は、先に [AGENTS.md](./AGENTS.md) を参照してください。
+
 > [daveallie/crosspoint-reader](https://github.com/daveallie/crosspoint-reader) をベースにした **Xteink X4** 電子ペーパーリーダー用ファームウェアの CJK 適用版です。
 
 本プロジェクトは、オリジナルの CrossPoint Reader をベースに CJK 対応を行い、多言語インターフェースと CJK フォントのレンダリングをサポートしています。
@@ -141,6 +143,27 @@ pio run --target upload
 2. 特定の画面でフリーズした場合は、デバイスを再起動してみてください。
 3. ESP32-C3 のメモリは非常に限られています。大きな CJK フォントファイルを UI フォントと読書用フォントの両方に同時使用すると、メモリ不足でクラッシュする場合があります。UI フォントは 20pt 以下を推奨します。
 4. 新しい本を追加した後、初めてホーム画面を開くと、表紙のサムネイルが生成されます。「読み込み中」のポップアップが数秒間表示されることがありますが、これは正常な動作であり、フリーズではありません。
+
+## 🤝 コントリビューション
+
+初めてこのリポジトリに参加する場合は、まず [Contributing Docs](./docs/contributing/README.md) をご確認ください。
+
+PR を作成する前に、ローカルで以下のチェックを実行することを推奨します。
+
+```sh
+./bin/clang-format-fix
+pio check --fail-on-defect low --fail-on-defect medium --fail-on-defect high
+pio run
+```
+
+ハイフネーション関連の変更を行った場合は、追加で次を実行してください。
+
+```sh
+./test/run_hyphenation_eval.sh english
+```
+
+- PR タイトルは semantic 形式を推奨し、`.github/PULL_REQUEST_TEMPLATE.md` を記入してください。
+- AI コーディングエージェントを使う場合は、[AGENTS.md](./AGENTS.md) も参照してください。
 
 ## 📜 謝辞
 

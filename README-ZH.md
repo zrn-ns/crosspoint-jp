@@ -2,6 +2,8 @@
 
 [English](./README.md) | **[中文](./README-ZH.md)** | [日本語](./README-JA.md)
 
+如果你使用 AI 编码 Agent 在本仓库协作开发, 请先阅读 [AGENTS.md](./AGENTS.md).
+
 > 基于 [daveallie/crosspoint-reader](https://github.com/daveallie/crosspoint-reader) 的 **Xteink X4** 墨水屏阅读器固件 CJK 适配版. 
 
 本项目在原版 CrossPoint Reader 的基础上进行了 CJK 适配, 支持多语言界面和 CJK 字体渲染. 
@@ -141,6 +143,27 @@ pio run --target upload
 2. 若在某个界面卡住, 可尝试重启设备.
 3. ESP32-C3 内存非常有限, 同时使用大型 CJK 字体文件作为 UI 字体和阅读字体可能导致内存溢出崩溃. 建议 UI 字体选择 20pt 及以下的字号.
 4. 添加新书后首次打开主页时, 设备会生成封面缩略图, 可能出现 "加载中" 弹窗并等待数秒, 这是正常现象, 并非设备卡死.
+
+## 🤝 参与贡献
+
+如果你是首次参与本项目, 建议先阅读 [贡献文档](./docs/contributing/README.md).
+
+提交 PR 前建议先在本地完成以下检查:
+
+```sh
+./bin/clang-format-fix
+pio check --fail-on-defect low --fail-on-defect medium --fail-on-defect high
+pio run
+```
+
+如果改动涉及连字符逻辑, 请额外执行单项测试:
+
+```sh
+./test/run_hyphenation_eval.sh english
+```
+
+- PR 标题建议使用语义化格式, 并填写 `.github/PULL_REQUEST_TEMPLATE.md`.
+- 如果你使用 AI 编码助手/Agent, 请额外阅读 [AGENTS.md](./AGENTS.md).
 
 ## 📜 致谢
 

@@ -2,6 +2,8 @@
 
 **[English](./README.md)** | [中文](./README-ZH.md) | [日本語](./README-JA.md)
 
+For AI coding agents working in this repository, see [AGENTS.md](./AGENTS.md).
+
 > A CJK adapted version of the **Xteink X4** e-ink reader firmware based on [daveallie/crosspoint-reader](https://github.com/daveallie/crosspoint-reader).
 
 This project adapts the original CrossPoint Reader for CJK support, featuring a multi-language interface and CJK font rendering.
@@ -198,10 +200,29 @@ If you are new to the codebase, start with the [contributing docs](./docs/contri
 If you're looking for a way to help out, take a look at the [ideas discussion board](https://github.com/crosspoint-reader/crosspoint-reader/discussions/categories/ideas).
 If there's something there you'd like to work on, leave a comment so that we can avoid duplicated effort.
 
-Everyone here is a volunteer, so please be respectful and patient. For more details on our goverance and community
+Everyone here is a volunteer, so please be respectful and patient. For more details on our governance and community
 principles, please see [GOVERNANCE.md](GOVERNANCE.md).
 
 ### To submit a contribution:
+
+1. Create a focused branch from `master`.
+2. Run local checks before opening a PR:
+
+```sh
+./bin/clang-format-fix
+pio check --fail-on-defect low --fail-on-defect medium --fail-on-defect high
+pio run
+```
+
+If your change touches hyphenation logic, also run:
+
+```sh
+./test/run_hyphenation_eval.sh english
+```
+
+3. Use a semantic PR title and fill in `.github/PULL_REQUEST_TEMPLATE.md`.
+
+For agentic coding tools (AI coding agents), also read [AGENTS.md](./AGENTS.md).
 
 ## 📜 Credits
 
