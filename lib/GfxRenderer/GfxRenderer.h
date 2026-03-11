@@ -42,7 +42,11 @@ class GfxRenderer {
   uint8_t* frameBuffer = nullptr;
   uint8_t* bwBufferChunks[BW_BUFFER_NUM_CHUNKS] = {nullptr};
   std::map<int, EpdFontFamily> fontMap;
-  std::map<int, SdCardFont*> sdCardFonts_;  // fontId -> SdCardFont*
+  // Mutable because ensureSdCardFontReady() is const (called from layout code
+  // that holds a const GfxRenderer&) but triggers SD card reads and heap
+  // allocation inside the SdCardFont objects. Same pragmatic compromise as
+  // fontCacheManager_ below.
+  mutable std::map<int, SdCardFont*> sdCardFonts_;
 
   // Mutable because drawText() is const but needs to delegate scan-mode
   // recording to the (non-const) FontCacheManager. Same pragmatic compromise
@@ -78,6 +82,7 @@ class GfxRenderer {
   void unregisterSdCardFont(int fontId) { sdCardFonts_.erase(fontId); }
   void clearSdCardFonts() { sdCardFonts_.clear(); }
   const std::map<int, SdCardFont*>& getSdCardFonts() const { return sdCardFonts_; }
+  bool isSdCardFont(int fontId) const { return sdCardFonts_.count(fontId) > 0; }
   // Ensure SD card font glyph data is loaded for the given text. Called from layout code
   // (which holds a const GfxRenderer&) before measuring word widths. Safe to call on non-SD fonts (no-op).
   void ensureSdCardFontReady(int fontId, const char* utf8Text) const;

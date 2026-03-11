@@ -82,16 +82,3 @@ int SdCardFontManager::getFontId(const std::string& familyName, uint8_t size, ui
   }
   return 0;
 }
-
-float SdCardFontManager::getLineCompression(uint8_t lineSpacing) {
-  // Same values as Bookerly (the most neutral built-in font)
-  switch (lineSpacing) {
-    case 0:  // TIGHT
-      return 0.95f;
-    case 1:  // NORMAL
-    default:
-      return 1.0f;
-    case 2:  // WIDE
-      return 1.1f;
-  }
-}

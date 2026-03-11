@@ -29,7 +29,6 @@ class SdCardFont {
   void clearCache();
 
   // Returns pointer to the managed EpdFont for a given style.
-  // For v3 files, only style 0 is valid regardless of what style the file represents.
   // Returns nullptr if the style is not present.
   EpdFont* getEpdFont(uint8_t style = 0);
 

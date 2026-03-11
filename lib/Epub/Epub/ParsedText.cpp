@@ -100,10 +100,12 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
   // Apply fixed transforms before any per-line layout work.
   applyParagraphIndent();
 
-  // Ensure SD card font glyph data is loaded before measuring word widths.
-  // For flash-based fonts this is a no-op. For SD card fonts (e.g. CJK), this
-  // reads glyph metadata + bitmaps for all unique codepoints in this paragraph.
-  {
+  // Ensure SD card font glyph metrics are loaded before measuring word widths.
+  // For flash-based fonts isSdCardFont() returns false and this block is skipped
+  // entirely — no heap allocation. For SD card fonts this reads glyph metadata
+  // (advanceX only, no bitmaps) for all unique codepoints in this paragraph so
+  // that calculateWordWidths() can measure text without on-demand SD I/O.
+  if (renderer.isSdCardFont(fontId)) {
     std::string allText;
     for (size_t i = 0; i < words.size(); i++) {
       if (i > 0) allText += ' ';

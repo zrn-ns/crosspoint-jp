@@ -2,6 +2,7 @@
 
 #include <HalPowerManager.h>
 
+#include "SdCardFontGlobals.h"
 #include "boot_sleep/BootActivity.h"
 #include "boot_sleep/SleepActivity.h"
 #include "browser/OpdsBookBrowserActivity.h"
@@ -180,9 +181,6 @@ void ActivityManager::goToRecentBooks() {
 void ActivityManager::goToBrowser() {
   replaceActivity(std::make_unique<OpdsBookBrowserActivity>(renderer, mappedInput));
 }
-
-// Defined in main.cpp — ensures the correct SD card font family is loaded
-extern void ensureSdFontLoaded();
 
 void ActivityManager::goToReader(std::string path) {
   ensureSdFontLoaded();

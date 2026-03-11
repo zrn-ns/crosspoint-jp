@@ -26,9 +26,6 @@ class SdCardFontManager {
   // Get name of currently loaded family (empty if none).
   const std::string& currentFamilyName() const { return loadedFamilyName_; }
 
-  // Get line compression for SD card fonts (same as NotoSans values).
-  static float getLineCompression(uint8_t lineSpacing);
-
   // Generate deterministic font ID from family name + size + style.
   static int generateFontId(const std::string& name, uint8_t size, uint8_t style);
 

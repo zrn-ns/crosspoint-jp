@@ -20,8 +20,6 @@ Usage:
       NotoSansCJKsc-Regular.otf \\
       --output-dir NotoSansCJK/
 
-    # Legacy positional-argument mode (backward compat)
-    python fontconvert_sdcard.py NotoSansCJK_14_regular 14 NotoSansCJKsc-Regular.otf --2bit
 """
 
 import freetype
@@ -60,14 +58,6 @@ INTERVAL_PRESETS = {
                     (0xFB00, 0xFB06)],
 }
 
-# Legacy CJK intervals (for backward compat with positional-arg mode)
-LEGACY_CJK_INTERVALS = [
-    (0x0020, 0x007E), (0x0080, 0x00FF), (0x2000, 0x206F),
-    (0x3000, 0x303F), (0x3040, 0x309F), (0x30A0, 0x30FF),
-    (0x4E00, 0x9FFF), (0xF900, 0xFAFF), (0xFF00, 0xFFEF),
-    (0xFFFD, 0xFFFD),
-]
-
 
 def resolve_intervals(preset_str):
     """Resolve comma-separated preset names into a merged, sorted, deduplicated interval list."""
@@ -98,7 +88,7 @@ GlyphProps = namedtuple("GlyphProps", [
     "width", "height", "advance_x", "left", "top", "data_length", "data_offset", "code_point"
 ])
 
-# Intermediate data from rasterizing one font style (used by both v3 and v4 writers)
+# Intermediate data from rasterizing one font style
 StyleRasterData = namedtuple("StyleRasterData", [
     "style_id",                # 0=regular, 1=bold, 2=italic, 3=bolditalic
     "intervals",               # validated intervals [(start, end), ...]
@@ -643,44 +633,6 @@ def style_sections_total_size(sections):
 
 # --- File writers ---
 
-def generate_cpfont(fontfile, size, intervals, output_path, is2bit=True, force_autohint=False):
-    """Generate a single-style v3 .cpfont file (backward compatible)."""
-    sd = rasterize_font_style(fontfile, size, intervals, style_id=0,
-                              is2bit=is2bit, force_autohint=force_autohint)
-
-    MAGIC = b"CPFONT\x00\x00"
-    VERSION = 3
-    flags = 1 if is2bit else 0
-
-    header = struct.pack("<8sHHIIBhhHHBBB",
-                         MAGIC, VERSION, flags,
-                         len(sd.intervals), len(sd.all_glyphs),
-                         sd.advanceY & 0xFF, sd.ascender, sd.descender,
-                         len(sd.kern_left_classes), len(sd.kern_right_classes),
-                         sd.kern_left_class_count, sd.kern_right_class_count,
-                         len(sd.ligature_pairs))
-    assert len(header) == 32
-
-    sections = pack_style_sections(sd)
-
-    os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else ".", exist_ok=True)
-    with open(output_path, "wb") as f:
-        f.write(header)
-        for section in sections:
-            f.write(section)
-
-    kern_lig_size = sum(len(sections[i]) for i in range(2, 6))
-    total_file_size = len(header) + style_sections_total_size(sections)
-    print(f"  Output: {output_path}", file=sys.stderr)
-    print(f"    Header:    {len(header)} bytes", file=sys.stderr)
-    print(f"    Intervals: {len(sections[0])} bytes ({len(sd.intervals)} intervals)", file=sys.stderr)
-    print(f"    Glyphs:    {len(sections[1])} bytes ({len(sd.all_glyphs)} glyphs)", file=sys.stderr)
-    print(f"    Kern/Lig:  {kern_lig_size} bytes", file=sys.stderr)
-    print(f"    Bitmaps:   {len(sections[6])} bytes", file=sys.stderr)
-    print(f"    Total:     {total_file_size} bytes ({total_file_size / 1024 / 1024:.2f} MB)", file=sys.stderr)
-    return total_file_size
-
-
 def generate_cpfont_multistyle(style_fonts, size, intervals, output_path,
                                is2bit=True, force_autohint=False):
     """Generate a multi-style v4 .cpfont file.
@@ -809,10 +761,6 @@ def main():
     parser.add_argument("--bolditalic", dest="font_bolditalic",
                         help="Font file for bold-italic style.")
 
-    # Legacy positional arguments for backward compatibility
-    parser.add_argument("legacy_args", nargs="*",
-                        help=argparse.SUPPRESS)
-
     args = parser.parse_args()
 
     if args.list_presets:
@@ -834,22 +782,9 @@ def main():
         style_fonts[3] = args.font_bolditalic
 
     is_multistyle = len(style_fonts) > 0
-
-    # Detect legacy mode: fontfile + legacy_args without --intervals
     fontfile = args.fontfile
-    if not is_multistyle and fontfile and args.legacy_args and len(args.legacy_args) >= 2 and not args.intervals:
-        # Legacy positional mode: name size fontfile
-        legacy_name = fontfile
-        legacy_size = int(args.legacy_args[0])
-        fontfile = args.legacy_args[1]
-        intervals = LEGACY_CJK_INTERVALS
-        output_path = args.output if args.output else f"{legacy_name}.cpfont"
-        print(f"Generating {output_path} (size {legacy_size}, legacy CJK intervals)...", file=sys.stderr)
-        generate_cpfont(fontfile, legacy_size, intervals, output_path,
-                        is2bit=True, force_autohint=args.force_autohint)
-        return
 
-    # Require --intervals for both modes
+    # Require --intervals
     if not args.intervals:
         print("Error: --intervals is required (e.g., --intervals latin-ext,greek,cyrillic)", file=sys.stderr)
         print(f"Available presets: {', '.join(sorted(INTERVAL_PRESETS.keys()))}", file=sys.stderr)

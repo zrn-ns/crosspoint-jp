@@ -343,7 +343,11 @@ int SdCardFont::prewarm(const char* utf8Text, uint8_t styleMask, bool metadataOn
 
   unsigned long startMs = millis();
 
-  // Step 1: Extract unique codepoints from UTF-8 text (shared across all styles)
+  // Step 1: Extract unique codepoints from UTF-8 text (shared across all styles).
+  // Dedup uses O(n^2) linear scan — worst case is MAX_PAGE_GLYPHS (512) unique codepoints
+  // = ~131K comparisons, but in practice pages contain far fewer unique codepoints so the
+  // actual cost is much lower. This is dwarfed by SD I/O that follows. Alternatives (hash
+  // set, bitmap) exceed the 256-byte stack limit or add template bloat.
   // Heap-allocated: MAX_PAGE_GLYPHS * 4 = 2048 bytes, too large for stack (limit < 256 bytes)
   std::unique_ptr<uint32_t[]> codepoints(new (std::nothrow) uint32_t[MAX_PAGE_GLYPHS]);
   if (!codepoints) {

@@ -32,7 +32,7 @@ if [ ! -f "$NOTOSANSCJK_FONT" ]; then
   echo "Downloaded $(du -h "$NOTOSANSCJK_FONT" | cut -f1) to $NOTOSANSCJK_FONT"
 fi
 
-# Clean output directories to remove stale v3 files that conflict with new v4 files
+# Clean output directories to ensure a fresh build
 echo "Cleaning output directories..."
 rm -rf "$OUTPUT_BASE/NotoSansExtended/" "$OUTPUT_BASE/Bookerly-SD/" "$OUTPUT_BASE/NotoSansCJK/"
 
@@ -48,7 +48,7 @@ python3 "$SCRIPT" \
   --output-dir "$OUTPUT_BASE/NotoSansExtended/" &
 PID_NOTO=$!
 
-echo "[2/3] Bookerly-SD (v4 multi-style)"
+echo "[2/3] Bookerly-SD (multi-style)"
 python3 "$SCRIPT" \
   --regular "$FONT_DIR/Bookerly/Bookerly-Regular.ttf" \
   --bold "$FONT_DIR/Bookerly/Bookerly-Bold.ttf" \
