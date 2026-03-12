@@ -59,6 +59,10 @@ class SdCardFont {
   void resetStats();
   const Stats& getStats() const { return stats_; }
 
+  // Content hash of the file header + style TOC entries (computed during load).
+  // Used to generate deterministic font IDs for section cache invalidation.
+  uint32_t contentHash() const { return contentHash_; }
+
  private:
   // Per-style metadata (parsed from file header/TOC)
   struct CpFontHeader {
@@ -140,6 +144,7 @@ class SdCardFont {
   uint32_t overflowNext_ = 0;
 
   Stats stats_;
+  uint32_t contentHash_ = 0;
   bool loaded_ = false;
 
   // Per-style helpers

@@ -56,7 +56,12 @@ void GfxRenderer::begin() {
   }
 }
 
-void GfxRenderer::insertFont(const int fontId, EpdFontFamily font) { fontMap.insert({fontId, font}); }
+void GfxRenderer::insertFont(const int fontId, EpdFontFamily font) {
+  auto result = fontMap.insert({fontId, font});
+  if (!result.second) {
+    LOG_ERR("GFX", "Font ID %d already registered, ignoring duplicate", fontId);
+  }
+}
 
 // Translate logical (x,y) coordinates to physical panel coordinates based on current orientation
 // This should always be inlined for better performance
