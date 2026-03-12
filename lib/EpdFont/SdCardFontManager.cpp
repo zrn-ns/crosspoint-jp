@@ -12,15 +12,12 @@ SdCardFontManager::~SdCardFontManager() {
   }
 }
 
-int SdCardFontManager::generateFontId(const std::string& name, uint8_t size, uint8_t style) {
-  // DJB2 hash of "<name>_<size>_<style>" — deterministic and fast
-  std::string key = name + "_" + std::to_string(size) + "_" + std::to_string(style);
-  uint32_t hash = 5381;
-  for (char c : key) {
-    hash = ((hash << 5) + hash) + static_cast<uint8_t>(c);
-  }
-  // Return as signed int (same range as built-in font IDs)
-  return static_cast<int>(hash);
+int SdCardFontManager::nextFontId_ = SD_FONT_ID_BASE;
+
+int SdCardFontManager::generateFontId() {
+  // Monotonic counter. Built-in font IDs are large hash values (see fontIds.h),
+  // so small sequential IDs starting at SD_FONT_ID_BASE can never collide.
+  return nextFontId_++;
 }
 
 bool SdCardFontManager::loadFamily(const SdCardFontFamilyInfo& family, GfxRenderer& renderer) {
@@ -44,7 +41,29 @@ bool SdCardFontManager::loadFamily(const SdCardFontFamilyInfo& family, GfxRender
       continue;
     }
 
-    int fontId = generateFontId(family.name, fileInfo.pointSize, 0);
+    // Check for duplicate point size (e.g. two files for the same family at the same size)
+    bool duplicate = false;
+    for (const auto& lf : loaded_) {
+      if (lf.size == fileInfo.pointSize) {
+        LOG_ERR("SDMGR", "Duplicate size %u for family %s, skipping %s", fileInfo.pointSize, family.name.c_str(),
+                fileInfo.path.c_str());
+        duplicate = true;
+        break;
+      }
+    }
+    if (duplicate) {
+      delete font;
+      continue;
+    }
+
+    int fontId = generateFontId();
+    // Guard against collision with built-in font IDs (shouldn't happen with
+    // sequential IDs, but future-proofs against ID scheme changes)
+    if (renderer.getFontMap().count(fontId) != 0) {
+      LOG_ERR("SDMGR", "Font ID %d collides with existing font, skipping %s", fontId, fileInfo.path.c_str());
+      delete font;
+      continue;
+    }
     renderer.registerSdCardFont(fontId, font);
     loaded_.push_back({font, fontId, fileInfo.pointSize});
 

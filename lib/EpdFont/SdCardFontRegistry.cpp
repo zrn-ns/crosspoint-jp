@@ -136,7 +136,6 @@ bool SdCardFontRegistry::discover() {
       entry.close();
     }
 
-    if (static_cast<int>(families_.size()) >= MAX_SD_FAMILIES) break;
   }
   root.close();
 

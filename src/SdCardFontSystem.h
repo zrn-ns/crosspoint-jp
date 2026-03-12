@@ -9,6 +9,9 @@ class GfxRenderer;
 /// Hides implementation details behind a single begin() + ensureLoaded() API.
 class SdCardFontSystem {
  public:
+  SdCardFontSystem() = default;
+  SdCardFontSystem(const SdCardFontSystem&) = delete;
+  SdCardFontSystem& operator=(const SdCardFontSystem&) = delete;
   /// Discover SD card fonts and load user's saved selection. Call once during setup.
   void begin(GfxRenderer& renderer);
 

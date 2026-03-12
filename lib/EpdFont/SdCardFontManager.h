@@ -12,6 +12,8 @@ class SdCardFontManager {
  public:
   SdCardFontManager() = default;
   ~SdCardFontManager();
+  SdCardFontManager(const SdCardFontManager&) = delete;
+  SdCardFontManager& operator=(const SdCardFontManager&) = delete;
 
   // Load all size/style variants for a discovered family.
   // Returns true if at least one font was loaded.
@@ -24,10 +26,7 @@ class SdCardFontManager {
   int getFontId(const std::string& familyName, uint8_t size, uint8_t style = 0) const;
 
   // Get name of currently loaded family (empty if none).
-  const std::string& currentFamilyName() const { return loadedFamilyName_; }
-
-  // Generate deterministic font ID from family name + size + style.
-  static int generateFontId(const std::string& name, uint8_t size, uint8_t style);
+  const std::string& currentFamilyName() const { return loadedFamilyName_; };
 
  private:
   struct LoadedFont {
@@ -35,6 +34,10 @@ class SdCardFontManager {
     int fontId;
     uint8_t size;
   };
+  static constexpr int SD_FONT_ID_BASE = 1;  // well below built-in hash range
+  static int nextFontId_;
+  static int generateFontId();
+
   std::string loadedFamilyName_;
   std::vector<LoadedFont> loaded_;
 };

@@ -423,7 +423,7 @@ def extract_ligatures_fonttools(font_path, codepoints):
     return pairs
 
 
-def rasterize_font_style(fontfile, size, intervals, style_id=0, is2bit=True, force_autohint=False):
+def rasterize_font_style(fontfile, size, intervals, style_id=0, force_autohint=False):
     """Rasterize all glyphs for one font style. Returns StyleRasterData."""
     style_names = {0: "regular", 1: "bold", 2: "italic", 3: "bolditalic"}
     style_label = style_names.get(style_id, str(style_id))
@@ -634,7 +634,7 @@ def style_sections_total_size(sections):
 # --- File writers ---
 
 def generate_cpfont_multistyle(style_fonts, size, intervals, output_path,
-                               is2bit=True, force_autohint=False):
+                               force_autohint=False):
     """Generate a multi-style v4 .cpfont file.
 
     style_fonts: dict of {style_id: fontfile_path} e.g. {0: "Regular.ttf", 2: "Italic.ttf"}
@@ -643,7 +643,7 @@ def generate_cpfont_multistyle(style_fonts, size, intervals, output_path,
     VERSION = 4
     HEADER_SIZE = 32
     STYLE_TOC_ENTRY_SIZE = 32
-    flags = 1 if is2bit else 0
+    flags = 1  # always 2-bit greyscale
     style_count = len(style_fonts)
 
     # Rasterize each style
@@ -653,7 +653,7 @@ def generate_cpfont_multistyle(style_fonts, size, intervals, output_path,
         print(f"  Rasterizing style {style_id}...", file=sys.stderr)
         raster_data[style_id] = rasterize_font_style(
             fontfile, size, intervals, style_id=style_id,
-            is2bit=is2bit, force_autohint=force_autohint)
+            force_autohint=force_autohint)
 
     # Pack binary sections for each style
     packed_sections = {}  # style_id -> tuple of section bytearrays
@@ -740,8 +740,6 @@ def main():
                         help="Font style for single-style mode (default: regular).")
     parser.add_argument("--name", dest="name",
                         help="Font family name for output filenames (default: derived from font filename).")
-    parser.add_argument("--2bit", dest="is2Bit", action="store_true", default=True,
-                        help="Generate 2-bit greyscale bitmap (default, always on).")
     parser.add_argument("--force-autohint", dest="force_autohint", action="store_true",
                         help="Force FreeType auto-hinter instead of native font hinting.")
     parser.add_argument("-o", "--output", dest="output",
@@ -840,7 +838,7 @@ def main():
         print(f"Generating {output_path} (size {sz}, {len(style_fonts)} style(s), v4)...", file=sys.stderr)
         total_size += generate_cpfont_multistyle(
             style_fonts, sz, intervals, output_path,
-            is2bit=True, force_autohint=args.force_autohint)
+            force_autohint=args.force_autohint)
     print(f"\nTotal: {len(sizes)} files, {total_size / 1024 / 1024:.2f} MB", file=sys.stderr)
 
 
