@@ -59,10 +59,18 @@ void SettingsActivity::rebuildSettingsLists() {
 
   // Update currentSettings pointer and count for the active category
   switch (selectedCategoryIndex) {
-    case 0: currentSettings = &displaySettings; break;
-    case 1: currentSettings = &readerSettings; break;
-    case 2: currentSettings = &controlsSettings; break;
-    case 3: currentSettings = &systemSettings; break;
+    case 0:
+      currentSettings = &displaySettings;
+      break;
+    case 1:
+      currentSettings = &readerSettings;
+      break;
+    case 2:
+      currentSettings = &controlsSettings;
+      break;
+    case 3:
+      currentSettings = &systemSettings;
+      break;
   }
   settingsCount = static_cast<int>(currentSettings->size());
 }
@@ -169,12 +177,11 @@ void SettingsActivity::toggleCurrentSetting() {
   } else if (setting.type == SettingType::ENUM && setting.valueGetter && setting.valueSetter) {
     if (setting.nameId == StrId::STR_FONT_FAMILY) {
       // Launch font selection submenu instead of cycling
-      startActivityForResult(
-          std::make_unique<FontSelectionActivity>(renderer, mappedInput, &sdFontSystem.registry()),
-          [this](const ActivityResult&) {
-            SETTINGS.saveToFile();
-            rebuildSettingsLists();
-          });
+      startActivityForResult(std::make_unique<FontSelectionActivity>(renderer, mappedInput, &sdFontSystem.registry()),
+                             [this](const ActivityResult&) {
+                               SETTINGS.saveToFile();
+                               rebuildSettingsLists();
+                             });
       return;
     }
     const uint8_t totalValues = setting.enumStringValues.empty()

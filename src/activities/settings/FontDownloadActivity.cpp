@@ -391,8 +391,8 @@ void FontDownloadActivity::render(RenderLock&&) {
                         (std::string(tr(STR_SIZE_LABEL)) + formatSize(totalUninstalledSize())).c_str());
     } else {
       const auto& family = families_[familyIndexFromList(selectedIndex_)];
-      std::string confirmText =
-          (family.installed ? std::string(tr(STR_REDOWNLOAD)) : std::string(tr(STR_DOWNLOAD))) + " " + family.name + "?";
+      std::string confirmText = (family.installed ? std::string(tr(STR_REDOWNLOAD)) : std::string(tr(STR_DOWNLOAD))) +
+                                " " + family.name + "?";
       renderer.drawCenteredText(UI_10_FONT_ID, y, confirmText.c_str());
       y += lineHeight + metrics.verticalSpacing;
       renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, y,

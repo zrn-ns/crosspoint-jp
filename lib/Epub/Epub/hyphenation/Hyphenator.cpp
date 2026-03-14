@@ -1,9 +1,9 @@
 #include "Hyphenator.h"
 
+#include <Utf8.h>
+
 #include <algorithm>
 #include <vector>
-
-#include <Utf8.h>
 
 #include "HyphenationCommon.h"
 #include "LanguageHyphenator.h"
