@@ -759,8 +759,47 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
       }
     }
 
+    // Detect CJK characters and emit each as its own word.
+    // CJK scripts don't use spaces between words — line breaks can occur between
+    // any two characters without hyphens. We decode the UTF-8 codepoint in-place
+    // to check, then emit the character as a standalone word token.
+    {
+      uint8_t b0 = static_cast<uint8_t>(s[i]);
+      int cpLen = 0;
+      uint32_t cp = 0;
+      if (b0 < 0x80) {
+        cp = b0;
+        cpLen = 1;
+      } else if ((b0 & 0xE0) == 0xC0 && i + 1 < len) {
+        cp = (b0 & 0x1F) << 6 | (static_cast<uint8_t>(s[i + 1]) & 0x3F);
+        cpLen = 2;
+      } else if ((b0 & 0xF0) == 0xE0 && i + 2 < len) {
+        cp = (b0 & 0x0F) << 12 | (static_cast<uint8_t>(s[i + 1]) & 0x3F) << 6 |
+             (static_cast<uint8_t>(s[i + 2]) & 0x3F);
+        cpLen = 3;
+      } else if ((b0 & 0xF8) == 0xF0 && i + 3 < len) {
+        cp = (b0 & 0x07) << 18 | (static_cast<uint8_t>(s[i + 1]) & 0x3F) << 12 |
+             (static_cast<uint8_t>(s[i + 2]) & 0x3F) << 6 | (static_cast<uint8_t>(s[i + 3]) & 0x3F);
+        cpLen = 4;
+      }
+
+      if (cpLen > 0 && utf8IsCjkBreakable(cp)) {
+        // Flush any preceding Latin/other text as its own word
+        if (self->partWordBufferIndex > 0) {
+          self->flushPartWordBuffer();
+        }
+        // Emit this CJK character as a standalone word
+        for (int j = 0; j < cpLen; j++) {
+          self->partWordBuffer[j] = s[i + j];
+        }
+        self->partWordBufferIndex = cpLen;
+        self->flushPartWordBuffer();
+        i += cpLen - 1;  // -1 because the for loop increments i
+        continue;
+      }
+    }
+
     // If we're about to run out of space, then cut the word off and start a new one.
-    // For CJK text (no spaces), this is the primary word-breaking mechanism.
     // We must avoid splitting multi-byte UTF-8 sequences across word boundaries,
     // otherwise the trailing bytes become orphaned continuation bytes that the
     // decoder can't interpret.
