@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <vector>
 
+#include <Utf8.h>
+
 #include "HyphenationCommon.h"
 #include "LanguageHyphenator.h"
 #include "LanguageRegistry.h"
@@ -136,7 +138,16 @@ std::vector<Hyphenator::BreakInfo> Hyphenator::breakOffsets(const std::string& w
   std::vector<Hyphenator::BreakInfo> breaks;
   breaks.reserve(indexes.size());
   for (const size_t idx : indexes) {
-    breaks.push_back({byteOffsetForIndex(cps, idx), true});
+    // CJK characters can break without inserting a visible hyphen.
+    // Check the codepoint at the break position: if it's a CJK character,
+    // no hyphen is needed since CJK scripts don't use hyphenation.
+    bool needsHyphen = true;
+    if (idx < cps.size() && utf8IsCjkBreakable(cps[idx].value)) {
+      needsHyphen = false;
+    } else if (idx > 0 && utf8IsCjkBreakable(cps[idx - 1].value)) {
+      needsHyphen = false;
+    }
+    breaks.push_back({byteOffsetForIndex(cps, idx), needsHyphen});
   }
 
   return breaks;
