@@ -5,6 +5,7 @@
 
 #include "FontInstaller.h"
 #include "activities/Activity.h"
+#include "util/ButtonNavigator.h"
 
 #ifndef FONT_MANIFEST_URL
 #define FONT_MANIFEST_URL "https://github.com/crosspoint-reader/crosspoint-reader/releases/download/sd-fonts/fonts.json"
@@ -48,6 +49,7 @@ class FontDownloadActivity : public Activity {
 
   State state_ = WIFI_SELECTION;
   FontInstaller fontInstaller_;
+  ButtonNavigator buttonNavigator_;
 
   // Manifest data
   std::string baseUrl_;
@@ -59,10 +61,16 @@ class FontDownloadActivity : public Activity {
   size_t currentFileTotal_ = 0;
   size_t fileProgress_ = 0;
   size_t fileTotal_ = 0;
+  int downloadingFamilyIndex_ = 0;
   std::string errorMessage_;
 
   void onWifiSelectionComplete(bool success);
   bool fetchAndParseManifest();
   void downloadFamily(ManifestFamily& family);
+  void downloadAll();
+  bool isDownloadAllSelected() const { return selectedIndex_ == 0 && !families_.empty(); }
+  int familyIndexFromList(int listIndex) const { return listIndex - 1; }
+  int listItemCount() const { return families_.empty() ? 0 : static_cast<int>(families_.size()) + 1; }
+  size_t totalUninstalledSize() const;
   static std::string formatSize(size_t bytes);
 };

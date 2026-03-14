@@ -578,8 +578,9 @@ int SdCardFont::prewarmStyle(uint8_t styleIdx, const uint32_t* codepoints, uint3
   unsigned long sdStart = millis();
   uint32_t seekCount = 0;
 
-  // Read glyph metadata
-  int32_t lastReadIndex = -1;
+  // Read glyph metadata (lastReadIndex tracks sequential reads to skip seeks;
+  // INT32_MIN ensures the first iteration always seeks to the correct offset)
+  int32_t lastReadIndex = INT32_MIN;
   for (uint32_t i = 0; i < validCount; i++) {
     uint32_t mapIdx = readOrder[i];
     int32_t gIdx = mappings[mapIdx].globalIndex;

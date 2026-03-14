@@ -30,7 +30,7 @@ bool FontInstaller::isValidFamilyName(const char* name) {
 bool FontInstaller::ensureFamilyDir(const char* familyName) {
   // Ensure base fonts directory exists
   if (!Storage.exists(SdCardFontRegistry::FONTS_DIR)) {
-    if (!Storage.mkdir("FONT", SdCardFontRegistry::FONTS_DIR)) {
+    if (!Storage.mkdir(SdCardFontRegistry::FONTS_DIR)) {
       LOG_ERR("FONT", "Failed to create fonts dir: %s", SdCardFontRegistry::FONTS_DIR);
       return false;
     }
@@ -40,7 +40,7 @@ bool FontInstaller::ensureFamilyDir(const char* familyName) {
   snprintf(dirPath, sizeof(dirPath), "%s/%s", SdCardFontRegistry::FONTS_DIR, familyName);
 
   if (!Storage.exists(dirPath)) {
-    if (!Storage.mkdir("FONT", dirPath)) {
+    if (!Storage.mkdir(dirPath)) {
       LOG_ERR("FONT", "Failed to create family dir: %s", dirPath);
       return false;
     }
