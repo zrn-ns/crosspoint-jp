@@ -35,6 +35,7 @@ EPDFONTS_DIR = SCRIPT_DIR.parent  # lib/EpdFont
 DEFAULT_CONFIG = SCRIPT_DIR / "sd-fonts.yaml"
 DEFAULT_OUTPUT = SCRIPT_DIR / "output"
 DOWNLOAD_DIR = SCRIPT_DIR / "downloaded_fonts"
+INSTANCE_DIR = SCRIPT_DIR / "instanced_fonts"
 
 
 def download_font(url: str, dest: Path) -> Path:
@@ -53,22 +54,63 @@ def download_font(url: str, dest: Path) -> Path:
     return dest
 
 
+def extract_static_instance(source_path: Path, axes: dict, family_name: str, style_name: str) -> Path:
+    """Use fonttools instancer to pin variable font axes, producing a static TTF.
+
+    Caches the result in INSTANCE_DIR/<family>/<style>_<axes>_<mtime>.ttf.
+    Returns the path to the static font file.
+    """
+    from fontTools.varLib.instancer import instantiateVariableFont
+    from fontTools.ttLib import TTFont
+
+    mtime = int(source_path.stat().st_mtime)
+    axis_key = "_".join(f"{k}{v}" for k, v in sorted(axes.items()))
+    cache_name = f"{style_name}_{axis_key}_{mtime}.ttf"
+    cached = INSTANCE_DIR / family_name / cache_name
+
+    if cached.exists():
+        return cached
+
+    # Clean old cached instances for this style
+    cached.parent.mkdir(parents=True, exist_ok=True)
+    for old in cached.parent.glob(f"{style_name}_*.ttf"):
+        old.unlink()
+
+    print(f"  Extracting static instance: {family_name}/{style_name} ({axis_key})")
+    font = TTFont(str(source_path))
+    instantiateVariableFont(font, axes)
+    font.save(str(cached))
+    font.close()
+
+    return cached
+
+
 def resolve_font_path(style_spec: dict, family_name: str, style_name: str) -> Path:
-    """Resolve a style spec (path or url) to a local font file path."""
+    """Resolve a style spec (path or url) to a local font file path.
+
+    If 'variable' key is present, extracts a static instance via fonttools
+    instancer after resolving the source file.
+    """
     if "path" in style_spec:
         resolved = EPDFONTS_DIR / style_spec["path"]
         if not resolved.exists():
             raise FileNotFoundError(f"{family_name}/{style_name}: {resolved} not found")
-        return resolved
-
-    if "url" in style_spec:
+    elif "url" in style_spec:
         url = style_spec["url"]
         # Derive a stable filename from the URL
         filename = url.rsplit("/", 1)[-1]
         dest = DOWNLOAD_DIR / family_name / filename
-        return download_font(url, dest)
+        resolved = download_font(url, dest)
+    else:
+        raise ValueError(f"{family_name}/{style_name}: must have 'path' or 'url'")
 
-    raise ValueError(f"{family_name}/{style_name}: must have 'path' or 'url'")
+    # If variable font axes are specified, extract a static instance
+    if "variable" in style_spec:
+        resolved = extract_static_instance(
+            resolved, style_spec["variable"], family_name, style_name
+        )
+
+    return resolved
 
 
 def build_family(family: dict, output_base: Path) -> tuple[str, bool, str]:

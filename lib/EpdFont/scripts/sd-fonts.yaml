@@ -16,21 +16,19 @@
 #                  url:  download URL (for fonts not in the repo)
 #
 # Variable fonts:
-#   Some fonts (Bitter, Inter, Alegreya) are only distributed as variable
-#   fonts. freetype-py's FT_Set_Var_Design_Coordinates binding is broken —
-#   it doesn't actually change the rendered glyphs — so we can only use the
-#   default instance (Regular weight). These are listed as regular-only.
+#   Some fonts (Bitter, Inter, Alegreya) are distributed as variable fonts.
+#   freetype-py can't set variable font axis values, so the build script
+#   uses fonttools.instancer to extract static instances automatically.
 #
-#   To add bold/italic support, use fonttools to extract static instances
-#   before passing to fontconvert_sdcard.py:
+#   To use a variable font, add a 'variable' key to the style spec with
+#   axis values to pin:
 #
-#     pip install fonttools
-#     fonttools instancer Bitter[wght].ttf wght=700 -o Bitter-Bold.ttf
-#     fonttools instancer Bitter-Italic[wght].ttf wght=400 -o Bitter-Italic.ttf
-#     fonttools instancer Bitter-Italic[wght].ttf wght=700 -o Bitter-BoldItalic.ttf
+#     styles:
+#       regular: {url: "https://...Font[wght].ttf", variable: {wght: 400}}
+#       bold:    {url: "https://...Font[wght].ttf", variable: {wght: 700}}
 #
-#   Then add a pre-processing step in build-sd-fonts.py to run these before
-#   generation, and update the styles below to use the extracted static files.
+#   Extracted static fonts are cached in instanced_fonts/ (gitignored).
+#   Requires fonttools: pip install -r requirements.txt
 
 families:
   # ── Serif ──────────────────────────────────────────────────────────────
@@ -105,13 +103,15 @@ families:
       italic:     {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/ibmplexserif/IBMPlexSerif-Italic.ttf"}
       bolditalic: {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/ibmplexserif/IBMPlexSerif-BoldItalic.ttf"}
 
-  # Variable-font-only: uses default instance (Regular weight), no bold/italic
   - name: Bitter
     description: "Slab serif designed for e-ink (Latin, Cyrillic)"
     intervals: latin-ext,cyrillic
     sizes: [12, 14, 16, 18]
     styles:
-      regular: {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/bitter/Bitter%5Bwght%5D.ttf"}
+      regular:    {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/bitter/Bitter%5Bwght%5D.ttf", variable: {wght: 400}}
+      bold:       {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/bitter/Bitter%5Bwght%5D.ttf", variable: {wght: 700}}
+      italic:     {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/bitter/Bitter-Italic%5Bwght%5D.ttf", variable: {wght: 400}}
+      bolditalic: {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/bitter/Bitter-Italic%5Bwght%5D.ttf", variable: {wght: 700}}
 
   # ── Sans-serif ─────────────────────────────────────────────────────────
 
@@ -125,13 +125,15 @@ families:
       italic:     {path: "builtinFonts/source/NotoSans/NotoSans-Italic.ttf"}
       bolditalic: {path: "builtinFonts/source/NotoSans/NotoSans-BoldItalic.ttf"}
 
-  # Variable-font-only: uses default instance (Regular weight), no bold/italic
   - name: Inter
     description: "Modern sans-serif (Latin, Greek, Cyrillic)"
     intervals: latin-ext,greek,cyrillic
     sizes: [12, 14, 16, 18]
     styles:
-      regular: {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/inter/Inter%5Bopsz%2Cwght%5D.ttf"}
+      regular:    {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/inter/Inter%5Bopsz%2Cwght%5D.ttf", variable: {wght: 400, opsz: 14}}
+      bold:       {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/inter/Inter%5Bopsz%2Cwght%5D.ttf", variable: {wght: 700, opsz: 14}}
+      italic:     {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/inter/Inter-Italic%5Bopsz%2Cwght%5D.ttf", variable: {wght: 400, opsz: 14}}
+      bolditalic: {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/inter/Inter-Italic%5Bopsz%2Cwght%5D.ttf", variable: {wght: 700, opsz: 14}}
 
   - name: SourceSans3
     description: "Adobe humanist sans-serif (Latin, Greek, Cyrillic)"
@@ -153,13 +155,15 @@ families:
       italic:     {url: "https://raw.githubusercontent.com/IBM/plex/master/packages/plex-sans/fonts/complete/ttf/IBMPlexSans-Italic.ttf"}
       bolditalic: {url: "https://raw.githubusercontent.com/IBM/plex/master/packages/plex-sans/fonts/complete/ttf/IBMPlexSans-BoldItalic.ttf"}
 
-  # Variable-font-only: uses default instance (Regular weight), no bold/italic
   - name: Alegreya
     description: "Calligraphic serif/display (Latin, Greek, Cyrillic)"
     intervals: latin-ext,greek,cyrillic
     sizes: [12, 14, 16, 18]
     styles:
-      regular: {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/alegreya/Alegreya%5Bwght%5D.ttf"}
+      regular:    {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/alegreya/Alegreya%5Bwght%5D.ttf", variable: {wght: 400}}
+      bold:       {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/alegreya/Alegreya%5Bwght%5D.ttf", variable: {wght: 700}}
+      italic:     {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/alegreya/Alegreya-Italic%5Bwght%5D.ttf", variable: {wght: 400}}
+      bolditalic: {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/alegreya/Alegreya-Italic%5Bwght%5D.ttf", variable: {wght: 700}}
 
   # ── Monospace ──────────────────────────────────────────────────────────
 
@@ -225,28 +229,28 @@ families:
     intervals: armenian
     sizes: [12, 14, 16, 18]
     styles:
-      regular: {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/notosansarmenian/NotoSansArmenian%5Bwdth%2Cwght%5D.ttf"}
+      regular: {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/notosansarmenian/NotoSansArmenian%5Bwdth%2Cwght%5D.ttf", variable: {wght: 400, wdth: 100}}
 
   - name: NotoSansGeorgian
     description: "Georgian script"
     intervals: georgian
     sizes: [12, 14, 16, 18]
     styles:
-      regular: {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/notosansgeorgian/NotoSansGeorgian%5Bwdth%2Cwght%5D.ttf"}
+      regular: {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/notosansgeorgian/NotoSansGeorgian%5Bwdth%2Cwght%5D.ttf", variable: {wght: 400, wdth: 100}}
 
   - name: NotoSansEthiopic
     description: "Ethiopic/Ge'ez script"
     intervals: ethiopic
     sizes: [12, 14, 16, 18]
     styles:
-      regular: {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/notosansethiopic/NotoSansEthiopic%5Bwdth%2Cwght%5D.ttf"}
+      regular: {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/notosansethiopic/NotoSansEthiopic%5Bwdth%2Cwght%5D.ttf", variable: {wght: 400, wdth: 100}}
 
   - name: NotoSansCherokee
     description: "Cherokee syllabary"
     intervals: cherokee
     sizes: [12, 14, 16, 18]
     styles:
-      regular: {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanscherokee/NotoSansCherokee%5Bwght%5D.ttf"}
+      regular: {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanscherokee/NotoSansCherokee%5Bwght%5D.ttf", variable: {wght: 400}}
 
   - name: NotoSansTifinagh
     description: "Tifinagh script"
