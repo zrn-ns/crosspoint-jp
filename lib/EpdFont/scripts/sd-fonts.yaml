@@ -207,6 +207,7 @@ families:
     sizes: [12, 14, 16, 18]
     styles:
       regular: {url: "https://github.com/notofonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf"}
+      bold:    {url: "https://github.com/notofonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Bold.otf"}
 
   - name: NotoSerifCJK
     description: "Serif (Chinese, Japanese, Korean)"
