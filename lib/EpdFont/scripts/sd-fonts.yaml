@@ -209,6 +209,14 @@ families:
       regular: {url: "https://github.com/notofonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf"}
       bold:    {url: "https://github.com/notofonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Bold.otf"}
 
+  - name: NotoSansJpRegularOnly
+    description: "Sans-serif Japanese (Regular only, JIS X 0213)"
+    intervals: ascii,latin1,punctuation,cjk
+    codepoints_file: codepoints/japanese_jis0213.txt
+    sizes: [14]
+    styles:
+      regular: {url: "https://github.com/notofonts/noto-cjk/raw/main/Sans/OTF/Japanese/NotoSansCJKjp-Regular.otf"}
+
   - name: NotoSerifCJK
     description: "Serif (Chinese, Japanese, Korean)"
     intervals: ascii,latin1,punctuation,cjk

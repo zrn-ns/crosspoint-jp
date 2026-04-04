@@ -788,6 +788,10 @@ def main():
                         help="Font file for italic style.")
     parser.add_argument("--bolditalic", dest="font_bolditalic",
                         help="Font file for bold-italic style.")
+    parser.add_argument("--codepoints-file", dest="codepoints_file",
+                        help="Whitelist file of allowed codepoints (hex, one per line). "
+                             "When specified, only codepoints present in both the intervals "
+                             "and this file are included in the output.")
 
     args = parser.parse_args()
 
@@ -819,6 +823,34 @@ def main():
         sys.exit(1)
 
     intervals = resolve_intervals(args.intervals)
+
+    # Apply codepoints whitelist filter if specified
+    if args.codepoints_file:
+        allowed = set()
+        with open(args.codepoints_file, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                allowed.add(int(line, 16))
+        # Filter intervals to only include allowed codepoints
+        filtered = []
+        for start, end in intervals:
+            run_start = None
+            for cp in range(start, end + 1):
+                if cp in allowed:
+                    if run_start is None:
+                        run_start = cp
+                else:
+                    if run_start is not None:
+                        filtered.append((run_start, cp - 1))
+                        run_start = None
+            if run_start is not None:
+                filtered.append((run_start, end))
+        before = sum(e - s + 1 for s, e in intervals)
+        after = sum(e - s + 1 for s, e in filtered)
+        print(f"  Codepoints filter: {before} -> {after} ({len(allowed)} in whitelist)", file=sys.stderr)
+        intervals = filtered
 
     # Determine sizes
     if args.sizes:
