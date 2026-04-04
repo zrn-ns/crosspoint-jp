@@ -116,6 +116,9 @@ class ExternalFont {
 
   // Simple hash table for O(1) cache lookup (codepoint -> cache index, -1 if
   // not cached)
+  // -1 = 未使用スロット（プロービング停止）, -2 = トゥームストーン（削除済み、プロービング継続）
+  static constexpr int16_t HASH_EMPTY = -1;
+  static constexpr int16_t HASH_TOMBSTONE = -2;
   int16_t* _hashTable = nullptr;      // Dynamically allocated on load()
   static int hashCodepoint(uint32_t cp) { return cp % CACHE_SIZE; }
 

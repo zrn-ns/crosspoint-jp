@@ -149,9 +149,13 @@ int ExternalFont::findInCache(uint32_t codepoint) {
   for (int i = 0; i < CACHE_SIZE; i++) {
     int idx = (hash + i) % CACHE_SIZE;
     int16_t cacheIdx = _hashTable[idx];
-    if (cacheIdx == -1) {
-      // Empty slot, not found
+    if (cacheIdx == HASH_EMPTY) {
+      // 未使用スロット：このコードポイントは存在しない
       return -1;
+    }
+    if (cacheIdx == HASH_TOMBSTONE) {
+      // 削除済みスロット：プロービングを継続
+      continue;
     }
     if (_cache[cacheIdx].codepoint == codepoint) {
       return cacheIdx;
@@ -238,7 +242,7 @@ const uint8_t* ExternalFont::getGlyph(uint32_t codepoint) {
     for (int i = 0; i < CACHE_SIZE; i++) {
       int idx = (oldHash + i) % CACHE_SIZE;
       if (_hashTable[idx] == slot) {
-        _hashTable[idx] = -1;
+        _hashTable[idx] = HASH_TOMBSTONE;
         break;
       }
     }
@@ -327,11 +331,11 @@ const uint8_t* ExternalFont::getGlyph(uint32_t codepoint) {
     }
   }
 
-  // Add to hash table
+  // Add to hash table（空スロットまたはトゥームストーンに挿入）
   int hash = hashCodepoint(codepoint);
   for (int i = 0; i < CACHE_SIZE; i++) {
     int idx = (hash + i) % CACHE_SIZE;
-    if (_hashTable[idx] == -1) {
+    if (_hashTable[idx] == HASH_EMPTY || _hashTable[idx] == HASH_TOMBSTONE) {
       _hashTable[idx] = slot;
       break;
     }
