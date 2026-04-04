@@ -56,6 +56,26 @@ std::unique_ptr<PageImage> PageImage::deserialize(FsFile& file) {
   return std::unique_ptr<PageImage>(new PageImage(std::move(ib), xPos, yPos));
 }
 
+void PageTableRow::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
+                          const int viewportWidth) {
+  block->render(renderer, xPos + xOffset, yPos + yOffset, viewportWidth);
+}
+
+bool PageTableRow::serialize(FsFile& file) {
+  serialization::writePod(file, xPos);
+  serialization::writePod(file, yPos);
+  return block->serialize(file);
+}
+
+std::unique_ptr<PageTableRow> PageTableRow::deserialize(FsFile& file) {
+  int16_t xPos, yPos;
+  serialization::readPod(file, xPos);
+  serialization::readPod(file, yPos);
+  auto tb = TableRowBlock::deserialize(file);
+  if (!tb) return nullptr;
+  return std::unique_ptr<PageTableRow>(new PageTableRow(std::move(tb), xPos, yPos));
+}
+
 void Page::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
                   const int viewportWidth) const {
   for (auto& element : elements) {
@@ -119,6 +139,9 @@ std::unique_ptr<Page> Page::deserialize(FsFile& file) {
     } else if (tag == TAG_PageImage) {
       auto pi = PageImage::deserialize(file);
       page->elements.push_back(std::move(pi));
+    } else if (tag == TAG_PageTableRow) {
+      auto ptr = PageTableRow::deserialize(file);
+      page->elements.push_back(std::move(ptr));
     } else {
       LOG_ERR("PGE", "Deserialization failed: Unknown tag %u", tag);
       return nullptr;

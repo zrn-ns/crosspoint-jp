@@ -9,11 +9,13 @@
 
 #include "FootnoteEntry.h"
 #include "blocks/ImageBlock.h"
+#include "blocks/TableRowBlock.h"
 #include "blocks/TextBlock.h"
 
 enum PageElementTag : uint8_t {
   TAG_PageLine = 1,
-  TAG_PageImage = 2,  // New tag
+  TAG_PageImage = 2,
+  TAG_PageTableRow = 3,
 };
 
 // represents something that has been added to a page
@@ -56,6 +58,18 @@ class PageImage final : public PageElement {
   PageElementTag getTag() const override { return TAG_PageImage; }
   static std::unique_ptr<PageImage> deserialize(FsFile& file);
   const ImageBlock& getImageBlock() const { return *imageBlock; }
+};
+
+class PageTableRow final : public PageElement {
+  std::shared_ptr<TableRowBlock> block;
+
+ public:
+  PageTableRow(std::shared_ptr<TableRowBlock> block, const int16_t xPos, const int16_t yPos)
+      : PageElement(xPos, yPos), block(std::move(block)) {}
+  void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset, int viewportWidth = 0) override;
+  bool serialize(FsFile& file) override;
+  PageElementTag getTag() const override { return TAG_PageTableRow; }
+  static std::unique_ptr<PageTableRow> deserialize(FsFile& file);
 };
 
 class Page {

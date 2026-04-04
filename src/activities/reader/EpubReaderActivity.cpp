@@ -636,7 +636,8 @@ void EpubReaderActivity::render(RenderLock&& lock) {
       if (!section->createSectionFile(SETTINGS.getReaderFontId(), lineCompression,
                                       SETTINGS.extraParagraphSpacing, SETTINGS.paragraphAlignment, viewportWidth,
                                       viewportHeight, SETTINGS.hyphenationEnabled, SETTINGS.firstLineIndent,
-                                      SETTINGS.embeddedStyle, SETTINGS.imageRendering, popupFn, headingFontIds)) {
+                                      SETTINGS.embeddedStyle, SETTINGS.imageRendering, popupFn, headingFontIds,
+                                      UI_10_FONT_ID)) {
         LOG_ERR("ERS", "Failed to persist page data to SD");
         section.reset();
         // Show error to user instead of silent return
@@ -763,7 +764,8 @@ void EpubReaderActivity::silentIndexNextChapterIfNeeded(const uint16_t viewportW
   if (!nextSection.createSectionFile(SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(),
                                      SETTINGS.extraParagraphSpacing, SETTINGS.paragraphAlignment, viewportWidth,
                                      viewportHeight, SETTINGS.hyphenationEnabled, SETTINGS.firstLineIndent,
-                                     SETTINGS.embeddedStyle, SETTINGS.imageRendering, nullptr, silentHeadingFontIds)) {
+                                     SETTINGS.embeddedStyle, SETTINGS.imageRendering, nullptr, silentHeadingFontIds,
+                                     UI_10_FONT_ID)) {
     LOG_ERR("ERS", "Failed silent indexing for chapter: %d", nextSpineIndex);
   }
 }

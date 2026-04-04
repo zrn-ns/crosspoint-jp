@@ -10,6 +10,7 @@
 
 #include "../../Epub.h"
 #include "../Page.h"
+#include "../blocks/TableRowBlock.h"
 #include "../converters/ImageDecoderFactory.h"
 #include "../converters/ImageToFramebufferDecoder.h"
 #include "../htmlEntities.h"
@@ -276,20 +277,24 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     return;
   }
 
-  // Special handling for tables/cells: flatten into per-cell paragraphs with a prefixed header.
+  // Special handling for tables: buffer cell data for grid rendering.
   if (strcmp(name, "table") == 0) {
-    // skip nested tables
     if (self->tableDepth > 0) {
       self->tableDepth += 1;
+      self->depth += 1;
       return;
     }
 
     if (self->partWordBufferIndex > 0) {
       self->flushPartWordBuffer();
     }
+    if (self->currentTextBlock && !self->currentTextBlock->isEmpty()) {
+      self->makePages();
+    }
     self->tableDepth += 1;
     self->tableRowIndex = 0;
     self->tableColIndex = 0;
+    self->tableBuffer.clear();
     self->depth += 1;
     return;
   }
@@ -297,44 +302,15 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
   if (self->tableDepth == 1 && strcmp(name, "tr") == 0) {
     self->tableRowIndex += 1;
     self->tableColIndex = 0;
+    self->tableBuffer.emplace_back();
     self->depth += 1;
     return;
   }
 
   if (self->tableDepth == 1 && (strcmp(name, "td") == 0 || strcmp(name, "th") == 0)) {
-    if (self->partWordBufferIndex > 0) {
-      self->flushPartWordBuffer();
-    }
     self->tableColIndex += 1;
-
-    auto tableCellBlockStyle = BlockStyle();
-    tableCellBlockStyle.textAlignDefined = true;
-    const auto align = (self->paragraphAlignment == static_cast<uint8_t>(CssTextAlign::None))
-                           ? CssTextAlign::Justify
-                           : static_cast<CssTextAlign>(self->paragraphAlignment);
-    tableCellBlockStyle.alignment = align;
-    self->startNewTextBlock(tableCellBlockStyle);
-
-    const std::string headerText =
-        "Tab Row " + std::to_string(self->tableRowIndex) + ", Cell " + std::to_string(self->tableColIndex) + ":";
-    StyleStackEntry headerStyle;
-    headerStyle.depth = self->depth;
-    headerStyle.hasBold = true;
-    headerStyle.bold = false;
-    headerStyle.hasItalic = true;
-    headerStyle.italic = true;
-    headerStyle.hasUnderline = true;
-    headerStyle.underline = false;
-    self->inlineStyleStack.push_back(headerStyle);
-    self->updateEffectiveInlineStyle();
-    self->characterData(userData, headerText.c_str(), static_cast<int>(headerText.length()));
-    if (self->partWordBufferIndex > 0) {
-      self->flushPartWordBuffer();
-    }
-    self->nextWordContinues = false;
-    self->inlineStyleStack.pop_back();
-    self->updateEffectiveInlineStyle();
-
+    self->tableCellTextBuffer.clear();
+    self->tableCellIsHeader = (strcmp(name, "th") == 0);
     self->depth += 1;
     return;
   }
@@ -786,6 +762,19 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
     return;
   }
 
+  // Buffer text for table cell (top-level table)
+  if (self->tableDepth == 1) {
+    for (int i = 0; i < len; i++) {
+      char c = s[i];
+      if (c == '\n' || c == '\r' || c == '\t') c = ' ';
+      if (c == ' ' && (self->tableCellTextBuffer.empty() || self->tableCellTextBuffer.back() == ' ')) {
+        continue;
+      }
+      self->tableCellTextBuffer += c;
+    }
+    return;
+  }
+
   // Middle of skip
   if (self->skipUntilDepth < self->depth) {
     return;
@@ -968,11 +957,34 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
   const bool tableStructuralTag = isTableStructuralTag(name);
 
   if (self->tableDepth > 1 && strcmp(name, "table") == 0) {
-    // get rid of all text inside the nested table
-    self->partWordBufferIndex = 0;
     self->tableDepth -= 1;
-    LOG_DBG("EHP", "nested table detected, get rid of its content");
+    LOG_DBG("EHP", "nested table detected, skipped");
     return;
+  }
+
+  if (self->tableDepth == 1 && (strcmp(name, "td") == 0 || strcmp(name, "th") == 0)) {
+    if (!self->tableBuffer.empty()) {
+      ChapterHtmlSlimParser::TableCellData cell;
+      if (!self->tableCellTextBuffer.empty() && self->tableCellTextBuffer.back() == ' ') {
+        self->tableCellTextBuffer.pop_back();
+      }
+      cell.text = std::move(self->tableCellTextBuffer);
+      cell.isHeader = self->tableCellIsHeader;
+      self->tableBuffer.back().cells.push_back(std::move(cell));
+    }
+    self->tableCellTextBuffer.clear();
+  }
+
+  if (self->tableDepth == 1 && strcmp(name, "tr") == 0) {
+    // Row complete
+  }
+
+  if (self->tableDepth == 1 && strcmp(name, "table") == 0) {
+    self->tableDepth -= 1;
+    self->flushTableAsGrid();
+    self->tableBuffer.clear();
+    self->tableRowIndex = 0;
+    self->tableColIndex = 0;
   }
 
   // Flush buffer with current style BEFORE any style changes
@@ -1014,21 +1026,6 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
   // Leaving skip
   if (self->skipUntilDepth == self->depth) {
     self->skipUntilDepth = INT_MAX;
-  }
-
-  if (self->tableDepth == 1 && (strcmp(name, "td") == 0 || strcmp(name, "th") == 0)) {
-    self->nextWordContinues = false;
-  }
-
-  if (self->tableDepth == 1 && (strcmp(name, "tr") == 0)) {
-    self->nextWordContinues = false;
-  }
-
-  if (self->tableDepth == 1 && strcmp(name, "table") == 0) {
-    self->tableDepth -= 1;
-    self->tableRowIndex = 0;
-    self->tableColIndex = 0;
-    self->nextWordContinues = false;
   }
 
   // Leaving bold tag
@@ -1214,6 +1211,139 @@ void ChapterHtmlSlimParser::addLineToPage(std::shared_ptr<TextBlock> line) {
   const int16_t xOffset = line->getBlockStyle().leftInset();
   currentPage->elements.push_back(std::make_shared<PageLine>(line, xOffset, currentPageNextY));
   currentPageNextY += lineHeight;
+}
+
+// Character-level text wrapping for table cells.
+// Unlike wrappedText() which only breaks on spaces, this breaks at any character boundary,
+// making it suitable for CJK text without spaces.
+static std::vector<std::string> wrapCellText(GfxRenderer& renderer, const int fontId, const char* text,
+                                             const int maxWidth, const int maxLines,
+                                             const EpdFontFamily::Style style) {
+  std::vector<std::string> lines;
+  if (!text || !*text || maxWidth <= 0 || maxLines <= 0) return lines;
+
+  const char* p = text;
+  std::string current;
+
+  while (*p) {
+    // Determine UTF-8 character length
+    int charLen = 1;
+    const auto c = static_cast<unsigned char>(*p);
+    if (c >= 0xF0)
+      charLen = 4;
+    else if (c >= 0xE0)
+      charLen = 3;
+    else if (c >= 0xC0)
+      charLen = 2;
+
+    std::string test = current + std::string(p, charLen);
+    if (renderer.getTextWidth(fontId, test.c_str(), style) > maxWidth) {
+      if (current.empty()) {
+        // Single char wider than maxWidth — just push it
+        lines.push_back(std::string(p, charLen));
+        p += charLen;
+      } else {
+        lines.push_back(current);
+        current.clear();
+        // Don't advance p — re-process this character on the next line
+      }
+      if (static_cast<int>(lines.size()) >= maxLines) {
+        // Append remaining text as truncated last line
+        if (*p) {
+          lines.back() = renderer.truncatedText(fontId, (lines.back() + std::string(p)).c_str(), maxWidth, style);
+        }
+        return lines;
+      }
+      continue;
+    }
+    current = test;
+    p += charLen;
+  }
+
+  if (!current.empty() && static_cast<int>(lines.size()) < maxLines) {
+    lines.push_back(current);
+  }
+
+  return lines;
+}
+
+void ChapterHtmlSlimParser::flushTableAsGrid() {
+  if (tableBuffer.empty()) return;
+
+  int maxCols = 0;
+  for (const auto& row : tableBuffer) {
+    maxCols = std::max(maxCols, static_cast<int>(row.cells.size()));
+  }
+  if (maxCols == 0) return;
+
+  const int tblFontId = (tableFontId != 0) ? tableFontId : fontId;
+  const int lineH = renderer.getLineHeight(tblFontId);
+  static constexpr int16_t CELL_PADDING = 3;
+  static constexpr int MAX_CELL_LINES = 8;
+
+  // Limit columns to what can fit (min ~50px per column)
+  static constexpr int MIN_COL_WIDTH = 50;
+  const int maxFittableCols = std::max(1, static_cast<int>(viewportWidth) / MIN_COL_WIDTH);
+  if (maxCols > maxFittableCols) maxCols = maxFittableCols;
+
+  // Column widths: equal distribution across viewport
+  auto layout = std::make_shared<TableColumnLayout>();
+  layout->colWidths.resize(maxCols);
+  layout->fontId = tblFontId;
+  layout->lineHeight = static_cast<int16_t>(lineH);
+  layout->cellPadding = CELL_PADDING;
+
+  const int colWidth = viewportWidth / maxCols;
+  for (int col = 0; col < maxCols; col++) {
+    layout->colWidths[col] = static_cast<uint16_t>(colWidth);
+  }
+
+  // Start table on a new page if current page has content
+  if (currentPage && currentPageNextY > 0) {
+    completePageFn(std::move(currentPage));
+    completedPageCount++;
+    currentPage.reset(new Page());
+    currentPageNextY = 0;
+  }
+
+  // Process each row: wrap text, compute row height, add to pages
+  const int numRows = static_cast<int>(tableBuffer.size());
+  for (int rowIdx = 0; rowIdx < numRows; rowIdx++) {
+    const auto& row = tableBuffer[rowIdx];
+    std::vector<std::vector<std::string>> cellLines(maxCols);
+    std::vector<bool> headers(maxCols, false);
+    int maxLinesInRow = 1;
+
+    for (int col = 0; col < maxCols && col < static_cast<int>(row.cells.size()); col++) {
+      headers[col] = row.cells[col].isHeader;
+      const auto style = headers[col] ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
+      const int maxTextW = colWidth - CELL_PADDING * 2;
+      if (maxTextW > 0 && !row.cells[col].text.empty()) {
+        cellLines[col] = wrapCellText(renderer, tblFontId, row.cells[col].text.c_str(), maxTextW, MAX_CELL_LINES, style);
+      }
+      maxLinesInRow = std::max(maxLinesInRow, static_cast<int>(cellLines[col].size()));
+    }
+
+    const int16_t rowHeight = static_cast<int16_t>(maxLinesInRow * lineH + CELL_PADDING * 2);
+
+    auto block = std::make_shared<TableRowBlock>(
+        std::move(cellLines), std::move(headers), layout, rowHeight, rowIdx == 0, rowIdx == numRows - 1);
+
+    if (!currentPage) {
+      currentPage.reset(new Page());
+      currentPageNextY = 0;
+    }
+
+    if (currentPageNextY + rowHeight > viewportHeight) {
+      completePageFn(std::move(currentPage));
+      completedPageCount++;
+      currentPage.reset(new Page());
+      currentPageNextY = 0;
+    }
+
+    currentPage->elements.push_back(std::make_shared<PageTableRow>(block, 0, currentPageNextY));
+    currentPageNextY += rowHeight;
+  }
 }
 
 void ChapterHtmlSlimParser::makePages() {

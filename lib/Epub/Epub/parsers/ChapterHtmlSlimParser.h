@@ -72,6 +72,19 @@ class ChapterHtmlSlimParser {
   int tableRowIndex = 0;
   int tableColIndex = 0;
 
+  // Table grid buffering
+  struct TableCellData {
+    std::string text;
+    bool isHeader = false;
+  };
+  struct TableRowData {
+    std::vector<TableCellData> cells;
+  };
+  std::vector<TableRowData> tableBuffer;
+  std::string tableCellTextBuffer;
+  bool tableCellIsHeader = false;
+  int tableFontId = 0;
+
   // Anchor-to-page mapping: tracks which page each HTML id attribute lands on
   int completedPageCount = 0;
   std::vector<std::pair<std::string, uint16_t>> anchorData;
@@ -90,6 +103,7 @@ class ChapterHtmlSlimParser {
   void startNewTextBlock(const BlockStyle& blockStyle);
   void flushPartWordBuffer();
   void makePages();
+  void flushTableAsGrid();
   // XML callbacks
   static void XMLCALL startElement(void* userData, const XML_Char* name, const XML_Char** atts);
   static void XMLCALL characterData(void* userData, const XML_Char* s, int len);
@@ -106,7 +120,8 @@ class ChapterHtmlSlimParser {
                                  const bool embeddedStyle, const std::string& contentBase,
                                  const std::string& imageBasePath, const uint8_t imageRendering = 0,
                                  const std::function<void()>& popupFn = nullptr, const CssParser* cssParser = nullptr,
-                                 const int* headingFontIds = nullptr)
+                                 const int* headingFontIds = nullptr,
+                                 int tableFontId = 0)
 
       : epub(epub),
         filepath(filepath),
@@ -129,6 +144,7 @@ class ChapterHtmlSlimParser {
     if (headingFontIds) {
       for (int i = 0; i < 6; i++) this->headingFontIds[i] = headingFontIds[i];
     }
+    this->tableFontId = tableFontId;
   }
 
   ~ChapterHtmlSlimParser() = default;
