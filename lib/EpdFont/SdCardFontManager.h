@@ -38,4 +38,5 @@ class SdCardFontManager {
 
   std::string loadedFamilyName_;
   std::vector<LoadedFont> loaded_;
+  std::vector<int> virtualFontIds_;  // 全仮想fontId（unload時に全削除用）
 };
