@@ -2154,60 +2154,84 @@ void GfxRenderer::renderChar(const int fontId, const EpdFontFamily& fontFamily, 
 
   const EpdFontData* fontData = fontFamily.getData(style);
   const bool is2Bit = fontData->is2Bit;
-  const uint8_t width = glyph->width;
-  const uint8_t height = glyph->height;
-  const int left = glyph->left;
+  const uint8_t baseW = glyph->width;
+  const uint8_t baseH = glyph->height;
 
   const uint8_t* bitmap = getGlyphBitmap(fontData, glyph);
 
+  // SD card font scaling
+  const uint16_t scale = getSdCardFontScale(fontId);
+  const bool needsScale = (scale != 256);
+  const int drawW = needsScale ? ((baseW * scale + 128) >> 8) : baseW;
+  const int drawH = needsScale ? ((baseH * scale + 128) >> 8) : baseH;
+  const int drawLeft = needsScale ? ((glyph->left * static_cast<int>(scale) + 128) >> 8) : glyph->left;
+  const int drawTop = needsScale ? ((glyph->top * static_cast<int>(scale) + 128) >> 8) : glyph->top;
+
+  // Synthetic bold: Bold requested but font has no separate Bold style (same data as Regular)
+  const bool synthBold = (style & EpdFontFamily::BOLD) &&
+                         sdCardFontScales_.count(fontId) > 0 &&
+                         fontFamily.getData(style) == fontFamily.getData(EpdFontFamily::REGULAR);
+  const int boldPasses = synthBold ? 2 : 1;
+
   if (bitmap != nullptr) {
-    for (int glyphY = 0; glyphY < height; glyphY++) {
-      const int screenY = *y - glyph->top + glyphY;
-      for (int glyphX = 0; glyphX < width; glyphX++) {
-        const int pixelPosition = glyphY * width + glyphX;
-        const int screenX = *x + left + glyphX;
+    for (int pass = 0; pass < boldPasses; pass++) {
+      const int xBoldOffset = pass;  // 2nd pass: 1px right shift for bold
+      for (int glyphY = 0; glyphY < drawH; glyphY++) {
+        const int srcY = needsScale ? (glyphY * 256 / scale) : glyphY;
+        if (srcY >= baseH) continue;
+        const int screenY = *y - drawTop + glyphY;
+        for (int glyphX = 0; glyphX < drawW; glyphX++) {
+          const int srcX = needsScale ? (glyphX * 256 / scale) : glyphX;
+          if (srcX >= baseW) continue;
 
-        if (is2Bit) {
-          const uint8_t byte = bitmap[pixelPosition / 4];
-          const uint8_t bit_index = (3 - pixelPosition % 4) * 2;
-          const uint8_t bmpVal = 3 - ((byte >> bit_index) & 0x3);
+          const int pixelPosition = srcY * baseW + srcX;
+          const int screenX = *x + drawLeft + glyphX + xBoldOffset;
 
-          if (renderMode == BW) {
-            bool shouldDraw = false;
-            if (darkMode) {
-              if (bmpVal == 0) {
+          if (is2Bit) {
+            const uint8_t byte = bitmap[pixelPosition / 4];
+            const uint8_t bit_index = (3 - pixelPosition % 4) * 2;
+            const uint8_t bmpVal = 3 - ((byte >> bit_index) & 0x3);
+
+            if (renderMode == BW) {
+              bool shouldDraw = false;
+              if (darkMode) {
+                if (bmpVal == 0) {
+                  shouldDraw = true;
+                }
+              } else if (bmpVal < 3) {
                 shouldDraw = true;
               }
-            } else if (bmpVal < 3) {
-              shouldDraw = true;
-            }
 
-            if (shouldDraw) {
+              if (shouldDraw) {
+                drawPixel(screenX, screenY, pixelState);
+              }
+            } else if (renderMode == GRAYSCALE_MSB || renderMode == GRAYSCALE_LSB) {
+              if (bmpVal < 3) {
+                uint8_t val = bmpVal;
+                if (darkMode) {
+                  val = 3 - val;
+                }
+                bool bit = (renderMode == GRAYSCALE_LSB) ? (val & 1) : ((val >> 1) & 1);
+                drawPixel(screenX, screenY, !bit);
+              }
+            }
+          } else {
+            const uint8_t byte = bitmap[pixelPosition / 8];
+            const uint8_t bit_index = 7 - (pixelPosition % 8);
+
+            if ((byte >> bit_index) & 1) {
               drawPixel(screenX, screenY, pixelState);
             }
-          } else if (renderMode == GRAYSCALE_MSB || renderMode == GRAYSCALE_LSB) {
-            if (bmpVal < 3) {
-              uint8_t val = bmpVal;
-              if (darkMode) {
-                val = 3 - val;
-              }
-              bool bit = (renderMode == GRAYSCALE_LSB) ? (val & 1) : ((val >> 1) & 1);
-              drawPixel(screenX, screenY, !bit);
-            }
-          }
-        } else {
-          const uint8_t byte = bitmap[pixelPosition / 8];
-          const uint8_t bit_index = 7 - (pixelPosition % 8);
-
-          if ((byte >> bit_index) & 1) {
-            drawPixel(screenX, screenY, pixelState);
           }
         }
       }
     }
   }
 
-  *x += fp4::toPixel(glyph->advanceX);
+  int advPx = fp4::toPixel(glyph->advanceX);
+  if (needsScale) advPx = (advPx * scale + 128) >> 8;
+  if (synthBold) advPx += 1;
+  *x += advPx;
 }
 
 void GfxRenderer::getOrientedViewableTRBL(int* outTop, int* outRight, int* outBottom, int* outLeft) const {
