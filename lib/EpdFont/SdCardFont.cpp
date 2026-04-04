@@ -724,7 +724,15 @@ bool SdCardFont::hasAdvanceTable() const {
 }
 
 uint16_t SdCardFont::getAdvance(uint32_t codepoint, uint8_t style) const {
-  if (style >= MAX_STYLES || !advanceTable_[style]) return 0;
+  // Fall back to Regular (style 0) if requested style has no advance table
+  // (e.g., Bold requested but font only has Regular)
+  if (style >= MAX_STYLES || !advanceTable_[style]) {
+    if (style != 0 && advanceTable_[0]) {
+      style = 0;  // fallback to Regular
+    } else {
+      return 0;
+    }
+  }
   const AdvanceEntry* table = advanceTable_[style];
   const uint32_t size = advanceTableSize_[style];
   // Binary search sorted by codepoint

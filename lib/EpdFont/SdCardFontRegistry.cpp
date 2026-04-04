@@ -101,7 +101,7 @@ bool SdCardFontRegistry::discover() {
 
   FsFile root = Storage.open(FONTS_DIR);
   if (!root) {
-    LOG_DBG("SDREG", "Fonts directory not found: %s", FONTS_DIR);
+    LOG_ERR("SDREG", "Fonts directory not found: %s", FONTS_DIR);
     return false;
   }
   if (!root.isDirectory()) {

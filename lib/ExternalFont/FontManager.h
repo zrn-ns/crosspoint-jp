@@ -83,9 +83,16 @@ class FontManager {
   ExternalFont* getActiveUiFont();
 
   /**
-   * Check if external reader font is enabled
+   * Check if external reader font is enabled.
+   * Returns false when an SD card font is selected (SdCardFont uses fontMap
+   * directly and must not be intercepted by ExternalFont rendering paths).
    */
-  bool isExternalFontEnabled() const { return _selectedIndex >= 0 && _activeFont.isLoaded(); }
+  bool isExternalFontEnabled() const;
+
+  /**
+   * Suppress ExternalFont reader rendering when SD card font is active.
+   */
+  void setSdCardFontActive(bool active) { _sdCardFontActive = active; }
 
   /**
    * Check if external UI font is enabled
@@ -134,6 +141,7 @@ class FontManager {
 
   ExternalFont _activeFont;    // Reader font
   ExternalFont _activeUiFont;  // UI font
+  bool _sdCardFontActive = false;  // When true, suppress ExternalFont for reader use
 
   bool isUiSharingReaderFont() const { return _selectedUiIndex >= 0 && _selectedUiIndex == _selectedIndex; }
 

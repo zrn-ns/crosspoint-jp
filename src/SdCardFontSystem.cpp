@@ -1,5 +1,6 @@
 #include "SdCardFontSystem.h"
 
+#include <FontManager.h>
 #include <GfxRenderer.h>
 #include <Logging.h>
 
@@ -34,6 +35,9 @@ void SdCardFontSystem::begin(GfxRenderer& renderer) {
     }
   }
 
+  // Suppress ExternalFont reader rendering when SD card font is active
+  FontManager::getInstance().setSdCardFontActive(SETTINGS.sdFontFamilyName[0] != '\0');
+
   LOG_DBG("SDFS", "SD font system ready (%d families discovered)", registry_.getFamilyCount());
 }
 
@@ -51,6 +55,7 @@ void SdCardFontSystem::ensureLoaded(GfxRenderer& renderer) {
     if (!currentFamily.empty()) {
       manager_.unloadAll(renderer);
     }
+    FontManager::getInstance().setSdCardFontActive(false);
     return;
   }
 
@@ -64,6 +69,7 @@ void SdCardFontSystem::ensureLoaded(GfxRenderer& renderer) {
   if (family) {
     if (manager_.loadFamily(*family, renderer)) {
       LOG_DBG("SDFS", "Loaded SD font family: %s", wantedFamily);
+      FontManager::getInstance().setSdCardFontActive(true);
     } else {
       LOG_ERR("SDFS", "Failed to load SD font family: %s (clearing)", wantedFamily);
       SETTINGS.sdFontFamilyName[0] = '\0';

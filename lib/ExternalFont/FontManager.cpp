@@ -13,6 +13,13 @@ constexpr const char* FontManager::FONTS_DIR;
 constexpr const char* FontManager::SETTINGS_FILE;
 constexpr uint8_t FontManager::SETTINGS_VERSION;
 
+bool FontManager::isExternalFontEnabled() const {
+  // When SD card font is active, ExternalFont reader rendering is suppressed
+  // to avoid metric/rendering conflicts between the two font systems
+  if (_sdCardFontActive) return false;
+  return _selectedIndex >= 0 && _activeFont.isLoaded();
+}
+
 FontManager& FontManager::getInstance() {
   static FontManager instance;
   return instance;

@@ -2191,7 +2191,7 @@ void GfxRenderer::renderChar(const int fontId, const EpdFontFamily& fontFamily, 
     }
   }
 
-  *x += glyph->advanceX;
+  *x += fp4::toPixel(glyph->advanceX);
 }
 
 void GfxRenderer::getOrientedViewableTRBL(int* outTop, int* outRight, int* outBottom, int* outLeft) const {
@@ -2254,8 +2254,11 @@ int GfxRenderer::getEffectiveFontId(int fontId) const {
   // Only negative IDs that are reader fonts need fallback
   // UI fonts have negative IDs too but should not be redirected
   if (fontId < 0 && isReaderFont(fontId)) {
-    // This is an external reader font ID, use the selected built-in reader
-    // font as fallback
+    // SD card fonts are registered in fontMap — use them directly
+    if (fontMap.count(fontId) != 0) {
+      return fontId;
+    }
+    // ExternalFont ID not in fontMap — fall back to built-in reader font
     return readerFallbackFontId != 0 ? readerFallbackFontId : READER_FONT_IDS[0];
   }
   return fontId;
