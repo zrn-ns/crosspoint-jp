@@ -51,6 +51,21 @@ class SdCardFont {
   // Number of styles present in this font file.
   uint8_t styleCount() const { return styleCount_; }
 
+  // Look up vertical substitute glyph for a codepoint.
+  // Returns the vert EpdGlyph* if found, nullptr otherwise.
+  // Vert data must be loaded via loadVertData() first.
+  const EpdGlyph* getVertGlyph(uint32_t codepoint, uint8_t style = 0) const;
+
+  // Returns the bitmap data for a vert glyph (must be from getVertGlyph).
+  const uint8_t* getVertBitmap(const EpdGlyph* vertGlyph, uint8_t style = 0) const;
+
+  // Returns true if this font has vert data for any style.
+  bool hasVertData() const;
+
+  // Load vert glyph data from SD card for the given style.
+  // Called during prewarm when vertical mode is active.
+  bool loadVertData(uint8_t style);
+
   // Returns true if the glyph pointer points into the overflow buffer.
   bool isOverflowGlyph(const EpdGlyph* glyph) const;
 
@@ -125,6 +140,14 @@ class SdCardFont {
     uint8_t* miniBitmap = nullptr;
     uint32_t miniIntervalCount = 0;
     uint32_t miniGlyphCount = 0;
+
+    // Vertical glyph substitution data (from .cpfont v5 vert section)
+    uint32_t vertSectionOffset = 0;  // File offset to vert section (0 = no vert data)
+    uint16_t vertCount = 0;
+    uint32_t* vertCodepoints = nullptr;
+    EpdGlyph* vertGlyphs = nullptr;
+    uint8_t* vertBitmap = nullptr;
+    bool vertLoaded = false;
 
     // The EpdFont whose data pointer we manage
     EpdFont epdFont{&stubData};

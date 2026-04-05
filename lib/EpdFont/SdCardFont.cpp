@@ -27,7 +27,8 @@ static uint32_t fnv1a(const uint8_t* data, size_t len, uint32_t hash = FNV_OFFSE
 
 // .cpfont magic bytes
 static constexpr char CPFONT_MAGIC[8] = {'C', 'P', 'F', 'O', 'N', 'T', '\0', '\0'};
-static constexpr uint16_t CPFONT_VERSION = 4;
+static constexpr uint16_t CPFONT_VERSION_MIN = 4;
+static constexpr uint16_t CPFONT_VERSION_MAX = 5;
 static constexpr uint32_t HEADER_SIZE = 32;
 static constexpr uint32_t STYLE_TOC_ENTRY_SIZE = 32;
 
@@ -49,6 +50,13 @@ void SdCardFont::freeStyleMiniData(PerStyle& s) {
   s.miniBitmap = nullptr;
   s.miniIntervalCount = 0;
   s.miniGlyphCount = 0;
+  delete[] s.vertCodepoints;
+  s.vertCodepoints = nullptr;
+  delete[] s.vertGlyphs;
+  s.vertGlyphs = nullptr;
+  delete[] s.vertBitmap;
+  s.vertBitmap = nullptr;
+  s.vertLoaded = false;
   memset(&s.miniData, 0, sizeof(s.miniData));
   s.epdFont.data = &s.stubData;
 }
@@ -247,8 +255,8 @@ bool SdCardFont::load(const char* path) {
   }
 
   uint16_t fileVersion = readU16(headerBuf + 8);
-  if (fileVersion != CPFONT_VERSION) {
-    LOG_ERR("SDCF", "Unsupported version: %u (expected %u)", fileVersion, CPFONT_VERSION);
+  if (fileVersion < CPFONT_VERSION_MIN || fileVersion > CPFONT_VERSION_MAX) {
+    LOG_ERR("SDCF", "Unsupported version: %u (expected %u-%u)", fileVersion, CPFONT_VERSION_MIN, CPFONT_VERSION_MAX);
     file.close();
     return false;
   }
@@ -310,6 +318,11 @@ bool SdCardFont::load(const char* path) {
 
     uint32_t dataOffset = readU32(tocBuf + 24);
     computeStyleFileOffsets(s, dataOffset);
+
+    // v5: vertSectionOffset stored at TOC offset 28 (was reserved in v4)
+    if (fileVersion >= 5) {
+      s.vertSectionOffset = readU32(tocBuf + 28);
+    }
   }
 
   styleCount_ = styleCount;
@@ -356,7 +369,7 @@ bool SdCardFont::load(const char* path) {
   file.close();
   loaded_ = true;
 
-  LOG_DBG("SDCF", "Loaded: %s (v%u, %u styles)", path, CPFONT_VERSION, styleCount_);
+  LOG_DBG("SDCF", "Loaded: %s (v%u, %u styles)", path, fileVersion, styleCount_);
   for (uint8_t i = 0; i < MAX_STYLES; i++) {
     if (!styles_[i].present) continue;
     const auto& h = styles_[i].header;
@@ -704,6 +717,142 @@ void SdCardFont::clearCache() {
     freeStyleMiniData(styles_[i]);
     applyGlyphMissCallback(i);
   }
+}
+
+// --- Vertical glyph substitution ---
+
+const EpdGlyph* SdCardFont::getVertGlyph(uint32_t codepoint, uint8_t style) const {
+  if (style >= MAX_STYLES || !styles_[style].vertLoaded || styles_[style].vertCount == 0) return nullptr;
+
+  const auto& s = styles_[style];
+  uint32_t lo = 0, hi = s.vertCount;
+  while (lo < hi) {
+    uint32_t mid = lo + (hi - lo) / 2;
+    if (s.vertCodepoints[mid] < codepoint)
+      lo = mid + 1;
+    else
+      hi = mid;
+  }
+  if (lo < s.vertCount && s.vertCodepoints[lo] == codepoint) {
+    return &s.vertGlyphs[lo];
+  }
+  return nullptr;
+}
+
+const uint8_t* SdCardFont::getVertBitmap(const EpdGlyph* vertGlyph, uint8_t style) const {
+  if (!vertGlyph || style >= MAX_STYLES || !styles_[style].vertBitmap) return nullptr;
+  return styles_[style].vertBitmap + vertGlyph->dataOffset;
+}
+
+bool SdCardFont::hasVertData() const {
+  for (uint8_t i = 0; i < MAX_STYLES; i++) {
+    if (styles_[i].present && styles_[i].vertSectionOffset != 0) return true;
+  }
+  return false;
+}
+
+bool SdCardFont::loadVertData(uint8_t style) {
+  if (style >= MAX_STYLES || !styles_[style].present) return false;
+  auto& s = styles_[style];
+  if (s.vertLoaded) return true;
+  if (s.vertSectionOffset == 0) return false;
+
+  FsFile file;
+  if (!Storage.openFileForRead("SDCF", filePath_, file)) {
+    LOG_ERR("SDCF", "Failed to open .cpfont for vert: %s", filePath_);
+    return false;
+  }
+
+  if (!file.seekSet(s.vertSectionOffset)) {
+    LOG_ERR("SDCF", "Failed to seek to vert section for style %u", style);
+    file.close();
+    return false;
+  }
+
+  // Read vert count
+  uint8_t countBuf[2];
+  if (file.read(countBuf, 2) != 2) {
+    LOG_ERR("SDCF", "Failed to read vert count");
+    file.close();
+    return false;
+  }
+  s.vertCount = readU16(countBuf);
+
+  if (s.vertCount == 0) {
+    file.close();
+    s.vertLoaded = true;
+    return true;
+  }
+
+  // Read codepoint + EpdGlyph entries
+  // Each entry: uint32_t codepoint (4) + EpdGlyph (16) = 20 bytes
+  static constexpr uint32_t VERT_ENTRY_SIZE = 4 + sizeof(EpdGlyph);  // 20 bytes
+  uint32_t entriesSize = s.vertCount * VERT_ENTRY_SIZE;
+  auto* entryBuf = new (std::nothrow) uint8_t[entriesSize];
+  if (!entryBuf) {
+    LOG_ERR("SDCF", "Failed to allocate vert entry buffer (%u bytes)", entriesSize);
+    file.close();
+    return false;
+  }
+
+  if (file.read(entryBuf, entriesSize) != static_cast<int>(entriesSize)) {
+    LOG_ERR("SDCF", "Failed to read vert entries");
+    delete[] entryBuf;
+    file.close();
+    return false;
+  }
+
+  s.vertCodepoints = new (std::nothrow) uint32_t[s.vertCount];
+  s.vertGlyphs = new (std::nothrow) EpdGlyph[s.vertCount];
+  if (!s.vertCodepoints || !s.vertGlyphs) {
+    LOG_ERR("SDCF", "Failed to allocate vert glyph arrays");
+    delete[] entryBuf;
+    delete[] s.vertCodepoints;
+    s.vertCodepoints = nullptr;
+    delete[] s.vertGlyphs;
+    s.vertGlyphs = nullptr;
+    file.close();
+    return false;
+  }
+
+  uint32_t totalVertBitmapSize = 0;
+  for (uint16_t i = 0; i < s.vertCount; i++) {
+    const uint8_t* p = entryBuf + i * VERT_ENTRY_SIZE;
+    s.vertCodepoints[i] = readU32(p);
+    memcpy(&s.vertGlyphs[i], p + 4, sizeof(EpdGlyph));
+    totalVertBitmapSize += s.vertGlyphs[i].dataLength;
+  }
+  delete[] entryBuf;
+
+  // Read vert bitmaps
+  if (totalVertBitmapSize > 0) {
+    s.vertBitmap = new (std::nothrow) uint8_t[totalVertBitmapSize];
+    if (!s.vertBitmap) {
+      LOG_ERR("SDCF", "Failed to allocate vert bitmap (%u bytes)", totalVertBitmapSize);
+      delete[] s.vertCodepoints;
+      s.vertCodepoints = nullptr;
+      delete[] s.vertGlyphs;
+      s.vertGlyphs = nullptr;
+      file.close();
+      return false;
+    }
+    if (file.read(s.vertBitmap, totalVertBitmapSize) != static_cast<int>(totalVertBitmapSize)) {
+      LOG_ERR("SDCF", "Failed to read vert bitmaps");
+      delete[] s.vertCodepoints;
+      s.vertCodepoints = nullptr;
+      delete[] s.vertGlyphs;
+      s.vertGlyphs = nullptr;
+      delete[] s.vertBitmap;
+      s.vertBitmap = nullptr;
+      file.close();
+      return false;
+    }
+  }
+
+  file.close();
+  s.vertLoaded = true;
+  LOG_DBG("SDCF", "Vert loaded: style=%u, count=%u, bitmaps=%u bytes", style, s.vertCount, totalVertBitmapSize);
+  return true;
 }
 
 // --- Advance table ---

@@ -99,6 +99,7 @@ StyleRasterData = namedtuple("StyleRasterData", [
     "kern_left_classes", "kern_right_classes", "kern_matrix",
     "kern_left_class_count", "kern_right_class_count",
     "ligature_pairs",
+    "vert_glyphs",             # [(codepoint, GlyphProps, packed_bytes), ...] sorted by codepoint
 ])
 
 
@@ -446,6 +447,39 @@ def extract_ligatures_fonttools(font_path, codepoints):
     return pairs
 
 
+def extract_vert_mappings(font_path):
+    """Extract codepoint -> substitute glyph name from OpenType 'vert' feature."""
+    try:
+        tt = TTFont(font_path)
+    except Exception:
+        return {}
+    if 'GSUB' not in tt:
+        tt.close()
+        return {}
+    gsub = tt['GSUB'].table
+    cmap = tt.getBestCmap()
+    if not cmap:
+        tt.close()
+        return {}
+    name_to_cp = {glyph_name: cp_val for cp_val, glyph_name in cmap.items()}
+
+    vert_map = {}
+    for feature_rec in gsub.FeatureList.FeatureRecord:
+        if feature_rec.FeatureTag == 'vert':
+            for lookup_idx in feature_rec.Feature.LookupListIndex:
+                lookup = gsub.LookupList.Lookup[lookup_idx]
+                for subtable in lookup.SubTable:
+                    if hasattr(subtable, 'mapping'):
+                        vert_map.update(subtable.mapping)
+
+    result = {}
+    for orig_name, sub_name in vert_map.items():
+        if orig_name in name_to_cp:
+            result[name_to_cp[orig_name]] = sub_name
+    tt.close()
+    return result
+
+
 def rasterize_font_style(fontfile, size, intervals, style_id=0, force_autohint=False):
     """Rasterize all glyphs for one font style. Returns StyleRasterData."""
     style_names = {0: "regular", 1: "bold", 2: "italic", 3: "bolditalic"}
@@ -584,6 +618,85 @@ def rasterize_font_style(fontfile, size, intervals, style_id=0, force_autohint=F
         ligature_pairs = ligature_pairs[:255]
     print(f"  [{style_label}] Ligatures: {len(ligature_pairs)} pairs", file=sys.stderr)
 
+    # --- Extract vertical glyph substitutions (OpenType 'vert' feature) ---
+    vert_mappings = extract_vert_mappings(fontfile)
+    vert_glyphs = []  # [(codepoint, GlyphProps, packed_bytes), ...]
+
+    if vert_mappings:
+        print(f"  [{style_label}] vert feature: {len(vert_mappings)} mappings found", file=sys.stderr)
+        vert_bitmap_offset = 0
+        for cp, sub_glyph_name in sorted(vert_mappings.items()):
+            # Only include vert substitutes for codepoints in our glyph set
+            if cp not in all_cps:
+                continue
+            # Load the substitute glyph by name
+            try:
+                tt = TTFont(fontfile)
+                glyph_order = tt.getGlyphOrder()
+                if sub_glyph_name not in glyph_order:
+                    tt.close()
+                    continue
+                glyph_index = glyph_order.index(sub_glyph_name)
+                tt.close()
+            except Exception:
+                continue
+            if glyph_index <= 0:
+                continue
+            face.load_glyph(glyph_index, load_flags)
+            bitmap = face.glyph.bitmap
+
+            # Build 2-bit bitmap (same logic as main glyphs above)
+            pixels4g = []
+            px = 0
+            for i, v in enumerate(bitmap.buffer):
+                x = i % bitmap.width
+                if x % 2 == 0:
+                    px = (v >> 4)
+                else:
+                    px = px | (v & 0xF0)
+                    pixels4g.append(px)
+                    px = 0
+                if x == bitmap.width - 1 and bitmap.width % 2 > 0:
+                    pixels4g.append(px)
+                    px = 0
+
+            pixels2b = []
+            px = 0
+            pitch = (bitmap.width // 2) + (bitmap.width % 2)
+            for y in range(bitmap.rows):
+                for x in range(bitmap.width):
+                    px = px << 2
+                    bm = pixels4g[y * pitch + (x // 2)] if pixels4g else 0
+                    bm = (bm >> ((x % 2) * 4)) & 0xF
+                    if bm >= 12:
+                        px += 3
+                    elif bm >= 8:
+                        px += 2
+                    elif bm >= 4:
+                        px += 1
+                    if (y * bitmap.width + x) % 4 == 3:
+                        pixels2b.append(px)
+                        px = 0
+            if (bitmap.width * bitmap.rows) % 4 != 0:
+                px = px << (4 - (bitmap.width * bitmap.rows) % 4) * 2
+                pixels2b.append(px)
+
+            packed = bytes(pixels2b)
+            glyph = GlyphProps(
+                width=bitmap.width,
+                height=bitmap.rows,
+                advance_x=fp4_from_ft16_16(face.glyph.linearHoriAdvance),
+                left=face.glyph.bitmap_left,
+                top=face.glyph.bitmap_top,
+                data_length=len(packed),
+                data_offset=vert_bitmap_offset,
+                code_point=cp,
+            )
+            vert_bitmap_offset += len(packed)
+            vert_glyphs.append((cp, glyph, packed))
+
+        print(f"  [{style_label}] vert feature: {len(vert_glyphs)} glyphs rendered", file=sys.stderr)
+
     return StyleRasterData(
         style_id=style_id,
         intervals=intervals,
@@ -598,6 +711,7 @@ def rasterize_font_style(fontfile, size, intervals, style_id=0, force_autohint=F
         kern_left_class_count=kern_left_class_count,
         kern_right_class_count=kern_right_class_count,
         ligature_pairs=ligature_pairs,
+        vert_glyphs=vert_glyphs,
     )
 
 
@@ -610,7 +724,7 @@ assert struct.calcsize(GLYPH_STRUCT_FORMAT) == 16
 
 def pack_style_sections(sd):
     """Pack one StyleRasterData into binary section bytearrays.
-    Returns (intervals_data, glyphs_data, kern_left, kern_right, kern_matrix, ligatures, bitmaps)."""
+    Returns (intervals_data, glyphs_data, kern_left, kern_right, kern_matrix, ligatures, bitmaps, vert_section)."""
     intervals_data = bytearray()
     offset = 0
     for i_start, i_end in sd.intervals:
@@ -645,8 +759,21 @@ def pack_style_sections(sd):
         bitmap_data += packed
     assert len(bitmap_data) == sd.total_bitmap_size
 
+    # Vert section: uint16_t count + (uint32_t codepoint + EpdGlyph) * count + bitmaps
+    vert_section = bytearray()
+    if sd.vert_glyphs:
+        vert_section += struct.pack("<H", len(sd.vert_glyphs))
+        for cp, glyph, packed in sd.vert_glyphs:
+            vert_section += struct.pack("<I", cp)
+            vert_section += struct.pack(GLYPH_STRUCT_FORMAT,
+                                        glyph.width, glyph.height, glyph.advance_x,
+                                        glyph.left, glyph.top,
+                                        glyph.data_length, glyph.data_offset)
+        for cp, glyph, packed in sd.vert_glyphs:
+            vert_section += packed
+
     return (intervals_data, glyphs_data, kern_left_data, kern_right_data,
-            kern_matrix_data, ligature_data, bitmap_data)
+            kern_matrix_data, ligature_data, bitmap_data, vert_section)
 
 
 def style_sections_total_size(sections):
@@ -658,15 +785,15 @@ def style_sections_total_size(sections):
 
 def generate_cpfont_multistyle(style_fonts, size, intervals, output_path,
                                force_autohint=False):
-    """Generate a multi-style v4 .cpfont file.
+    """Generate a multi-style v5 .cpfont file with optional vert data.
 
     style_fonts: dict of {style_id: fontfile_path} e.g. {0: "Regular.ttf", 2: "Italic.ttf"}
     """
     MAGIC = b"CPFONT\x00\x00"
-    VERSION = 4
+    VERSION = 5
     HEADER_SIZE = 32
     STYLE_TOC_ENTRY_SIZE = 32
-    flags = 1  # always 2-bit greyscale
+    flags = 1  # bit0: 2-bit greyscale
     style_count = len(style_fonts)
 
     # Rasterize each style
@@ -678,30 +805,45 @@ def generate_cpfont_multistyle(style_fonts, size, intervals, output_path,
             fontfile, size, intervals, style_id=style_id,
             force_autohint=force_autohint)
 
+    # Check if any style has vert data
+    any_vert = any(sd.vert_glyphs for sd in raster_data.values())
+    if any_vert:
+        flags |= 0x02  # bit1: vert data present
+
     # Pack binary sections for each style
     packed_sections = {}  # style_id -> tuple of section bytearrays
     for style_id, sd in raster_data.items():
         packed_sections[style_id] = pack_style_sections(sd)
 
     # Calculate data offsets (after header + TOC)
+    # Main sections are indices 0-6 (intervals..bitmaps), vert section is index 7
     data_start = HEADER_SIZE + style_count * STYLE_TOC_ENTRY_SIZE
     current_offset = data_start
 
-    style_offsets = {}  # style_id -> absolute file offset
+    style_offsets = {}       # style_id -> absolute file offset for main data
+    vert_section_offsets = {}  # style_id -> absolute file offset for vert section (0 if none)
     for style_id in sorted(packed_sections.keys()):
         style_offsets[style_id] = current_offset
-        current_offset += style_sections_total_size(packed_sections[style_id])
+        sections = packed_sections[style_id]
+        # Main sections size (indices 0-6)
+        main_size = sum(len(sections[i]) for i in range(7))
+        vert_data = sections[7]
+        if len(vert_data) > 0:
+            vert_section_offsets[style_id] = current_offset + main_size
+        else:
+            vert_section_offsets[style_id] = 0
+        current_offset += main_size + len(vert_data)
 
     # Build global header
-    # V4 header: magic(8) + version(2) + flags(2) + styleCount(1) + reserved(19) = 32
+    # V5 header: magic(8) + version(2) + flags(2) + styleCount(1) + reserved(19) = 32
     header = struct.pack("<8sHHB19s", MAGIC, VERSION, flags, style_count, bytes(19))
     assert len(header) == HEADER_SIZE
 
-    # Build style TOC entries
+    # Build style TOC entries (v5: reserved 4 bytes replaced with vertSectionOffset)
     # Each entry: styleId(1) + pad(3) + intervalCount(4) + glyphCount(4) +
     #   advanceY(1) + ascender(2) + descender(2) + kernL(2) + kernR(2) +
-    #   kernLCls(1) + kernRCls(1) + ligCount(1) + dataOffset(4) + reserved(4) = 32
-    STYLE_TOC_FORMAT = "<B3xIIBhhHHBBBI4x"
+    #   kernLCls(1) + kernRCls(1) + ligCount(1) + dataOffset(4) + vertSectionOffset(4) = 32
+    STYLE_TOC_FORMAT = "<B3xIIBhhHHBBBII"
     assert struct.calcsize(STYLE_TOC_FORMAT) == STYLE_TOC_ENTRY_SIZE
 
     toc_data = bytearray()
@@ -720,7 +862,8 @@ def generate_cpfont_multistyle(style_fonts, size, intervals, output_path,
                                 len(sd.kern_left_classes), len(sd.kern_right_classes),
                                 sd.kern_left_class_count, sd.kern_right_class_count,
                                 len(sd.ligature_pairs),
-                                style_offsets[style_id])
+                                style_offsets[style_id],
+                                vert_section_offsets[style_id])
 
     # Write output
     os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else ".", exist_ok=True)
@@ -734,7 +877,8 @@ def generate_cpfont_multistyle(style_fonts, size, intervals, output_path,
         total_file_size = f.tell()
 
     # Print summary
-    print(f"  Output: {output_path} (v4, {style_count} styles)", file=sys.stderr)
+    vert_label = ", vert" if any_vert else ""
+    print(f"  Output: {output_path} (v5, {style_count} styles{vert_label})", file=sys.stderr)
     print(f"    Header+TOC: {HEADER_SIZE + len(toc_data)} bytes", file=sys.stderr)
     for style_id in sorted(raster_data.keys()):
         sd = raster_data[style_id]
@@ -742,8 +886,9 @@ def generate_cpfont_multistyle(style_fonts, size, intervals, output_path,
         style_names = {0: "regular", 1: "bold", 2: "italic", 3: "bolditalic"}
         sname = style_names.get(style_id, str(style_id))
         ssize = style_sections_total_size(secs)
+        vert_info = f", {len(sd.vert_glyphs)} vert" if sd.vert_glyphs else ""
         print(f"    {sname}: {len(sd.all_glyphs)} glyphs, {len(sd.intervals)} intervals, "
-              f"{ssize} bytes", file=sys.stderr)
+              f"{ssize} bytes{vert_info}", file=sys.stderr)
     print(f"    Total: {total_file_size} bytes ({total_file_size / 1024 / 1024:.2f} MB)", file=sys.stderr)
     return total_file_size
 
