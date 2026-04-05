@@ -108,6 +108,16 @@ void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle,
                          const bool attachToPrevious) {
   if (word.empty()) return;
 
+  // Pre-allocate to match the 750-word flush threshold in characterData().
+  // Without reserve(), std::vector doubles capacity on each reallocation (e.g. 512→1024),
+  // requiring both old and new arrays in memory simultaneously. On a fragmented 380KB heap
+  // this contiguous allocation can fail and call abort() (no C++ exceptions on ESP32).
+  if (words.capacity() == 0) {
+    words.reserve(800);
+    wordStyles.reserve(800);
+    wordContinues.reserve(800);
+  }
+
   words.push_back(std::move(word));
   EpdFontFamily::Style combinedStyle = fontStyle;
   if (underline) {

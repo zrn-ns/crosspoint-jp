@@ -926,10 +926,13 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
     i += charLen;
   }
 
-  // If we have > 750 words buffered up, perform the layout and consume out all but the last line
-  // There should be enough here to build out 1-2 full pages and doing this will free up a lot of
-  // memory.
-  if (self->currentTextBlock->size() > 750) {
+  // Flush buffered words to free memory. The standard threshold is 750 words, but when free heap
+  // is low we flush earlier to prevent abort() from vector reallocation failure (operator new
+  // cannot return nullptr without std::nothrow, and C++ exceptions are disabled on ESP32).
+  const size_t wordCount = self->currentTextBlock->size();
+  const bool normalFlush = wordCount > 750;
+  const bool earlyFlush = wordCount > 100 && ESP.getFreeHeap() < MIN_FREE_HEAP_FOR_PARSING * 2;
+  if (normalFlush || earlyFlush) {
     LOG_DBG("EHP", "Text block too long, splitting into multiple pages");
     const int horizontalInset = self->currentTextBlock->getBlockStyle().totalHorizontalInset();
     const uint16_t effectiveWidth = (horizontalInset < self->viewportWidth)
