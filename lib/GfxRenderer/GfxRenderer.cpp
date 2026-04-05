@@ -1696,11 +1696,10 @@ void GfxRenderer::drawTextVertical(const int fontId, const int x, const int y, c
     }
 
     if (vertGlyph && vertBitmap && vertGlyph->width > 0 && vertGlyph->height > 0) {
-      // Render vert substitute glyph:
-      // - Horizontal: center in the full-width cell for balanced column appearance
-      // - Vertical: use the font's designed top offset (ascender - top) to preserve
-      //   correct bracket positioning (開き括弧=下、閉じ括弧=上)
-      const int drawX = x + (advance - vertGlyph->width) / 2;
+      // Render vert substitute glyph using the font's designed left/top offsets.
+      // These encode correct vertical typography positioning:
+      //   。、→ 右寄り、「→ セル下部、」→ セル上部、ー→ 中央
+      const int drawX = x + vertGlyph->left;
       const int drawY = yPos + ascender - vertGlyph->top;
 
       int pixelPosition = 0;
