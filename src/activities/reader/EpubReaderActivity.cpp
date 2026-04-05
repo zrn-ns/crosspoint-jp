@@ -626,7 +626,7 @@ void EpubReaderActivity::render(RenderLock&& lock) {
     if (!section->loadSectionFile(SETTINGS.getReaderFontId(), lineCompression,
                                   SETTINGS.extraParagraphSpacing, SETTINGS.paragraphAlignment, viewportWidth,
                                   viewportHeight, SETTINGS.hyphenationEnabled, SETTINGS.firstLineIndent,
-                                  SETTINGS.embeddedStyle, SETTINGS.imageRendering)) {
+                                  SETTINGS.embeddedStyle, SETTINGS.imageRendering, false)) {
       LOG_DBG("ERS", "Cache not found, building...");
 
       // Free SD card font prewarm data (miniGlyphs, miniBitmap) before section
@@ -642,7 +642,7 @@ void EpubReaderActivity::render(RenderLock&& lock) {
       if (!section->createSectionFile(SETTINGS.getReaderFontId(), lineCompression,
                                       SETTINGS.extraParagraphSpacing, SETTINGS.paragraphAlignment, viewportWidth,
                                       viewportHeight, SETTINGS.hyphenationEnabled, SETTINGS.firstLineIndent,
-                                      SETTINGS.embeddedStyle, SETTINGS.imageRendering, popupFn, headingFontIds,
+                                      SETTINGS.embeddedStyle, SETTINGS.imageRendering, false, popupFn, headingFontIds,
                                       UI_10_FONT_ID)) {
         LOG_ERR("ERS", "Failed to persist page data to SD");
         section.reset();
@@ -761,7 +761,7 @@ void EpubReaderActivity::silentIndexNextChapterIfNeeded(const uint16_t viewportW
   if (nextSection.loadSectionFile(SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(),
                                   SETTINGS.extraParagraphSpacing, SETTINGS.paragraphAlignment, viewportWidth,
                                   viewportHeight, SETTINGS.hyphenationEnabled, SETTINGS.firstLineIndent,
-                                  SETTINGS.embeddedStyle, SETTINGS.imageRendering)) {
+                                  SETTINGS.embeddedStyle, SETTINGS.imageRendering, false)) {
     return;
   }
 
@@ -770,8 +770,8 @@ void EpubReaderActivity::silentIndexNextChapterIfNeeded(const uint16_t viewportW
   if (!nextSection.createSectionFile(SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(),
                                      SETTINGS.extraParagraphSpacing, SETTINGS.paragraphAlignment, viewportWidth,
                                      viewportHeight, SETTINGS.hyphenationEnabled, SETTINGS.firstLineIndent,
-                                     SETTINGS.embeddedStyle, SETTINGS.imageRendering, nullptr, silentHeadingFontIds,
-                                     UI_10_FONT_ID)) {
+                                     SETTINGS.embeddedStyle, SETTINGS.imageRendering, false, nullptr,
+                                     silentHeadingFontIds, UI_10_FONT_ID)) {
     LOG_ERR("ERS", "Failed silent indexing for chapter: %d", nextSpineIndex);
   }
 }
