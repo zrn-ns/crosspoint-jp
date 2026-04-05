@@ -629,6 +629,12 @@ void EpubReaderActivity::render(RenderLock&& lock) {
                                   SETTINGS.embeddedStyle, SETTINGS.imageRendering)) {
       LOG_DBG("ERS", "Cache not found, building...");
 
+      // Free SD card font prewarm data (miniGlyphs, miniBitmap) before section
+      // building to reclaim ~130KB. Prewarm will reload needed glyphs later
+      // during the render pass.
+      auto* fcm = renderer.getFontCacheManager();
+      if (fcm) fcm->clearCache();
+
       const auto popupFn = [this]() { GUI.drawPopup(renderer, tr(STR_INDEXING)); };
 
       const int headingFontIds[6] = {SETTINGS.getHeadingFontId(1), SETTINGS.getHeadingFontId(2), 0, 0, 0, 0};
