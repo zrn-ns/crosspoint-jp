@@ -127,6 +127,16 @@ void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle,
   wordContinues.push_back(attachToPrevious);
 }
 
+void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle,
+                         const VerticalTextUtils::VerticalBehavior vBehavior,
+                         const bool underline, const bool attachToPrevious) {
+  addWord(std::move(word), fontStyle, underline, attachToPrevious);
+  if (wordVerticalBehaviors.capacity() == 0) {
+    wordVerticalBehaviors.reserve(800);
+  }
+  wordVerticalBehaviors.push_back(vBehavior);
+}
+
 // Consumes data to minimize memory usage
 void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fontId, const uint16_t viewportWidth,
                                        const std::function<void(std::shared_ptr<TextBlock>)>& processLine,
@@ -198,7 +208,96 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
     words.erase(words.begin(), words.begin() + consumed);
     wordStyles.erase(wordStyles.begin(), wordStyles.begin() + consumed);
     wordContinues.erase(wordContinues.begin(), wordContinues.begin() + consumed);
+    if (!wordVerticalBehaviors.empty()) {
+      const size_t vbConsumed = std::min(consumed, wordVerticalBehaviors.size());
+      wordVerticalBehaviors.erase(wordVerticalBehaviors.begin(), wordVerticalBehaviors.begin() + vbConsumed);
+    }
   }
+}
+
+void ParsedText::layoutVerticalColumns(const GfxRenderer& renderer, const int fontId,
+                                       const uint16_t columnHeight,
+                                       const std::function<void(std::shared_ptr<TextBlock>)>& processColumn) {
+  if (words.empty()) return;
+
+  // Ensure SD card font metrics are loaded
+  if (renderer.isSdCardFont(fontId)) {
+    std::string allText;
+    for (const auto& w : words) {
+      allText += w;
+      allText += ' ';
+    }
+    renderer.ensureSdCardFontReady(fontId, allText.c_str());
+  }
+
+  const int lineHeight = renderer.getLineHeight(fontId);
+
+  // Calculate word heights for vertical layout
+  std::vector<uint16_t> wordHeights;
+  wordHeights.reserve(words.size());
+  for (size_t i = 0; i < words.size(); i++) {
+    auto vb = (i < wordVerticalBehaviors.size()) ? wordVerticalBehaviors[i]
+                                                  : VerticalTextUtils::VerticalBehavior::Upright;
+    switch (vb) {
+      case VerticalTextUtils::VerticalBehavior::Sideways:
+        // Rotated text: height = horizontal text width
+        wordHeights.push_back(renderer.getTextWidth(fontId, words[i].c_str(), wordStyles[i]));
+        break;
+      case VerticalTextUtils::VerticalBehavior::TateChuYoko:
+        // Horizontal-in-vertical: height = one line height
+        wordHeights.push_back(static_cast<uint16_t>(lineHeight));
+        break;
+      default:
+        // Upright CJK: height = character advance (CJK is square, so advanceX works)
+        wordHeights.push_back(renderer.getTextWidth(fontId, words[i].c_str(), wordStyles[i]));
+        break;
+    }
+  }
+
+  // Break into columns when cumulative height exceeds columnHeight
+  size_t columnStart = 0;
+  int currentY = 0;
+
+  auto emitColumn = [&](size_t start, size_t end) {
+    std::vector<std::string> colWords(std::make_move_iterator(words.begin() + start),
+                                      std::make_move_iterator(words.begin() + end));
+    std::vector<int16_t> colYpos;
+    std::vector<int16_t> colXpos;
+    std::vector<EpdFontFamily::Style> colStyles(wordStyles.begin() + start, wordStyles.begin() + end);
+    const size_t count = end - start;
+    colYpos.reserve(count);
+    colXpos.resize(count, 0);
+
+    int y = 0;
+    for (size_t j = start; j < end; j++) {
+      colYpos.push_back(static_cast<int16_t>(y));
+      y += wordHeights[j];
+    }
+
+    processColumn(std::make_shared<TextBlock>(
+        std::move(colWords), std::move(colXpos), std::move(colStyles),
+        blockStyle, std::move(colYpos), true));
+  };
+
+  for (size_t i = 0; i < words.size(); i++) {
+    if (currentY + wordHeights[i] > columnHeight && i > columnStart) {
+      emitColumn(columnStart, i);
+      columnStart = i;
+      currentY = 0;
+    }
+    currentY += wordHeights[i];
+  }
+
+  // Emit remaining words as final column
+  if (columnStart < words.size()) {
+    emitColumn(columnStart, words.size());
+  }
+
+  // Consume all data (same pattern as layoutAndExtractLines)
+  words.clear();
+  wordStyles.clear();
+  wordContinues.clear();
+  wordVerticalBehaviors.clear();
 }
 
 std::vector<uint16_t> ParsedText::calculateWordWidths(const GfxRenderer& renderer, const int fontId) {

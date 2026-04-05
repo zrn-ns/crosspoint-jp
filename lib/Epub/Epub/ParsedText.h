@@ -9,6 +9,7 @@
 
 #include "blocks/BlockStyle.h"
 #include "blocks/TextBlock.h"
+#include <VerticalTextUtils.h>
 
 class GfxRenderer;
 
@@ -16,6 +17,7 @@ class ParsedText {
   std::vector<std::string> words;
   std::vector<EpdFontFamily::Style> wordStyles;
   std::vector<bool> wordContinues;  // true = word attaches to previous (no space before it)
+  std::vector<VerticalTextUtils::VerticalBehavior> wordVerticalBehaviors;
   BlockStyle blockStyle;
   bool firstLineIndent;
   bool hyphenationEnabled;
@@ -44,6 +46,8 @@ class ParsedText {
   ~ParsedText() = default;
 
   void addWord(std::string word, EpdFontFamily::Style fontStyle, bool underline = false, bool attachToPrevious = false);
+  void addWord(std::string word, EpdFontFamily::Style fontStyle, VerticalTextUtils::VerticalBehavior vBehavior,
+               bool underline = false, bool attachToPrevious = false);
   void setBlockStyle(const BlockStyle& blockStyle) { this->blockStyle = blockStyle; }
   BlockStyle& getBlockStyle() { return blockStyle; }
   size_t size() const { return words.size(); }
@@ -51,4 +55,6 @@ class ParsedText {
   void layoutAndExtractLines(const GfxRenderer& renderer, int fontId, uint16_t viewportWidth,
                              const std::function<void(std::shared_ptr<TextBlock>)>& processLine,
                              bool includeLastLine = true);
+  void layoutVerticalColumns(const GfxRenderer& renderer, int fontId, uint16_t columnHeight,
+                             const std::function<void(std::shared_ptr<TextBlock>)>& processColumn);
 };
