@@ -214,7 +214,8 @@ void EpubReaderActivity::loop() {
     {
       RenderLock lock(*this);
       nextPageNumber = 0;
-      currentSpineIndex = nextTriggered ? currentSpineIndex + 1 : currentSpineIndex - 1;
+      const bool skipForward = verticalMode ? !nextTriggered : nextTriggered;
+      currentSpineIndex = skipForward ? currentSpineIndex + 1 : currentSpineIndex - 1;
       section.reset();
     }
     requestUpdate();
@@ -228,9 +229,9 @@ void EpubReaderActivity::loop() {
   }
 
   if (prevTriggered) {
-    pageTurn(false);
+    pageTurn(verticalMode);       // In vertical RTL: prev button = forward
   } else {
-    pageTurn(true);
+    pageTurn(!verticalMode);      // In vertical RTL: next button = backward
   }
 }
 
@@ -615,6 +616,18 @@ void EpubReaderActivity::render(RenderLock&& lock) {
   const uint16_t viewportHeight = renderer.getScreenHeight() - orientedMarginTop - orientedMarginBottom;
 
   if (!section) {
+    // Resolve effective writing mode
+    if (SETTINGS.writingMode == CrossPointSettings::WM_VERTICAL) {
+      verticalMode = true;
+    } else if (SETTINGS.writingMode == CrossPointSettings::WM_HORIZONTAL) {
+      verticalMode = false;
+    } else {
+      // Auto: check OPF hints
+      verticalMode = epub && epub->isPageProgressionRtl() &&
+                     (epub->getLanguage() == "ja" || epub->getLanguage() == "jpn" ||
+                      epub->getLanguage() == "zh" || epub->getLanguage() == "zho");
+    }
+
     const auto filepath = epub->getSpineItem(currentSpineIndex).href;
     LOG_DBG("ERS", "Loading file: %s, index: %d", filepath.c_str(), currentSpineIndex);
     section = std::unique_ptr<Section>(new Section(epub, currentSpineIndex, renderer));
@@ -626,7 +639,7 @@ void EpubReaderActivity::render(RenderLock&& lock) {
     if (!section->loadSectionFile(SETTINGS.getReaderFontId(), lineCompression,
                                   SETTINGS.extraParagraphSpacing, SETTINGS.paragraphAlignment, viewportWidth,
                                   viewportHeight, SETTINGS.hyphenationEnabled, SETTINGS.firstLineIndent,
-                                  SETTINGS.embeddedStyle, SETTINGS.imageRendering, false)) {
+                                  SETTINGS.embeddedStyle, SETTINGS.imageRendering, verticalMode)) {
       LOG_DBG("ERS", "Cache not found, building...");
 
       // Free SD card font prewarm data (miniGlyphs, miniBitmap) before section
@@ -642,8 +655,8 @@ void EpubReaderActivity::render(RenderLock&& lock) {
       if (!section->createSectionFile(SETTINGS.getReaderFontId(), lineCompression,
                                       SETTINGS.extraParagraphSpacing, SETTINGS.paragraphAlignment, viewportWidth,
                                       viewportHeight, SETTINGS.hyphenationEnabled, SETTINGS.firstLineIndent,
-                                      SETTINGS.embeddedStyle, SETTINGS.imageRendering, false, popupFn, headingFontIds,
-                                      UI_10_FONT_ID)) {
+                                      SETTINGS.embeddedStyle, SETTINGS.imageRendering, verticalMode, popupFn,
+                                      headingFontIds, UI_10_FONT_ID)) {
         LOG_ERR("ERS", "Failed to persist page data to SD");
         section.reset();
         // Show error to user instead of silent return
@@ -761,7 +774,7 @@ void EpubReaderActivity::silentIndexNextChapterIfNeeded(const uint16_t viewportW
   if (nextSection.loadSectionFile(SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(),
                                   SETTINGS.extraParagraphSpacing, SETTINGS.paragraphAlignment, viewportWidth,
                                   viewportHeight, SETTINGS.hyphenationEnabled, SETTINGS.firstLineIndent,
-                                  SETTINGS.embeddedStyle, SETTINGS.imageRendering, false)) {
+                                  SETTINGS.embeddedStyle, SETTINGS.imageRendering, verticalMode)) {
     return;
   }
 
@@ -770,7 +783,7 @@ void EpubReaderActivity::silentIndexNextChapterIfNeeded(const uint16_t viewportW
   if (!nextSection.createSectionFile(SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(),
                                      SETTINGS.extraParagraphSpacing, SETTINGS.paragraphAlignment, viewportWidth,
                                      viewportHeight, SETTINGS.hyphenationEnabled, SETTINGS.firstLineIndent,
-                                     SETTINGS.embeddedStyle, SETTINGS.imageRendering, false, nullptr,
+                                     SETTINGS.embeddedStyle, SETTINGS.imageRendering, verticalMode, nullptr,
                                      silentHeadingFontIds, UI_10_FONT_ID)) {
     LOG_ERR("ERS", "Failed silent indexing for chapter: %d", nextSpineIndex);
   }
