@@ -211,6 +211,12 @@ CssTextDecoration CssParser::interpretDecoration(const std::string& val) {
   return CssTextDecoration::None;
 }
 
+CssWritingMode interpretWritingMode(std::string_view value) {
+  const std::string_view v = stripTrailingImportant(value);
+  if (v == "vertical-rl") return CssWritingMode::VerticalRl;
+  return CssWritingMode::HorizontalTb;
+}
+
 CssLength CssParser::interpretLength(const std::string& val) {
   CssLength result;
   tryInterpretLength(val, result);
@@ -344,6 +350,10 @@ void CssParser::parseDeclarationIntoStyle(const std::string& decl, CssStyle& sty
     const std::string_view displayValue = stripTrailingImportant(propValueBuf);
     style.display = (displayValue == "none") ? CssDisplay::None : CssDisplay::Block;
     style.defined.display = 1;
+  } else if (propNameBuf == "writing-mode" || propNameBuf == "-epub-writing-mode" ||
+             propNameBuf == "-webkit-writing-mode") {
+    style.writingMode = interpretWritingMode(propValueBuf);
+    style.defined.writingMode = 1;
   }
 }
 
