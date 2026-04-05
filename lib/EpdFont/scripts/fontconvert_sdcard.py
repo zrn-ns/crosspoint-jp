@@ -847,9 +847,25 @@ def main():
                         run_start = None
             if run_start is not None:
                 filtered.append((run_start, end))
+
+        # Merge intervals with small gaps to reduce interval count.
+        # JIS X 0213 codepoints are scattered in the CJK block, creating thousands
+        # of tiny intervals. Filling gaps <= GAP_TOLERANCE includes a few extra
+        # non-JIS glyphs but keeps interval count under the device's MAX_INTERVALS (4096).
+        GAP_TOLERANCE = 4
+        if len(filtered) > 1:
+            merged = [filtered[0]]
+            for start, end in filtered[1:]:
+                prev_start, prev_end = merged[-1]
+                if start - prev_end - 1 <= GAP_TOLERANCE:
+                    merged[-1] = (prev_start, end)
+                else:
+                    merged.append((start, end))
+            filtered = merged
+
         before = sum(e - s + 1 for s, e in intervals)
         after = sum(e - s + 1 for s, e in filtered)
-        print(f"  Codepoints filter: {before} -> {after} ({len(allowed)} in whitelist)", file=sys.stderr)
+        print(f"  Codepoints filter: {before} -> {after} codepoints, {len(filtered)} intervals ({len(allowed)} in whitelist)", file=sys.stderr)
         intervals = filtered
 
     # Determine sizes
