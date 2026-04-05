@@ -123,6 +123,7 @@ bool Epub::parseContentOpf(BookMetadataCache::BookMetadata& bookMetadata) {
   }
 
   bookMetadata.textReferenceHref = opfParser.textReferenceHref;
+  bookMetadata.pageProgressionRtl = opfParser.pageProgressionRtl;
 
   if (!opfParser.tocNcxPath.empty()) {
     tocNcxItem = opfParser.tocNcxPath;
@@ -514,6 +515,10 @@ const std::string& Epub::getLanguage() const {
   }
 
   return bookMetadataCache->coreMetadata.language;
+}
+
+bool Epub::isPageProgressionRtl() const {
+  return bookMetadataCache ? bookMetadataCache->coreMetadata.pageProgressionRtl : false;
 }
 
 std::string Epub::getCoverBmpPath(bool cropped) const {
