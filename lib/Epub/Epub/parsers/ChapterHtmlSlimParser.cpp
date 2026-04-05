@@ -1232,31 +1232,63 @@ void ChapterHtmlSlimParser::addLineToPage(std::shared_ptr<TextBlock> line) {
   const int effectiveFontId = (line->getBlockStyle().fontId != 0) ? line->getBlockStyle().fontId : fontId;
   const int lineHeight = renderer.getLineHeight(effectiveFontId) * lineCompression;
 
-  if (!currentPage) {
-    currentPage.reset(new Page());
-    currentPageNextY = 0;
-  }
+  if (verticalMode) {
+    // Vertical mode: columns placed right-to-left
+    const int columnWidth = lineHeight;  // column width = line height (character cell width)
+    const int columnSpacing = columnWidth / 4;
 
-  if (currentPageNextY + lineHeight > viewportHeight) {
-    completePageFn(std::move(currentPage));
-    completedPageCount++;
-    currentPage.reset(new Page());
-    currentPageNextY = 0;
-  }
+    if (!currentPage) {
+      currentPage.reset(new Page());
+      currentPageNextX = viewportWidth - columnWidth;  // start from right edge
+    }
 
-  // Track cumulative words to assign footnotes to the page containing their anchor
-  wordsExtractedInBlock += line->wordCount();
-  auto footnoteIt = pendingFootnotes.begin();
-  while (footnoteIt != pendingFootnotes.end() && footnoteIt->first <= wordsExtractedInBlock) {
-    currentPage->addFootnote(footnoteIt->second.number, footnoteIt->second.href);
-    ++footnoteIt;
-  }
-  pendingFootnotes.erase(pendingFootnotes.begin(), footnoteIt);
+    if (currentPageNextX < 0) {
+      // Page full — emit and start new page
+      completePageFn(std::move(currentPage));
+      completedPageCount++;
+      currentPage.reset(new Page());
+      currentPageNextX = viewportWidth - columnWidth;
+    }
 
-  // Apply horizontal left inset (margin + padding) as x position offset
-  const int16_t xOffset = line->getBlockStyle().leftInset();
-  currentPage->elements.push_back(std::make_shared<PageLine>(line, xOffset, currentPageNextY));
-  currentPageNextY += lineHeight;
+    // Track cumulative words for footnote assignment
+    wordsExtractedInBlock += line->wordCount();
+    auto footnoteIt = pendingFootnotes.begin();
+    while (footnoteIt != pendingFootnotes.end() && footnoteIt->first <= wordsExtractedInBlock) {
+      currentPage->addFootnote(footnoteIt->second.number, footnoteIt->second.href);
+      ++footnoteIt;
+    }
+    pendingFootnotes.erase(pendingFootnotes.begin(), footnoteIt);
+
+    // Column x-position, y=0 (column starts at top)
+    currentPage->elements.push_back(std::make_shared<PageLine>(line, static_cast<int16_t>(currentPageNextX), 0));
+    currentPageNextX -= (columnWidth + columnSpacing);
+  } else {
+    // Horizontal mode: lines placed top-to-bottom (existing logic)
+    if (!currentPage) {
+      currentPage.reset(new Page());
+      currentPageNextY = 0;
+    }
+
+    if (currentPageNextY + lineHeight > viewportHeight) {
+      completePageFn(std::move(currentPage));
+      completedPageCount++;
+      currentPage.reset(new Page());
+      currentPageNextY = 0;
+    }
+
+    // Track cumulative words for footnote assignment
+    wordsExtractedInBlock += line->wordCount();
+    auto footnoteIt = pendingFootnotes.begin();
+    while (footnoteIt != pendingFootnotes.end() && footnoteIt->first <= wordsExtractedInBlock) {
+      currentPage->addFootnote(footnoteIt->second.number, footnoteIt->second.href);
+      ++footnoteIt;
+    }
+    pendingFootnotes.erase(pendingFootnotes.begin(), footnoteIt);
+
+    const int16_t xOffset = line->getBlockStyle().leftInset();
+    currentPage->elements.push_back(std::make_shared<PageLine>(line, xOffset, currentPageNextY));
+    currentPageNextY += lineHeight;
+  }
 }
 
 // Character-level text wrapping for table cells.
@@ -1401,6 +1433,10 @@ void ChapterHtmlSlimParser::makePages() {
   if (!currentPage) {
     currentPage.reset(new Page());
     currentPageNextY = 0;
+    if (verticalMode) {
+      const int lineHeight = renderer.getLineHeight(fontId) * lineCompression;
+      currentPageNextX = viewportWidth - lineHeight;
+    }
   }
 
   const int lineHeight = renderer.getLineHeight(fontId) * lineCompression;
