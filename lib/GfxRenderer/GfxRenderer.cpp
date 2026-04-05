@@ -1719,7 +1719,9 @@ void GfxRenderer::drawTextVertical(const int fontId, const int x, const int y, c
           }
         }
       }
-      yPos += vAdvance + vAdvance / 10;
+      // Use the normal glyph's full-width advance (not the vert glyph's
+      // horizontal advance) so punctuation occupies a full character cell.
+      yPos += verticalAdvance;
     } else {
       // Fall back to upright rendering via drawText
       char charBuf[5] = {};
