@@ -6,9 +6,13 @@ on:
     paths-ignore:
       - 'docs/**'
       - '*.md'
-      - '.github/workflows/release-fonts.yml'
+      - '.github/workflows/**'
       - 'lib/EpdFont/scripts/**'
       - 'scripts/generate-font-manifest.py'
+
+concurrency:
+  group: dev-build
+  cancel-in-progress: true
 
 permissions:
   contents: write
