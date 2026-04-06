@@ -5,6 +5,8 @@
 #include <Serialization.h>
 #include <Utf8.h>
 
+#include <VerticalTextUtils.h>
+
 void TextBlock::collectCodepoints(std::vector<uint32_t>& out, size_t max) const {
   if (max == 0 || out.size() >= max) {
     return;
@@ -44,13 +46,52 @@ void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int 
   const int effectiveFontId = (blockStyle.fontId != 0) ? blockStyle.fontId : fontId;
 
 
+  // Compute column width once for Sideways/TateChuYoko centering
+  int columnWidth = 0;
+  if (isVertical) {
+    // Use advance of CJK reference character "一" (U+4E00) as column width
+    columnWidth = renderer.getTextAdvanceX(effectiveFontId, "\xe4\xb8\x80", EpdFontFamily::REGULAR);
+    if (columnWidth <= 0) columnWidth = renderer.getLineHeight(effectiveFontId);
+  }
+
   for (size_t i = 0; i < words.size(); i++) {
     const EpdFontFamily::Style currentStyle = wordStyles[i];
 
     if (isVertical && i < wordYpos.size()) {
-      // 縦書きモード: xはカラム位置、yはwordYposから
-      renderer.drawTextVertical(effectiveFontId, x + wordXpos[i], y + wordYpos[i],
-                                words[i].c_str(), true, currentStyle);
+      // 縦書きモード: VerticalBehaviorに応じて描画方法を分岐
+      const char* w = words[i].c_str();
+      const int wx = x + wordXpos[i];
+      const int wy = y + wordYpos[i];
+
+      // Classify: replicate the logic from ChapterHtmlSlimParser::flushPartWordBuffer
+      const auto* p = reinterpret_cast<const unsigned char*>(w);
+      uint32_t firstCp = utf8NextCodepoint(&p);
+      bool isSingleCjk = (firstCp != 0 && *p == '\0' && VerticalTextUtils::isUprightInVertical(firstCp));
+
+      if (isSingleCjk) {
+        renderer.drawTextVertical(effectiveFontId, wx, wy, w, true, currentStyle);
+      } else {
+        bool allDigits = true;
+        int asciiCount = 0;
+        for (const char* c = w; *c; c++) {
+          if ((static_cast<uint8_t>(*c) & 0xC0) != 0x80) asciiCount++;
+          if (*c < '0' || *c > '9') allDigits = false;
+        }
+        if (allDigits && asciiCount <= 2) {
+          // TateChuYoko: draw horizontally, centered in the column
+          const int textW = renderer.getTextAdvanceX(effectiveFontId, w, currentStyle);
+          const int centerOffset = (columnWidth - textW) / 2;
+          renderer.drawText(effectiveFontId, wx + centerOffset, wy, w, true, currentStyle);
+        } else {
+          // Sideways: draw rotated 90° CW, centered in the column.
+          // Gap asymmetry: CJK rendering adds ascender offset (~11px from cell top
+          // via drawText), while Sideways uses glyph->left (~1px). This creates
+          // 0px gap before and ~12px gap after. Shift down by ascender/6 ≈ 6px
+          // to equalize (derived from tracing actual pixel positions).
+          const int vertShift = renderer.getFontAscenderSize(effectiveFontId) / 3;
+          renderer.drawTextSideways(effectiveFontId, wx, wy + vertShift, w, true, currentStyle, columnWidth);
+        }
+      }
     } else {
       const int wordX = wordXpos[i] + x;
       renderer.drawText(effectiveFontId, wordX, y, words[i].c_str(), true, currentStyle);
@@ -79,8 +120,9 @@ void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int 
     }
   }
 
-  // Draw full-width separator line below the block (used for h1/h2 headings)
-  if (blockStyle.drawSeparatorBelow && viewportWidth > 0) {
+  // Draw full-width separator line below the block (used for h1/h2 headings).
+  // Suppressed in vertical mode: horizontal lines are inappropriate for tategaki.
+  if (blockStyle.drawSeparatorBelow && viewportWidth > 0 && !isVertical) {
     const int separatorY = y + renderer.getLineHeight(effectiveFontId) + 2;
     renderer.drawLine(0, separatorY, viewportWidth, separatorY, true);
   }

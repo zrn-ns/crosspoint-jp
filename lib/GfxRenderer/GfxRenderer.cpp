@@ -1679,8 +1679,11 @@ void GfxRenderer::drawTextVertical(const int fontId, const int x, const int y, c
     const EpdGlyph* glyph = font.getGlyph(cp, style);
     if (!glyph) continue;
 
-    const int advance = fp4::toPixel(glyph->advanceX);
-    const int verticalAdvance = advance + advance / 10;
+    int32_t advFP = static_cast<int32_t>(glyph->advanceX);
+    const uint16_t fontScale = getSdCardFontScale(effectiveFontId);
+    if (fontScale != 256) advFP = static_cast<int32_t>(static_cast<int64_t>(advFP) * fontScale / 256);
+    const int advance = fp4::toPixel(advFP);
+    const int verticalAdvance = advance + advance * verticalCharSpacingPercent_ / 100;
 
     // Check for vertical substitute glyph (OpenType 'vert' feature).
     // Only apply to punctuation/brackets/long marks — kana and ideographs
@@ -1742,10 +1745,102 @@ void GfxRenderer::drawTextVertical(const int fontId, const int x, const int y, c
   }
 }
 
+void GfxRenderer::drawTextSideways(const int fontId, const int x, const int y, const char* text, const bool black,
+                                   const EpdFontFamily::Style style, const int columnWidth) const {
+  if (text == nullptr || *text == '\0') return;
+
+  // Scan mode: record text for prewarm
+  if (fontCacheManager_ && fontCacheManager_->isScanning()) {
+    fontCacheManager_->recordText(text, fontId, style);
+    return;
+  }
+
+  const int effectiveFontId = getEffectiveFontId(fontId);
+  if (fontMap.count(effectiveFontId) == 0) return;
+
+  const auto& font = fontMap.at(effectiveFontId);
+  const EpdFontData* fontData = font.getData(style);
+  if (!fontData) return;
+
+  const uint16_t scale = getSdCardFontScale(effectiveFontId);
+  const bool needsScale = (scale != 256);
+
+  // Characters progress top-to-bottom (yPos increasing).
+  // Each glyph is rotated 90° CW with font scale applied.
+  // Advance accumulated in fp4 to match getTextAdvanceX().
+  int32_t yPosFP = fp4::fromPixel(y);
+
+  while (uint32_t cp = utf8NextCodepoint(reinterpret_cast<const uint8_t**>(&text))) {
+    const EpdGlyph* glyph = font.getGlyph(cp, style);
+    if (!glyph) { glyph = font.getGlyph('?', style); }
+    if (!glyph) continue;
+
+    const int yPosPx = fp4::toPixel(yPosFP);
+    const uint8_t* bitmap = getGlyphBitmap(fontData, glyph);
+    if (bitmap) {
+      // Apply scale to glyph metrics
+      const int drawH = needsScale ? ((glyph->height * scale + 128) >> 8) : glyph->height;
+      const int drawW = needsScale ? ((glyph->width * scale + 128) >> 8) : glyph->width;
+      const int drawLeft = needsScale ? ((glyph->left * static_cast<int>(scale) + 128) >> 8) : glyph->left;
+      const int drawTop = needsScale ? ((glyph->top * static_cast<int>(scale) + 128) >> 8) : glyph->top;
+      const int drawAscender = needsScale ? ((fontData->ascender * static_cast<int>(scale) + 128) >> 8) : fontData->ascender;
+
+      // Center rotated glyph horizontally within the column
+      int baseX;
+      if (columnWidth > 0) {
+        const int centerX = x + columnWidth / 2;
+        baseX = centerX + (drawH - 1) / 2;
+      } else {
+        baseX = x + drawAscender - drawTop + drawH - 1;
+      }
+      const int baseY = yPosPx + drawLeft;
+
+      for (int glyphY = 0; glyphY < glyph->height; glyphY++) {
+        // Map glyph row to scaled screen X
+        const int screenX = needsScale ? (baseX - (glyphY * scale >> 8)) : (baseX - glyphY);
+        for (int glyphX = 0; glyphX < glyph->width; glyphX++) {
+          const int screenY = needsScale ? (baseY + (glyphX * scale >> 8)) : (baseY + glyphX);
+          const int pixelPosition = glyphY * glyph->width + glyphX;
+
+          if (fontData->is2Bit) {
+            const uint8_t byte = bitmap[pixelPosition / 4];
+            const uint8_t bit_index = (3 - pixelPosition % 4) * 2;
+            const uint8_t bmpVal = 3 - ((byte >> bit_index) & 0x3);
+
+            if (renderMode == BW && bmpVal < 3) {
+              drawPixel(screenX, screenY, black);
+            } else if (renderMode == GRAYSCALE_MSB && (bmpVal == 1 || bmpVal == 2)) {
+              drawPixel(screenX, screenY, false);
+            } else if (renderMode == GRAYSCALE_LSB && bmpVal == 1) {
+              drawPixel(screenX, screenY, false);
+            }
+          } else {
+            const uint8_t byte = bitmap[pixelPosition / 8];
+            const uint8_t bit_index = 7 - (pixelPosition % 8);
+            if ((byte >> bit_index) & 1) {
+              drawPixel(screenX, screenY, black);
+            }
+          }
+        }
+      }
+    }
+
+    int32_t advFP = static_cast<int32_t>(glyph->advanceX);
+    if (needsScale) advFP = static_cast<int32_t>(static_cast<int64_t>(advFP) * scale / 256);
+    yPosFP += advFP;
+  }
+}
+
 void GfxRenderer::drawTextRotated90CW(const int fontId, const int x, const int y, const char* text, const bool black,
                                       const EpdFontFamily::Style style) const {
   // Cannot draw a NULL / empty string
   if (text == nullptr || *text == '\0') {
+    return;
+  }
+
+  // Scan mode: record text for prewarm (same pattern as drawTextVertical)
+  if (fontCacheManager_ && fontCacheManager_->isScanning()) {
+    fontCacheManager_->recordText(text, fontId, style);
     return;
   }
 
@@ -1914,7 +2009,7 @@ void GfxRenderer::drawTextRotated90CW(const int fontId, const int x, const int y
     }
 
     // Move to next character position (going up, so decrease Y)
-    yPos -= glyph->advanceX;
+    yPos -= fp4::toPixel(glyph->advanceX);
   }
 }
 
