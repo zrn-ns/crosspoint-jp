@@ -1,0 +1,91 @@
+name: Dev Build
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+
+jobs:
+  dev-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "latest"
+          enable-cache: false
+
+      - name: Install PlatformIO Core
+        run: uv pip install --system -U https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip
+
+      - name: Build CrossPoint
+        run: |
+          set -euo pipefail
+          pio run -e gh_release
+
+          firmware="$(find .pio/build -maxdepth 3 -type f -path "*/firmware.bin" | grep "/gh_release/" | head -n1)"
+          bootloader="$(find .pio/build -maxdepth 3 -type f -path "*/bootloader.bin" | grep "/gh_release/" | head -n1)"
+          partitions="$(find .pio/build -maxdepth 3 -type f -path "*/partitions.bin" | grep "/gh_release/" | head -n1)"
+
+          if [ -z "${firmware}" ] || [ -z "${bootloader}" ] || [ -z "${partitions}" ]; then
+            echo "Expected gh_release artifacts not found."
+            find .pio/build -maxdepth 4 -type f | sort || true
+            exit 1
+          fi
+
+          cp "${firmware}" firmware.bin
+          cp "${bootloader}" bootloader.bin
+          cp "${partitions}" partitions.bin
+
+      - name: Generate release metadata
+        id: meta
+        run: |
+          TIMESTAMP="$(date -u +%Y%m%d-%H%M%S)"
+          DISPLAY_TIME="$(date -u +'%Y-%m-%d %H:%M:%S')"
+          SHORT_SHA="${GITHUB_SHA::7}"
+          COMMIT_MSG="$(git log -1 --pretty=%s)"
+
+          echo "tag_name=dev-${TIMESTAMP}" >> "$GITHUB_OUTPUT"
+          echo "release_name=Dev Build ${DISPLAY_TIME}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "commit_msg=${COMMIT_MSG}" >> "$GITHUB_OUTPUT"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag_name }}
+          name: ${{ steps.meta.outputs.release_name }}
+          prerelease: true
+          make_latest: false
+          files: |
+            firmware.bin
+            bootloader.bin
+            partitions.bin
+          body: |
+            ## Dev Build
+
+            | 項目 | 値 |
+            |------|-----|
+            | コミット | [`${{ steps.meta.outputs.short_sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}) |
+            | メッセージ | ${{ steps.meta.outputs.commit_msg }} |
+            | ビルド環境 | `gh_release` |
+
+            ### 📦 アセット
+
+            | ファイル | 用途 |
+            |---------|------|
+            | `firmware.bin` | OTAアップデート / フラッシュ書き込み |
+            | `bootloader.bin` | 初回書き込み / 復旧用 |
+            | `partitions.bin` | 初回書き込み / 復旧用 |
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
