@@ -719,6 +719,22 @@ void SdCardFont::clearCache() {
   }
 }
 
+void SdCardFont::freeKernLigatureData() {
+  for (uint8_t i = 0; i < MAX_STYLES; i++) {
+    if (!styles_[i].present) continue;
+    freeStyleKernLigatureData(styles_[i]);
+    // Clear pointers in stubData/miniData too
+    styles_[i].stubData.kernLeftClasses = nullptr;
+    styles_[i].stubData.kernRightClasses = nullptr;
+    styles_[i].stubData.kernMatrix = nullptr;
+    styles_[i].stubData.ligaturePairs = nullptr;
+    styles_[i].miniData.kernLeftClasses = nullptr;
+    styles_[i].miniData.kernRightClasses = nullptr;
+    styles_[i].miniData.kernMatrix = nullptr;
+    styles_[i].miniData.ligaturePairs = nullptr;
+  }
+}
+
 // --- Vertical glyph substitution ---
 
 const EpdGlyph* SdCardFont::getVertGlyph(uint32_t codepoint, uint8_t style) const {

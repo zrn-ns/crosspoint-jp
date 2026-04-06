@@ -41,6 +41,10 @@ class SdCardFont {
   // Free mini data for all styles, restore stub EpdFontData.
   void clearCache();
 
+  // Free kern/ligature data for all styles (reclaim memory before heavy operations).
+  // Data will be lazy-loaded again on next prewarm.
+  void freeKernLigatureData();
+
   // Returns pointer to the managed EpdFont for a given style.
   // Returns nullptr if the style is not present.
   EpdFont* getEpdFont(uint8_t style = 0);

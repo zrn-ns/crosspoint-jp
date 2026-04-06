@@ -26,6 +26,16 @@ void FontCacheManager::clearCache() {
   }
 }
 
+void FontCacheManager::freeKernLigatureData() {
+  SdCardFont* last = nullptr;
+  for (auto& [id, font] : sdCardFonts_) {
+    if (font != last) {
+      font->freeKernLigatureData();
+      last = font;
+    }
+  }
+}
+
 void FontCacheManager::prewarmCache(int fontId, const char* utf8Text, uint8_t styleMask) {
   // SD card font prewarm path: prewarm all requested styles in one call
   auto it = sdCardFonts_.find(fontId);

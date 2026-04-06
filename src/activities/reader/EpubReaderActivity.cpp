@@ -648,11 +648,15 @@ void EpubReaderActivity::render(RenderLock&& lock) {
       // Apply vertical character spacing for layout calculation
       renderer.setVerticalCharSpacing(SETTINGS.getVerticalCharSpacingPercent());
 
-      // Free SD card font prewarm data (miniGlyphs, miniBitmap) before section
-      // building to reclaim ~130KB. Prewarm will reload needed glyphs later
-      // during the render pass.
+      // Free SD card font data before section building to maximize available heap.
+      // clearCache() frees prewarm data (~130KB: miniGlyphs + miniBitmap).
+      // freeKernLigatureData() frees kern/ligature tables (~22KB per style).
+      // Both are lazy-loaded again during the render pass.
       auto* fcm = renderer.getFontCacheManager();
-      if (fcm) fcm->clearCache();
+      if (fcm) {
+        fcm->clearCache();
+        fcm->freeKernLigatureData();
+      }
 
       const auto popupFn = [this]() { GUI.drawPopup(renderer, tr(STR_INDEXING)); };
 
