@@ -254,6 +254,9 @@ class CrossPointSettings {
   int getBuiltInReaderFontId() const;
   // Returns font ID for heading level (1-6). Returns 0 if same as body font.
   int getHeadingFontId(int headingLevel) const;
+  // Returns a smaller font ID for table rendering (10pt for SD card fonts,
+  // SMALL for built-in fonts). Returns 0 if same as reader font.
+  int getTableFontId() const;
 
   // If count_only is true, returns the number of settings items that would be written.
   uint8_t writeSettings(FsFile& file, bool count_only = false) const;

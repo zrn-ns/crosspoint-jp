@@ -424,3 +424,32 @@ int CrossPointSettings::getHeadingFontId(const int headingLevel) const {
       }
   }
 }
+
+int CrossPointSettings::getTableFontId() const {
+  // Index 4 in FONT_SIZE_TO_PT maps to 10pt
+  static constexpr uint8_t TABLE_FONT_SIZE_ENUM = 4;
+
+  // SD card font: resolve same family at 10pt
+  if (sdFontFamilyName[0] != '\0' && sdFontIdResolver) {
+    int id = sdFontIdResolver(sdFontResolverCtx, sdFontFamilyName, TABLE_FONT_SIZE_ENUM);
+    if (id != 0) return id;
+  }
+
+  // CJK external font: fixed size, no smaller variant available
+  const FontManager& fm = FontManager::getInstance();
+  if (fm.isExternalFontEnabled()) {
+    return 0;
+  }
+
+  // Built-in font: use SMALL (smallest available)
+  if (fontSize == SMALL) return 0;  // already at smallest size
+  switch (fontFamily) {
+    case BOOKERLY:
+    default:
+      return BOOKERLY_12_FONT_ID;
+    case NOTOSANS:
+      return NOTOSANS_12_FONT_ID;
+    case OPENDYSLEXIC:
+      return OPENDYSLEXIC_8_FONT_ID;
+  }
+}

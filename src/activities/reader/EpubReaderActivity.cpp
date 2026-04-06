@@ -666,7 +666,7 @@ void EpubReaderActivity::render(RenderLock&& lock) {
                                       SETTINGS.extraParagraphSpacing, SETTINGS.paragraphAlignment, viewportWidth,
                                       viewportHeight, SETTINGS.hyphenationEnabled, SETTINGS.firstLineIndent,
                                       SETTINGS.embeddedStyle, SETTINGS.imageRendering, verticalMode, popupFn,
-                                      headingFontIds, UI_10_FONT_ID)) {
+                                      headingFontIds, SETTINGS.getTableFontId())) {
         LOG_ERR("ERS", "Failed to persist page data to SD (free heap: %d)", ESP.getFreeHeap());
         section.reset();
         // Show error and return to home to avoid infinite retry loop
@@ -797,7 +797,7 @@ void EpubReaderActivity::silentIndexNextChapterIfNeeded(const uint16_t viewportW
                                      SETTINGS.extraParagraphSpacing, SETTINGS.paragraphAlignment, viewportWidth,
                                      viewportHeight, SETTINGS.hyphenationEnabled, SETTINGS.firstLineIndent,
                                      SETTINGS.embeddedStyle, SETTINGS.imageRendering, verticalMode, nullptr,
-                                     silentHeadingFontIds, UI_10_FONT_ID)) {
+                                     silentHeadingFontIds, SETTINGS.getTableFontId())) {
     LOG_ERR("ERS", "Failed silent indexing for chapter: %d", nextSpineIndex);
   }
 }

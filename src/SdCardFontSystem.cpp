@@ -7,7 +7,8 @@
 #include "CrossPointSettings.h"
 
 // Map fontSize enum (SMALL=0, MEDIUM=1, LARGE=2, EXTRA_LARGE=3) to point sizes.
-static constexpr uint8_t FONT_SIZE_TO_PT[] = {12, 14, 16, 18};
+// Index 4 (TABLE_SIZE) maps to 10pt for table rendering.
+static constexpr uint8_t FONT_SIZE_TO_PT[] = {12, 14, 16, 18, 10};
 
 void SdCardFontSystem::begin(GfxRenderer& renderer) {
   registry_.discover();
