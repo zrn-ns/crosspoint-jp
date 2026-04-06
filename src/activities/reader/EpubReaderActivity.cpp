@@ -633,6 +633,7 @@ void EpubReaderActivity::render(RenderLock&& lock) {
     section = std::unique_ptr<Section>(new Section(epub, currentSpineIndex, renderer));
 
     const float lineCompression = SETTINGS.getReaderLineCompression();
+    renderer.setVerticalCharSpacing(SETTINGS.getVerticalCharSpacingPercent());
     LOG_DBG("ERS", "Reflow params: lineSpacing=%u, compression=%.2f, viewport=%ux%u", SETTINGS.lineSpacing,
             lineCompression, viewportWidth, viewportHeight);
 
@@ -641,6 +642,9 @@ void EpubReaderActivity::render(RenderLock&& lock) {
                                   viewportHeight, SETTINGS.hyphenationEnabled, SETTINGS.firstLineIndent,
                                   SETTINGS.embeddedStyle, SETTINGS.imageRendering, verticalMode)) {
       LOG_DBG("ERS", "Cache not found, building...");
+
+      // Apply vertical character spacing for layout calculation
+      renderer.setVerticalCharSpacing(SETTINGS.getVerticalCharSpacingPercent());
 
       // Free SD card font prewarm data (miniGlyphs, miniBitmap) before section
       // building to reclaim ~130KB. Prewarm will reload needed glyphs later
@@ -825,6 +829,9 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
       }
     }
   }
+
+  // Apply vertical character spacing setting for this render
+  renderer.setVerticalCharSpacing(SETTINGS.getVerticalCharSpacingPercent());
 
   // Font prewarm: scan pass accumulates text, then prewarm, then real render
   auto* fcm = renderer.getFontCacheManager();

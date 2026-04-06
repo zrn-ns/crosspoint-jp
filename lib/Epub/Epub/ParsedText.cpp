@@ -2,6 +2,7 @@
 
 #include <GfxRenderer.h>
 #include <Utf8.h>
+#include <VerticalTextUtils.h>
 
 #include <algorithm>
 #include <cmath>
@@ -232,26 +233,45 @@ void ParsedText::layoutVerticalColumns(const GfxRenderer& renderer, const int fo
 
   const int lineHeight = renderer.getLineHeight(fontId);
 
-  // Calculate word heights for vertical layout (with 10% spacing, matching drawTextVertical)
+  // Compute CJK character advance once from the first Upright word.
+  // This is used as the reference cell height for TateChuYoko and spacing.
+  // Cannot use a hardcoded reference char ("一") because it may not be in the advance table.
+  int cjkCharAdvance = 0;
+  for (size_t i = 0; i < words.size() && cjkCharAdvance == 0; i++) {
+    auto vb = (i < wordVerticalBehaviors.size()) ? wordVerticalBehaviors[i]
+                                                  : VerticalTextUtils::VerticalBehavior::Upright;
+    if (vb == VerticalTextUtils::VerticalBehavior::Upright) {
+      cjkCharAdvance = renderer.getTextAdvanceX(fontId, words[i].c_str(), wordStyles[i]);
+    }
+  }
+  if (cjkCharAdvance == 0) cjkCharAdvance = lineHeight;  // fallback
+
+  // Calculate word heights for vertical layout
   std::vector<uint16_t> wordHeights;
   wordHeights.reserve(words.size());
+  const int sp = renderer.getVerticalCharSpacing();
+  const int cjkSpacing = cjkCharAdvance * sp / 100;
+
   for (size_t i = 0; i < words.size(); i++) {
     auto vb = (i < wordVerticalBehaviors.size()) ? wordVerticalBehaviors[i]
                                                   : VerticalTextUtils::VerticalBehavior::Upright;
     uint16_t baseHeight;
     switch (vb) {
       case VerticalTextUtils::VerticalBehavior::Sideways:
-        baseHeight = renderer.getTextWidth(fontId, words[i].c_str(), wordStyles[i]);
+        baseHeight = renderer.getTextAdvanceX(fontId, words[i].c_str(), wordStyles[i]);
         break;
       case VerticalTextUtils::VerticalBehavior::TateChuYoko:
-        baseHeight = static_cast<uint16_t>(lineHeight);
+        baseHeight = static_cast<uint16_t>(cjkCharAdvance);
         break;
       default:
-        baseHeight = renderer.getTextWidth(fontId, words[i].c_str(), wordStyles[i]);
+        baseHeight = renderer.getTextAdvanceX(fontId, words[i].c_str(), wordStyles[i]);
         break;
     }
-    // Add 10% vertical spacing between characters (matches drawTextVertical advance)
-    wordHeights.push_back(baseHeight + baseHeight / 10);
+    if (vb == VerticalTextUtils::VerticalBehavior::Upright) {
+      wordHeights.push_back(baseHeight + baseHeight * sp / 100);
+    } else {
+      wordHeights.push_back(baseHeight + cjkSpacing);
+    }
   }
 
   // Break into columns when cumulative height exceeds columnHeight
@@ -279,11 +299,39 @@ void ParsedText::layoutVerticalColumns(const GfxRenderer& renderer, const int fo
         blockStyle, std::move(colYpos), true));
   };
 
+  // Helper: get the first codepoint of a word string
+  auto firstCodepoint = [](const std::string& w) -> uint32_t {
+    const auto* p = reinterpret_cast<const unsigned char*>(w.c_str());
+    return utf8NextCodepoint(&p);
+  };
+
   for (size_t i = 0; i < words.size(); i++) {
     if (currentY + wordHeights[i] > columnHeight && i > columnStart) {
-      emitColumn(columnStart, i);
-      columnStart = i;
+      // Kinsoku: adjust break point to avoid prohibited line-head/line-tail characters
+      size_t breakAt = i;
+
+      // Check if word at breakAt would start with a kinsoku-head character
+      // If so, pull it back (include it in the current column instead)
+      while (breakAt > columnStart + 1 &&
+             VerticalTextUtils::isKinsokuHead(firstCodepoint(words[breakAt]))) {
+        breakAt--;
+      }
+
+      // Check if the last word in the current column is a kinsoku-tail character
+      // If so, pull it to the next column
+      if (breakAt > columnStart + 1 &&
+          VerticalTextUtils::isKinsokuTail(firstCodepoint(words[breakAt - 1]))) {
+        breakAt--;
+      }
+
+      emitColumn(columnStart, breakAt);
+      columnStart = breakAt;
+      // Recalculate currentY for the new column
       currentY = 0;
+      for (size_t j = columnStart; j <= i; j++) {
+        currentY += wordHeights[j];
+      }
+      continue;
     }
     currentY += wordHeights[i];
   }
