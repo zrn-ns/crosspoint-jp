@@ -1,5 +1,7 @@
 #pragma once
 
+#include <ArduinoJson.h>
+
 #include <string>
 #include <vector>
 
@@ -92,6 +94,6 @@ class AozoraActivity : public Activity {
   bool downloadBook();
 
   // JSON parsing
-  bool parseAuthorsJson(const std::string& json);
-  bool parseWorksJson(const std::string& json);
+  bool parseAuthorsJson(JsonDocument& doc);
+  bool parseWorksJson(JsonDocument& doc);
 };

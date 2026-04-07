@@ -115,45 +115,99 @@ void AozoraActivity::popState() {
   selectedIndexStack_.pop_back();
 }
 
-// --- API calls ---
+// --- URL encoding helper ---
 
-bool AozoraActivity::fetchAuthors(const char* kanaPrefix) {
-  char url[128];
-  snprintf(url, sizeof(url), "%s/api/authors?kana_prefix=%s", API_BASE, kanaPrefix);
+static void urlEncodeUtf8(const char* src, char* dest, size_t destSize) {
+  size_t pos = 0;
+  for (size_t i = 0; src[i] && pos < destSize - 4; i++) {
+    unsigned char c = static_cast<unsigned char>(src[i]);
+    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
+        c == '-' || c == '_' || c == '.' || c == '~') {
+      dest[pos++] = static_cast<char>(c);
+    } else {
+      pos += snprintf(dest + pos, destSize - pos, "%%%02X", c);
+    }
+  }
+  dest[pos] = '\0';
+}
 
-  std::string response;
-  if (!HttpDownloader::fetchUrl(std::string(url), response)) {
-    LOG_ERR("AOZORA", "fetchAuthors failed: %s", url);
-    errorMessage_ = "HTTP error";
+// --- API calls (download JSON to SD temp file, then parse) ---
+
+static constexpr const char* API_TMP_FILE = "/aozora_api.tmp";
+
+static std::string lastApiError_;
+
+static bool fetchApiJson(const char* url, JsonDocument& doc) {
+  LOG_DBG("AOZORA", "API call: %s (heap=%d)", url, ESP.getFreeHeap());
+  auto result = HttpDownloader::downloadToFile(url, API_TMP_FILE, nullptr);
+  if (result != HttpDownloader::OK) {
+    LOG_ERR("AOZORA", "API fetch failed: err=%d http=%d url=%s", result, HttpDownloader::lastHttpCode, url);
+    char buf[128];
+    snprintf(buf, sizeof(buf), "err=%d http=%d heap=%dKB", static_cast<int>(result), HttpDownloader::lastHttpCode,
+             ESP.getFreeHeap() / 1024);
+    lastApiError_ = buf;
+    Storage.remove(API_TMP_FILE);
     return false;
   }
 
-  return parseAuthorsJson(response);
+  FsFile file;
+  if (!Storage.openFileForRead("AOZORA", API_TMP_FILE, file)) {
+    LOG_ERR("AOZORA", "Failed to open temp file");
+    Storage.remove(API_TMP_FILE);
+    return false;
+  }
+
+  DeserializationError err = deserializeJson(doc, file);
+  file.close();
+  Storage.remove(API_TMP_FILE);
+
+  if (err) {
+    LOG_ERR("AOZORA", "JSON parse error: %s", err.c_str());
+    return false;
+  }
+
+  return true;
+}
+
+bool AozoraActivity::fetchAuthors(const char* kanaPrefix) {
+  char encoded[32];
+  urlEncodeUtf8(kanaPrefix, encoded, sizeof(encoded));
+
+  char url[192];
+  snprintf(url, sizeof(url), "%s/api/authors?kana_prefix=%s", API_BASE, encoded);
+
+  JsonDocument doc;
+  if (!fetchApiJson(url, doc)) {
+    errorMessage_ = lastApiError_;
+    return false;
+  }
+
+  return parseAuthorsJson(doc);
 }
 
 bool AozoraActivity::fetchWorks(const char* queryParam) {
+  // queryParam may contain kana_prefix=カタカナ — need to encode the value part
   char url[256];
-  snprintf(url, sizeof(url), "%s/api/works?%s", API_BASE, queryParam);
 
-  std::string response;
-  if (!HttpDownloader::fetchUrl(std::string(url), response)) {
-    LOG_ERR("AOZORA", "fetchWorks failed: %s", url);
+  // Check if queryParam contains kana_prefix (needs URL encoding)
+  if (strncmp(queryParam, "kana_prefix=", 12) == 0) {
+    char encoded[32];
+    urlEncodeUtf8(queryParam + 12, encoded, sizeof(encoded));
+    snprintf(url, sizeof(url), "%s/api/works?kana_prefix=%s", API_BASE, encoded);
+  } else {
+    snprintf(url, sizeof(url), "%s/api/works?%s", API_BASE, queryParam);
+  }
+
+  JsonDocument doc;
+  if (!fetchApiJson(url, doc)) {
     errorMessage_ = "HTTP error";
     return false;
   }
 
-  return parseWorksJson(response);
+  return parseWorksJson(doc);
 }
 
-bool AozoraActivity::parseAuthorsJson(const std::string& json) {
-  JsonDocument doc;
-  DeserializationError err = deserializeJson(doc, json);
-  if (err) {
-    LOG_ERR("AOZORA", "JSON parse error: %s", err.c_str());
-    errorMessage_ = "JSON parse error";
-    return false;
-  }
-
+bool AozoraActivity::parseAuthorsJson(JsonDocument& doc) {
   authors_.clear();
   JsonArray arr = doc["authors"].as<JsonArray>();
   if (arr.isNull()) {
@@ -176,15 +230,7 @@ bool AozoraActivity::parseAuthorsJson(const std::string& json) {
   return true;
 }
 
-bool AozoraActivity::parseWorksJson(const std::string& json) {
-  JsonDocument doc;
-  DeserializationError err = deserializeJson(doc, json);
-  if (err) {
-    LOG_ERR("AOZORA", "JSON parse error: %s", err.c_str());
-    errorMessage_ = "JSON parse error";
-    return false;
-  }
-
+bool AozoraActivity::parseWorksJson(JsonDocument& doc) {
   works_.clear();
   JsonArray arr = doc["works"].as<JsonArray>();
   if (arr.isNull()) {
@@ -279,6 +325,7 @@ void AozoraActivity::loop() {
             RenderLock lock(*this);
             pushState(KANA_SELECT);
           }
+          requestUpdate();
           break;
         case 1:  // 作品名から探す
           searchMode_ = SEARCH_TITLE;
@@ -286,12 +333,15 @@ void AozoraActivity::loop() {
             RenderLock lock(*this);
             pushState(KANA_SELECT);
           }
+          requestUpdate();
           break;
         case 2:  // ジャンルから探す
         {
           RenderLock lock(*this);
           pushState(GENRE_SELECT);
-        } break;
+        }
+          requestUpdate();
+          break;
         case 3:  // 新着作品
         {
           {
@@ -308,18 +358,24 @@ void AozoraActivity::loop() {
             RenderLock lock(*this);
             state_ = ERROR;
           }
+          requestUpdate();
         } break;
         case 4:  // ダウンロード済み
         {
           RenderLock lock(*this);
           pushState(DOWNLOADED_LIST);
-        } break;
+        }
+          requestUpdate();
+          break;
       }
     }
   } else if (state_ == KANA_SELECT) {
     if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
-      RenderLock lock(*this);
-      popState();
+      {
+        RenderLock lock(*this);
+        popState();
+      }
+      requestUpdate();
       return;
     }
 
@@ -347,8 +403,6 @@ void AozoraActivity::loop() {
       requestUpdateAndWait();
 
       if (searchMode_ == SEARCH_AUTHOR) {
-        char query[64];
-        snprintf(query, sizeof(query), "kana_prefix=%s", kanaParam);
         if (fetchAuthors(kanaParam)) {
           RenderLock lock(*this);
           state_ = AUTHOR_LIST;
@@ -369,11 +423,15 @@ void AozoraActivity::loop() {
           state_ = ERROR;
         }
       }
+      requestUpdate();
     }
   } else if (state_ == GENRE_SELECT) {
     if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
-      RenderLock lock(*this);
-      popState();
+      {
+        RenderLock lock(*this);
+        popState();
+      }
+      requestUpdate();
       return;
     }
 
@@ -410,11 +468,15 @@ void AozoraActivity::loop() {
         RenderLock lock(*this);
         state_ = ERROR;
       }
+      requestUpdate();
     }
   } else if (state_ == AUTHOR_LIST) {
     if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
-      RenderLock lock(*this);
-      popState();
+      {
+        RenderLock lock(*this);
+        popState();
+      }
+      requestUpdate();
       return;
     }
 
@@ -454,12 +516,16 @@ void AozoraActivity::loop() {
           RenderLock lock(*this);
           state_ = ERROR;
         }
+        requestUpdate();
       }
     }
   } else if (state_ == WORK_LIST) {
     if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
-      RenderLock lock(*this);
-      popState();
+      {
+        RenderLock lock(*this);
+        popState();
+      }
+      requestUpdate();
       return;
     }
 
@@ -488,12 +554,16 @@ void AozoraActivity::loop() {
           RenderLock lock(*this);
           pushState(WORK_DETAIL);
         }
+        requestUpdate();
       }
     }
   } else if (state_ == WORK_DETAIL) {
     if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
-      RenderLock lock(*this);
-      popState();
+      {
+        RenderLock lock(*this);
+        popState();
+      }
+      requestUpdate();
       return;
     }
 
@@ -503,8 +573,11 @@ void AozoraActivity::loop() {
       if (alreadyDownloaded) {
         // Delete the book
         if (indexManager_.removeEntry(selectedWorkId_)) {
-          RenderLock lock(*this);
-          popState();
+          {
+            RenderLock lock(*this);
+            popState();
+          }
+          requestUpdate();
         }
       } else {
         // Download the book
@@ -523,12 +596,16 @@ void AozoraActivity::loop() {
           RenderLock lock(*this);
           state_ = ERROR;
         }
+        requestUpdate();
       }
     }
   } else if (state_ == DOWNLOADED_LIST) {
     if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
-      RenderLock lock(*this);
-      popState();
+      {
+        RenderLock lock(*this);
+        popState();
+      }
+      requestUpdate();
       return;
     }
 
@@ -559,13 +636,17 @@ void AozoraActivity::loop() {
           RenderLock lock(*this);
           pushState(WORK_DETAIL);
         }
+        requestUpdate();
       }
     }
   } else if (state_ == ERROR) {
     if (mappedInput.wasPressed(MappedInputManager::Button::Back) ||
         mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
-      RenderLock lock(*this);
-      popState();
+      {
+        RenderLock lock(*this);
+        popState();
+      }
+      requestUpdate();
     }
   }
 }
