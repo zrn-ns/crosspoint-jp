@@ -17,6 +17,7 @@ docs/plans/
 .spec-workflow/
 .serena/
 .claude/
+.superpowers/
 .history/
 /.venv
 *.local*
