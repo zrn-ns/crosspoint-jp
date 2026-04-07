@@ -530,6 +530,53 @@ clang-format -i src/**/*.cpp src/**/*.h
 3. Verify task deletion with task list (`vTaskList()`)
 4. Test with `LOG_LEVEL=2` (debug logging enabled)
 
+### シリアル不安定時の画面デバッグ手法
+
+**背景**: ESP32-C3 (X3) のUSB Serial/JTAGはデバイス動作中に頻繁に切断される。`LOG_DBG`/`LOG_ERR` が見られない場合、画面に直接デバッグ情報を描画する。
+
+**手法1: グローバル変数 + 数値表示**
+
+多段階の処理（EPUB解析、画像デコード等）の各ステップにグローバル変数でステージ番号を記録し、失敗時やレンダリング時に画面に表示する。
+
+```cpp
+// ライブラリ側（例: Epub.cpp）
+int g_debugStage = 0;
+
+bool SomeClass::complexOperation() {
+  g_debugStage = 1;  // ステップ1開始
+  if (!step1()) { g_debugStage = -1; return false; }
+  g_debugStage = 2;  // ステップ2開始
+  if (!step2()) { g_debugStage = -2; return false; }
+  // ...
+}
+
+// 表示側（Activity側）
+extern int g_debugStage;
+char buf[64];
+snprintf(buf, sizeof(buf), "S:%d H:%dk", g_debugStage, (int)(ESP.getFreeHeap() / 1024));
+// drawText または goToFullScreenMessage で表示
+```
+
+**手法2: FullScreenMessageによるエラー表示**
+
+処理失敗時に `activityManager.goToFullScreenMessage()` でエラー情報を表示する。ホーム画面に戻る代わりにエラー画面を表示するので、ユーザーが情報を読める。
+
+```cpp
+if (!epub) {
+  char buf[64];
+  snprintf(buf, sizeof(buf), "LOAD FAIL S:%d", stage);
+  activityManager.goToFullScreenMessage(buf, EpdFontFamily::REGULAR);
+  return;
+}
+```
+
+**注意事項**:
+- `fillRect` による視覚的バーは e-ink では判別困難。**数値テキストを使うこと**
+- パース中の `fillRect` はレンダリングで上書きされる。**レンダリング後に描画すること**
+- `renderer.drawText()` にはフォントIDが必要。リーダーコンテキストでは `SETTINGS.getReaderFontId()` を使用
+- `page->render()` はscanパスとBWレンダリングパスで2回呼ばれる。診断はBWレンダリング後に配置
+- グローバル変数は**デバッグ完了後に必ず除去する**（コミットに含めない）
+
 ---
 
 ## Git Workflow and Repository Awareness
@@ -873,9 +920,9 @@ Philosophy: We are building a dedicated e-reader, not a Swiss Army knife. If a f
 
 ---
 
-# 個人フォーク固有ガイド (personal/main ブランチ)
+# 個人フォーク固有ガイド (master ブランチ)
 
-本セクションは zrn-ns/crosspoint-reader フォークに固有の情報です。
+本セクションは zrn-ns/crosspoint-jp フォークに固有の情報です。
 本家 crosspoint-reader/crosspoint-reader の v1.2.0 をベースに、以下を統合しています。
 
 ## 統合元と構成
@@ -890,7 +937,7 @@ Philosophy: We are building a dedicated e-reader, not a Swiss Army knife. If a f
 ## リモート構成
 
 ```
-origin   → zrn-ns/crosspoint-reader (フォーク)
+origin   → zrn-ns/crosspoint-jp (フォーク)
 upstream → crosspoint-reader/crosspoint-reader (本家)
 cjk-fork → aBER0724/crosspoint-reader-cjk (CJKフォーク)
 ```
