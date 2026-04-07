@@ -290,6 +290,7 @@ bool AozoraActivity::parseWorksJson(JsonDocument& doc) {
     snprintf(entry.title, sizeof(entry.title), "%s", (obj["title"] | ""));
     snprintf(entry.kana, sizeof(entry.kana), "%s", (obj["kana"] | ""));
     snprintf(entry.ndc, sizeof(entry.ndc), "%s", (obj["ndc"] | ""));
+    snprintf(entry.author, sizeof(entry.author), "%s", (obj["author"] | ""));
     works_.push_back(entry);
   }
 
@@ -678,7 +679,8 @@ void AozoraActivity::loop() {
         const auto& work = works_[selectedIndex_];
         selectedWorkId_ = work.id;
         snprintf(selectedWorkTitle_, sizeof(selectedWorkTitle_), "%s", work.title);
-        snprintf(selectedWorkAuthor_, sizeof(selectedWorkAuthor_), "%s", selectedAuthorName_);
+        snprintf(selectedWorkAuthor_, sizeof(selectedWorkAuthor_), "%s",
+                 work.author[0] ? work.author : selectedAuthorName_);
 
         {
           RenderLock lock(*this);

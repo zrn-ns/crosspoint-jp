@@ -50,6 +50,7 @@ class AozoraActivity : public Activity {
     char title[80];
     char kana[48];
     char ndc[8];
+    char author[48];
   };
 
   State state_ = WIFI_SELECTION;
