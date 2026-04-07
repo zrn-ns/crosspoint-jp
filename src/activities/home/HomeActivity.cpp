@@ -282,6 +282,16 @@ void HomeActivity::onFileTransferOpen() { activityManager.goToFileTransfer(); }
 void HomeActivity::onOpdsBrowserOpen() { activityManager.goToBrowser(); }
 
 void HomeActivity::onAozoraOpen() {
+  // カバーバッファと最近の本リストを解放（TLSバッファ用にヒープ確保）
+  freeCoverBuffer();
+  recentBooks.clear();
+  recentBooks.shrink_to_fit();
+
   startActivityForResult(std::make_unique<AozoraActivity>(renderer, mappedInput),
-                         [](const ActivityResult&) {});
+                         [this](const ActivityResult&) {
+                           // 戻ってきたら再読み込み
+                           const auto& metrics = UITheme::getInstance().getMetrics();
+                           loadRecentBooks(metrics.homeRecentBooksCount);
+                           loadRecentCovers(metrics.homeCoverHeight);
+                         });
 }
