@@ -1,6 +1,9 @@
 #include "ImageBlock.h"
 
+#include <Bitmap.h>
+#include <FsHelpers.h>
 #include <GfxRenderer.h>
+#include <JpegToBmpConverter.h>
 #include <Logging.h>
 #include <Serialization.h>
 
@@ -134,7 +137,7 @@ void ImageBlock::render(GfxRenderer& renderer, const int x, const int y) {
   // Try to render from cache first
   std::string cachePath = getCachePath(imagePath);
   if (renderFromCache(renderer, cachePath, x, y, width, height)) {
-    return;  // Successfully rendered from cache
+    return;
   }
 
   // No cache - need to decode the image
@@ -165,6 +168,57 @@ void ImageBlock::render(GfxRenderer& renderer, const int x, const int y) {
   config.useExactDimensions = true;  // Use pre-calculated dimensions to avoid rounding mismatches
   config.cachePath = cachePath;      // Enable caching during decode
 
+  // For JPEG images, use the proven picojpeg-based converter (JpegToBmpConverter)
+  // which correctly handles large images and scaling. The JPEGDEC-based
+  // JpegToFramebufferConverter has diagonal distortion bugs with scaled output.
+  // The converted BMP is cached on SD card for fast subsequent renders.
+  if (FsHelpers::hasJpgExtension(imagePath)) {
+    const std::string bmpPath = cachePath + ".bmp";
+
+    // Convert JPEG to BMP if not cached yet
+    if (!Storage.exists(bmpPath.c_str())) {
+
+      FsFile jpegFile;
+      if (!Storage.openFileForRead("IMG", imagePath, jpegFile)) {
+        LOG_ERR("IMG", "Failed to open JPEG for BMP conversion: %s", imagePath.c_str());
+        return;
+      }
+
+      FsFile bmpFile;
+      if (!Storage.openFileForWrite("IMG", bmpPath, bmpFile)) {
+        jpegFile.close();
+        LOG_ERR("IMG", "Failed to create BMP cache file");
+        return;
+      }
+
+      bool success = JpegToBmpConverter::jpegFileToBmpStreamWithSize(jpegFile, bmpFile, width, height);
+      jpegFile.close();
+      bmpFile.close();
+
+      if (!success) {
+        Storage.remove(bmpPath.c_str());
+        LOG_ERR("IMG", "JPEG to BMP conversion failed: %s", imagePath.c_str());
+        return;
+      }
+      LOG_DBG("IMG", "Cached JPEG as BMP: %s", bmpPath.c_str());
+    }
+
+    // Render from cached BMP
+    FsFile bmpReadFile;
+    if (Storage.openFileForRead("IMG", bmpPath, bmpReadFile)) {
+      Bitmap bmp(bmpReadFile);
+      if (bmp.parseHeaders() == BmpReaderError::Ok) {
+        renderer.drawBitmap(bmp, x, y, width, height);
+      } else {
+        LOG_ERR("IMG", "Failed to parse cached BMP");
+        Storage.remove(bmpPath.c_str());
+      }
+      bmpReadFile.close();
+    }
+    return;
+  }
+
+  // For non-JPEG images (PNG), use the direct framebuffer decoder
   ImageToFramebufferDecoder* decoder = ImageDecoderFactory::getDecoder(imagePath);
   if (!decoder) {
     LOG_ERR("IMG", "No decoder found for image: %s", imagePath.c_str());
