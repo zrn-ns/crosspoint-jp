@@ -233,7 +233,7 @@ void EpubReaderActivity::onEnter() {
       }
     };
     startActivityForResult(
-        std::make_unique<ConfirmationActivity>(renderer, mappedInput, tr(STR_GENERATE_CACHE), epub->getTitle(),
+        std::make_unique<ConfirmationActivity>(renderer, mappedInput, tr(STR_GENERATE_CACHE), tr(STR_GENERATE_CACHE_NOTE),
                                                tr(STR_SKIP_CACHE), tr(STR_GENERATE)),
         handler);
     return;

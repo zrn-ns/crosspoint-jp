@@ -70,7 +70,8 @@ void GenerateAllCacheActivity::render(RenderLock&&) {
                  tr(STR_GENERATE_ALL_CACHE));
 
   if (state == CONFIRMING) {
-    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 - 10, tr(STR_GENERATE_CACHE), true);
+    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 - 20, tr(STR_GENERATE_CACHE), true);
+    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 + 10, tr(STR_GENERATE_CACHE_NOTE), true);
 
     const auto labels = mappedInput.mapLabels(tr(STR_CANCEL), tr(STR_CONFIRM), "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
@@ -155,6 +156,10 @@ void GenerateAllCacheActivity::generateAllCaches() {
 
     const int spineCount = epub->getSpineItemsCount();
     if (spineCount <= 0) continue;
+
+    // Generate cover thumbnail
+    const int coverHeight = UITheme::getInstance().getMetrics().homeCoverHeight;
+    epub->generateThumbBmp(coverHeight);
 
     // Check if already fully cached
     const std::string firstSectionPath = epub->getCachePath() + "/sections/0.bin";
