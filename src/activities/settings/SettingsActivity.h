@@ -23,6 +23,7 @@ enum class SettingAction {
   Language,
   DownloadFonts,
   SelectUiFont,
+  GenerateAllCache,
 };
 
 struct SettingInfo {
