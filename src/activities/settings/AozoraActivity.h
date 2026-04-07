@@ -25,6 +25,7 @@ class AozoraActivity : public Activity {
     WIFI_SELECTION,
     TOP_MENU,
     KANA_SELECT,
+    KANA_CHAR_SELECT,
     GENRE_SELECT,
     AUTHOR_LIST,
     WORK_LIST,
@@ -64,6 +65,15 @@ class AozoraActivity : public Activity {
   // API result buffers
   std::vector<AuthorEntry> authors_;
   std::vector<WorkEntry> works_;
+
+  // Works pagination
+  int worksTotal_ = 0;
+  int worksOffset_ = 0;
+  static constexpr int WORKS_PAGE_SIZE = 30;
+  char lastWorksQuery_[64] = {};  // 再取得用にクエリを保持
+
+  // Selected kana row index (for KANA_CHAR_SELECT)
+  int selectedKanaRowIndex_ = 0;
 
   // Selected item info (carried across states)
   int selectedAuthorId_ = 0;

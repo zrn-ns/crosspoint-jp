@@ -29,6 +29,22 @@ static const KanaRow KANA_ROWS[] = {
 };
 static constexpr int KANA_ROW_COUNT = 10;
 
+// 各行の個別文字（作品名検索の2段階目で使用）
+static const char* KANA_CHARS[][5] = {
+    {"あ", "い", "う", "え", "お"},
+    {"か", "き", "く", "け", "こ"},
+    {"さ", "し", "す", "せ", "そ"},
+    {"た", "ち", "つ", "て", "と"},
+    {"な", "に", "ぬ", "ね", "の"},
+    {"は", "ひ", "ふ", "へ", "ほ"},
+    {"ま", "み", "む", "め", "も"},
+    {"や", "ゆ", "よ", "", ""},
+    {"ら", "り", "る", "れ", "ろ"},
+    {"わ", "を", "ん", "", ""},
+};
+// 各行の文字数
+static const int KANA_CHAR_COUNTS[] = {5, 5, 5, 5, 5, 5, 5, 3, 5, 3};
+
 // --- ジャンル定義 ---
 
 struct GenreRow {
@@ -183,6 +199,10 @@ static bool fetchApiJson(const char* url, JsonDocument& doc) {
 }
 
 bool AozoraActivity::fetchAuthors(const char* kanaPrefix) {
+  // 不要なバッファを解放してヒープ確保
+  works_.clear();
+  works_.shrink_to_fit();
+
   char encoded[32];
   urlEncodeUtf8(kanaPrefix, encoded, sizeof(encoded));
 
@@ -199,24 +219,35 @@ bool AozoraActivity::fetchAuthors(const char* kanaPrefix) {
 }
 
 bool AozoraActivity::fetchWorks(const char* queryParam) {
-  // queryParam may contain kana_prefix=カタカナ — need to encode the value part
-  char url[256];
+  // 不要なバッファを解放してヒープ確保（TLSバッファ用）
+  authors_.clear();
+  authors_.shrink_to_fit();
 
-  // Check if queryParam contains kana_prefix (needs URL encoding)
-  if (strncmp(queryParam, "kana_prefix=", 12) == 0) {
+  // 新しいクエリの場合はオフセットをリセットし、クエリを保存
+  if (queryParam) {
+    snprintf(lastWorksQuery_, sizeof(lastWorksQuery_), "%s", queryParam);
+    worksOffset_ = 0;
+  }
+
+  // URL構築（kana_prefix の値部分はURLエンコードが必要）
+  char url[256];
+  if (strncmp(lastWorksQuery_, "kana_prefix=", 12) == 0) {
     char encoded[32];
-    urlEncodeUtf8(queryParam + 12, encoded, sizeof(encoded));
-    snprintf(url, sizeof(url), "%s/api/works?kana_prefix=%s", API_BASE, encoded);
+    urlEncodeUtf8(lastWorksQuery_ + 12, encoded, sizeof(encoded));
+    snprintf(url, sizeof(url), "%s/api/works?kana_prefix=%s&offset=%d&limit=%d", API_BASE, encoded, worksOffset_,
+             WORKS_PAGE_SIZE);
   } else {
-    snprintf(url, sizeof(url), "%s/api/works?%s", API_BASE, queryParam);
+    snprintf(url, sizeof(url), "%s/api/works?%s&offset=%d&limit=%d", API_BASE, lastWorksQuery_, worksOffset_,
+             WORKS_PAGE_SIZE);
   }
 
   JsonDocument doc;
   if (!fetchApiJson(url, doc)) {
-    errorMessage_ = "HTTP error";
+    errorMessage_ = lastApiError_;
     return false;
   }
 
+  worksTotal_ = doc["total"] | 0;
   return parseWorksJson(doc);
 }
 
@@ -408,15 +439,15 @@ void AozoraActivity::loop() {
     });
 
     if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
-      const char* kanaParam = KANA_ROWS[selectedIndex_].apiParam;
-
-      {
-        RenderLock lock(*this);
-        pushState(LOADING);
-      }
-      requestUpdateAndWait();
-
       if (searchMode_ == SEARCH_AUTHOR) {
+        // 作家検索: 行全体でAPIを呼ぶ
+        const char* kanaParam = KANA_ROWS[selectedIndex_].apiParam;
+        {
+          RenderLock lock(*this);
+          pushState(LOADING);
+        }
+        requestUpdateAndWait();
+
         if (fetchAuthors(kanaParam)) {
           RenderLock lock(*this);
           state_ = AUTHOR_LIST;
@@ -425,17 +456,61 @@ void AozoraActivity::loop() {
           RenderLock lock(*this);
           state_ = ERROR;
         }
+        requestUpdate();
       } else {
-        char query[64];
-        snprintf(query, sizeof(query), "kana_prefix=%s", kanaParam);
-        if (fetchWorks(query)) {
+        // 作品名検索: 個別文字選択画面へ
+        selectedKanaRowIndex_ = selectedIndex_;
+        {
           RenderLock lock(*this);
-          state_ = WORK_LIST;
-          selectedIndex_ = 0;
-        } else {
-          RenderLock lock(*this);
-          state_ = ERROR;
+          pushState(KANA_CHAR_SELECT);
         }
+        requestUpdate();
+      }
+    }
+  } else if (state_ == KANA_CHAR_SELECT) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+      {
+        RenderLock lock(*this);
+        popState();
+      }
+      requestUpdate();
+      return;
+    }
+
+    const int charCount = KANA_CHAR_COUNTS[selectedKanaRowIndex_];
+
+    buttonNavigator_.onNextRelease([this, charCount] {
+      if (selectedIndex_ < charCount - 1) {
+        selectedIndex_++;
+        requestUpdate();
+      }
+    });
+
+    buttonNavigator_.onPreviousRelease([this] {
+      if (selectedIndex_ > 0) {
+        selectedIndex_--;
+        requestUpdate();
+      }
+    });
+
+    if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
+      const char* kanaChar = KANA_CHARS[selectedKanaRowIndex_][selectedIndex_];
+
+      {
+        RenderLock lock(*this);
+        pushState(LOADING);
+      }
+      requestUpdateAndWait();
+
+      char query[64];
+      snprintf(query, sizeof(query), "kana_prefix=%s", kanaChar);
+      if (fetchWorks(query)) {
+        RenderLock lock(*this);
+        state_ = WORK_LIST;
+        selectedIndex_ = 0;
+      } else {
+        RenderLock lock(*this);
+        state_ = ERROR;
       }
       requestUpdate();
     }
@@ -556,6 +631,47 @@ void AozoraActivity::loop() {
         requestUpdate();
       }
     });
+
+    // ページ送り（右ボタン=次ページ、左ボタン=前ページ）
+    if (mappedInput.wasPressed(MappedInputManager::Button::PageForward)) {
+      if (worksOffset_ + WORKS_PAGE_SIZE < worksTotal_) {
+        worksOffset_ += WORKS_PAGE_SIZE;
+        {
+          RenderLock lock(*this);
+          state_ = LOADING;
+        }
+        requestUpdateAndWait();
+        if (fetchWorks(nullptr)) {  // nullptr = 前回のクエリを再利用
+          RenderLock lock(*this);
+          state_ = WORK_LIST;
+          selectedIndex_ = 0;
+        } else {
+          RenderLock lock(*this);
+          state_ = ERROR;
+        }
+        requestUpdate();
+      }
+    }
+
+    if (mappedInput.wasPressed(MappedInputManager::Button::PageBack)) {
+      if (worksOffset_ > 0) {
+        worksOffset_ = (worksOffset_ >= WORKS_PAGE_SIZE) ? worksOffset_ - WORKS_PAGE_SIZE : 0;
+        {
+          RenderLock lock(*this);
+          state_ = LOADING;
+        }
+        requestUpdateAndWait();
+        if (fetchWorks(nullptr)) {
+          RenderLock lock(*this);
+          state_ = WORK_LIST;
+          selectedIndex_ = 0;
+        } else {
+          RenderLock lock(*this);
+          state_ = ERROR;
+        }
+        requestUpdate();
+      }
+    }
 
     if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
       if (!works_.empty()) {
@@ -720,6 +836,18 @@ void AozoraActivity::render(RenderLock&&) {
     const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
+  } else if (state_ == KANA_CHAR_SELECT) {
+    const int charCount = KANA_CHAR_COUNTS[selectedKanaRowIndex_];
+    GUI.drawList(
+        renderer,
+        Rect{0, contentTop, pageWidth, pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing},
+        charCount, selectedIndex_,
+        [this](int index) -> std::string { return KANA_CHARS[selectedKanaRowIndex_][index]; }, nullptr, nullptr,
+        nullptr, false, nullptr);
+
+    const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
+    GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+
   } else if (state_ == GENRE_SELECT) {
     GUI.drawList(
         renderer,
@@ -760,10 +888,20 @@ void AozoraActivity::render(RenderLock&&) {
       const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
       GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     } else {
+      // ページ情報をヘッダー下に表示
+      if (worksTotal_ > WORKS_PAGE_SIZE) {
+        char pageInfo[48];
+        int currentPage = (worksOffset_ / WORKS_PAGE_SIZE) + 1;
+        int totalPages = (worksTotal_ + WORKS_PAGE_SIZE - 1) / WORKS_PAGE_SIZE;
+        snprintf(pageInfo, sizeof(pageInfo), "%d/%d (%d)", currentPage, totalPages, worksTotal_);
+        renderer.drawText(UI_10_FONT_ID, pageWidth - metrics.contentSidePadding - 80, contentTop, pageInfo);
+      }
+
+      const int listTop = (worksTotal_ > WORKS_PAGE_SIZE) ? contentTop + lineHeight + 4 : contentTop;
       GUI.drawList(
           renderer,
-          Rect{0, contentTop, pageWidth,
-               pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing},
+          Rect{0, listTop, pageWidth,
+               pageHeight - listTop - metrics.buttonHintsHeight - metrics.verticalSpacing},
           static_cast<int>(works_.size()), selectedIndex_,
           [this](int index) -> std::string { return works_[index].title; }, nullptr, nullptr,
           [this](int index) -> std::string {
@@ -815,12 +953,16 @@ void AozoraActivity::render(RenderLock&&) {
         Rect{metrics.contentSidePadding, barY, pageWidth - metrics.contentSidePadding * 2, metrics.progressBarHeight},
         downloadProgress_, downloadTotal_);
 
+    int percentY = barY + metrics.progressBarHeight + metrics.verticalSpacing;
+    char buf[32];
     if (downloadTotal_ > 0) {
-      int percentY = barY + metrics.progressBarHeight + metrics.verticalSpacing;
-      char buf[16];
       snprintf(buf, sizeof(buf), "%d%%", static_cast<int>(progress * 100));
-      renderer.drawCenteredText(UI_10_FONT_ID, percentY, buf);
+    } else if (downloadProgress_ > 0) {
+      snprintf(buf, sizeof(buf), "%d KB", static_cast<int>(downloadProgress_ / 1024));
+    } else {
+      snprintf(buf, sizeof(buf), "...");
     }
+    renderer.drawCenteredText(UI_10_FONT_ID, percentY, buf);
 
   } else if (state_ == DOWNLOADED_LIST) {
     const auto& entries = indexManager_.entries();
