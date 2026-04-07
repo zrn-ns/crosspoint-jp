@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "CrossPointSettings.h"
+#include "activities/settings/AozoraActivity.h"
 #include "CrossPointState.h"
 #include "MappedInputManager.h"
 #include "RecentBooksStore.h"
@@ -20,7 +21,7 @@
 #include "fontIds.h"
 
 int HomeActivity::getMenuItemCount() const {
-  int count = 4;  // File Browser, Recents, File transfer, Settings
+  int count = 5;  // File Browser, Recents, Aozora, File transfer, Settings
   if (!recentBooks.empty()) {
     count += recentBooks.size();
   }
@@ -191,6 +192,7 @@ void HomeActivity::loop() {
     const int fileBrowserIdx = idx++;
     const int recentsIdx = idx++;
     const int opdsLibraryIdx = hasOpdsUrl ? idx++ : -1;
+    const int aozoraIdx = idx++;
     const int fileTransferIdx = idx++;
     const int settingsIdx = idx;
 
@@ -202,6 +204,8 @@ void HomeActivity::loop() {
       onRecentsOpen();
     } else if (menuSelectedIndex == opdsLibraryIdx) {
       onOpdsBrowserOpen();
+    } else if (menuSelectedIndex == aozoraIdx) {
+      onAozoraOpen();
     } else if (menuSelectedIndex == fileTransferIdx) {
       onFileTransferOpen();
     } else if (menuSelectedIndex == settingsIdx) {
@@ -230,9 +234,16 @@ void HomeActivity::render(RenderLock&&) {
   std::vector<UIIcon> menuIcons = {Folder, Recent, Transfer, Settings};
 
   if (hasOpdsUrl) {
-    // Insert OPDS Browser after File Browser
+    // Insert OPDS Browser after Recents
     menuItems.insert(menuItems.begin() + 2, tr(STR_OPDS_BROWSER));
     menuIcons.insert(menuIcons.begin() + 2, Library);
+  }
+
+  // Insert Aozora Bunko after OPDS (or after Recents if no OPDS)
+  {
+    int aozoraPos = hasOpdsUrl ? 3 : 2;
+    menuItems.insert(menuItems.begin() + aozoraPos, tr(STR_AOZORA_BUNKO));
+    menuIcons.insert(menuIcons.begin() + aozoraPos, Book);
   }
 
   GUI.drawButtonMenu(
@@ -269,3 +280,8 @@ void HomeActivity::onSettingsOpen() { activityManager.goToSettings(); }
 void HomeActivity::onFileTransferOpen() { activityManager.goToFileTransfer(); }
 
 void HomeActivity::onOpdsBrowserOpen() { activityManager.goToBrowser(); }
+
+void HomeActivity::onAozoraOpen() {
+  startActivityForResult(std::make_unique<AozoraActivity>(renderer, mappedInput),
+                         [](const ActivityResult&) {});
+}
