@@ -281,6 +281,7 @@ void setup() {
   esp_task_wdt_add(NULL);
   const bool sdOk = Storage.begin();
   esp_task_wdt_delete(NULL);
+  esp_task_wdt_deinit();
   if (!sdOk) {
     LOG_ERR("MAIN", "SD card initialization failed");
     setupDisplayAndFonts();
