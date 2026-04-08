@@ -618,22 +618,11 @@ void AozoraActivity::loop() {
         const auto& author = authors_[selectedIndex_];
         selectedAuthorId_ = author.id;
         snprintf(selectedAuthorName_, sizeof(selectedAuthorName_), "%s", author.name);
-
+        actionReturnState_ = AUTHOR_LIST;
         {
           RenderLock lock(*this);
-          pushState(LOADING);
-        }
-        requestUpdateAndWait();
-
-        char query[64];
-        snprintf(query, sizeof(query), "author_id=%d", selectedAuthorId_);
-        if (fetchWorks(query)) {
-          RenderLock lock(*this);
-          state_ = WORK_LIST;
-          selectedIndex_ = 0;
-        } else {
-          RenderLock lock(*this);
-          state_ = ERROR;
+          pushState(AUTHOR_ACTION);
+          actionMenuIndex_ = 0;
         }
         requestUpdate();
       }
@@ -760,6 +749,114 @@ void AozoraActivity::loop() {
         requestUpdate();
       }
     }
+  } else if (state_ == FAVORITE_AUTHORS) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+      {
+        RenderLock lock(*this);
+        popState();
+      }
+      requestUpdate();
+      return;
+    }
+
+    const auto& favEntries = favoritesManager_.entries();
+
+    if (!favEntries.empty()) {
+      buttonNavigator_.onNextRelease([this, &favEntries] {
+        if (selectedIndex_ < static_cast<int>(favEntries.size()) - 1) {
+          selectedIndex_++;
+          requestUpdate();
+        }
+      });
+
+      buttonNavigator_.onPreviousRelease([this] {
+        if (selectedIndex_ > 0) {
+          selectedIndex_--;
+          requestUpdate();
+        }
+      });
+
+      if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
+        const auto& fav = favEntries[selectedIndex_];
+        selectedAuthorId_ = fav.authorId;
+        snprintf(selectedAuthorName_, sizeof(selectedAuthorName_), "%s", fav.name);
+        actionReturnState_ = FAVORITE_AUTHORS;
+        {
+          RenderLock lock(*this);
+          pushState(AUTHOR_ACTION);
+          actionMenuIndex_ = 0;
+        }
+        requestUpdate();
+      }
+    }
+
+  } else if (state_ == AUTHOR_ACTION) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+      {
+        RenderLock lock(*this);
+        popState();
+      }
+      requestUpdate();
+      return;
+    }
+
+    buttonNavigator_.onNextRelease([this] {
+      if (actionMenuIndex_ < 1) {
+        actionMenuIndex_++;
+        requestUpdate();
+      }
+    });
+
+    buttonNavigator_.onPreviousRelease([this] {
+      if (actionMenuIndex_ > 0) {
+        actionMenuIndex_--;
+        requestUpdate();
+      }
+    });
+
+    if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
+      if (actionMenuIndex_ == 0) {
+        // 作品を見る
+        {
+          RenderLock lock(*this);
+          state_ = LOADING;
+        }
+        requestUpdateAndWait();
+
+        char query[64];
+        snprintf(query, sizeof(query), "author_id=%d", selectedAuthorId_);
+        if (fetchWorks(query)) {
+          RenderLock lock(*this);
+          state_ = WORK_LIST;
+          selectedIndex_ = 0;
+        } else {
+          RenderLock lock(*this);
+          state_ = ERROR;
+        }
+        requestUpdate();
+      } else {
+        // お気に入り追加/削除
+        bool wasFavorited = favoritesManager_.isFavorited(selectedAuthorId_);
+        if (wasFavorited) {
+          favoritesManager_.removeAuthor(selectedAuthorId_);
+        } else {
+          const char* kana = "";
+          for (const auto& a : authors_) {
+            if (a.id == selectedAuthorId_) {
+              kana = a.kana;
+              break;
+            }
+          }
+          favoritesManager_.addAuthor(selectedAuthorId_, selectedAuthorName_, kana);
+        }
+        {
+          RenderLock lock(*this);
+          popState();
+        }
+        requestUpdate();
+      }
+    }
+
   } else if (state_ == DOWNLOADED_LIST) {
     if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
       {
@@ -903,7 +1000,14 @@ void AozoraActivity::render(RenderLock&&) {
           Rect{0, contentTop, pageWidth,
                pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing},
           static_cast<int>(authors_.size()), selectedIndex_,
-          [this](int index) -> std::string { return authors_[index].name; }, nullptr, nullptr,
+          [this](int index) -> std::string {
+            if (favoritesManager_.isFavorited(authors_[index].id)) {
+              char buf[56];
+              snprintf(buf, sizeof(buf), "★ %s", authors_[index].name);
+              return buf;
+            }
+            return authors_[index].name;
+          }, nullptr, nullptr,
           [this](int index) -> std::string {
             char buf[16];
             snprintf(buf, sizeof(buf), "%d", authors_[index].workCount);
@@ -996,6 +1100,44 @@ void AozoraActivity::render(RenderLock&&) {
       snprintf(buf, sizeof(buf), "...");
     }
     renderer.drawCenteredText(UI_10_FONT_ID, percentY, buf);
+
+  } else if (state_ == FAVORITE_AUTHORS) {
+    const auto& favEntries = favoritesManager_.entries();
+
+    if (favEntries.empty()) {
+      renderer.drawCenteredText(UI_10_FONT_ID, centerY, tr(STR_NO_FAVORITE_AUTHORS));
+      const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
+      GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    } else {
+      GUI.drawList(
+          renderer,
+          Rect{0, contentTop, pageWidth,
+               pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing},
+          static_cast<int>(favEntries.size()), selectedIndex_,
+          [&favEntries](int index) -> std::string { return favEntries[index].name; }, nullptr, nullptr,
+          nullptr, false, nullptr);
+
+      const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
+      GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    }
+
+  } else if (state_ == AUTHOR_ACTION) {
+    renderer.drawText(UI_12_FONT_ID, metrics.contentSidePadding, contentTop, selectedAuthorName_);
+    const int listTop = contentTop + renderer.getLineHeight(UI_12_FONT_ID) + metrics.verticalSpacing;
+
+    bool isFav = favoritesManager_.isFavorited(selectedAuthorId_);
+    GUI.drawList(
+        renderer,
+        Rect{0, listTop, pageWidth, pageHeight - listTop - metrics.buttonHintsHeight - metrics.verticalSpacing},
+        2, actionMenuIndex_,
+        [isFav](int index) -> std::string {
+          if (index == 0) return tr(STR_VIEW_WORKS);
+          return isFav ? tr(STR_REMOVE_FROM_FAVORITES) : tr(STR_ADD_TO_FAVORITES);
+        },
+        nullptr, nullptr, nullptr, false, nullptr);
+
+    const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
+    GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   } else if (state_ == DOWNLOADED_LIST) {
     const auto& entries = indexManager_.entries();
