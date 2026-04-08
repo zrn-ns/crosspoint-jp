@@ -4,7 +4,7 @@ Xteink X3/X4 向けの日本語EPUB閲覧に特化したフォーク。
 
 本家 [crosspoint-reader](https://github.com/crosspoint-reader/crosspoint-reader) (v1.2.0) をベースに、[CJKフォーク](https://github.com/aBER0724/crosspoint-reader-cjk)の改善を統合し、日本語の読書体験を向上させています。
 
-![](./docs/images/cover.jpg)
+<img src="./docs/images/cover.jpg" width="400" alt="縦書き表示"> <img src="./docs/images/home.jpg" width="400" alt="ホーム画面">
 
 ## 注意事項
 
