@@ -120,7 +120,7 @@ static void sanitizeForFat32(const char* src, char* dest, size_t destSize) {
 }
 
 std::string AozoraIndexManager::makeRelativePath(int workId, const char* title, const char* author) {
-  char safeAuthor[32];
+  char safeAuthor[48];
   sanitizeForFat32(author, safeAuthor, sizeof(safeAuthor));
 
   char safeTitle[52];
@@ -132,7 +132,7 @@ std::string AozoraIndexManager::makeRelativePath(int workId, const char* title, 
 }
 
 bool AozoraIndexManager::ensureAuthorDirectory(const char* author) {
-  char safeAuthor[32];
+  char safeAuthor[48];
   sanitizeForFat32(author, safeAuthor, sizeof(safeAuthor));
 
   char dirPath[80];
