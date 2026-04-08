@@ -998,17 +998,14 @@ void AozoraActivity::render(RenderLock&&) {
           Rect{0, contentTop, pageWidth,
                pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing},
           static_cast<int>(authors_.size()), selectedIndex_,
+          [this](int index) -> std::string { return authors_[index].name; }, nullptr, nullptr,
           [this](int index) -> std::string {
+            char buf[24];
             if (favoritesManager_.isFavorited(authors_[index].id)) {
-              char buf[56];
-              snprintf(buf, sizeof(buf), "★ %s", authors_[index].name);
-              return buf;
+              snprintf(buf, sizeof(buf), "* %d", authors_[index].workCount);
+            } else {
+              snprintf(buf, sizeof(buf), "%d", authors_[index].workCount);
             }
-            return authors_[index].name;
-          }, nullptr, nullptr,
-          [this](int index) -> std::string {
-            char buf[16];
-            snprintf(buf, sizeof(buf), "%d", authors_[index].workCount);
             return buf;
           },
           false, nullptr);
