@@ -13,13 +13,13 @@
 #include <Logging.h>
 #include <SPI.h>
 #include <builtinFonts/all.h>
+#include <esp_private/esp_clk.h>
+#include <esp_task_wdt.h>
+#include <soc/rtc.h>
+#include <sys/time.h>
 
 #include <cstring>
 #include <ctime>
-#include <sys/time.h>
-#include <esp_task_wdt.h>
-#include <esp_private/esp_clk.h>
-#include <soc/rtc.h>
 
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
@@ -356,8 +356,7 @@ void setup() {
   setupDisplayAndFonts();
 
 #ifdef GRAYSCALE_TEST_MODE
-  activityManager.replaceActivity(
-      std::make_unique<GrayscaleTestActivity>(renderer, mappedInputManager));
+  activityManager.replaceActivity(std::make_unique<GrayscaleTestActivity>(renderer, mappedInputManager));
   return;
 #endif
 

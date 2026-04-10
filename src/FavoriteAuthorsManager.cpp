@@ -93,7 +93,6 @@ bool FavoriteAuthorsManager::isFavorited(int id) const {
 }
 
 void FavoriteAuthorsManager::sortEntries() {
-  std::sort(entries_.begin(), entries_.end(), [](const FavoriteAuthor& a, const FavoriteAuthor& b) {
-    return strcmp(a.kana, b.kana) < 0;
-  });
+  std::sort(entries_.begin(), entries_.end(),
+            [](const FavoriteAuthor& a, const FavoriteAuthor& b) { return strcmp(a.kana, b.kana) < 0; });
 }

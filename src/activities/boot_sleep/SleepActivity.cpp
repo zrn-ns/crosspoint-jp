@@ -51,8 +51,8 @@ void SleepActivity::onEnter() {
     struct tm ti;
     localtime_r(&now, &ti);
     char dbg[64];
-    snprintf(dbg, sizeof(dbg), "%d/%d/%d %d:%02d:%02d T:%ld", ti.tm_year + 1900, ti.tm_mon + 1, ti.tm_mday,
-             ti.tm_hour, ti.tm_min, ti.tm_sec, (long)now);
+    snprintf(dbg, sizeof(dbg), "%d/%d/%d %d:%02d:%02d T:%ld", ti.tm_year + 1900, ti.tm_mon + 1, ti.tm_mday, ti.tm_hour,
+             ti.tm_min, ti.tm_sec, (long)now);
     renderer.fillRect(5, 5, 380, 30, false);
     renderer.drawText(UI_10_FONT_ID, 10, 10, dbg, true);
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);

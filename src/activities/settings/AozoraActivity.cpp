@@ -22,24 +22,17 @@ struct KanaRow {
 };
 
 static const KanaRow KANA_ROWS[] = {
-    {StrId::STR_KANA_A, "ア"},  {StrId::STR_KANA_KA, "カ"}, {StrId::STR_KANA_SA, "サ"},
-    {StrId::STR_KANA_TA, "タ"}, {StrId::STR_KANA_NA, "ナ"}, {StrId::STR_KANA_HA, "ハ"},
-    {StrId::STR_KANA_MA, "マ"}, {StrId::STR_KANA_YA, "ヤ"}, {StrId::STR_KANA_RA, "ラ"},
-    {StrId::STR_KANA_WA, "ワ"},
+    {StrId::STR_KANA_A, "ア"},  {StrId::STR_KANA_KA, "カ"}, {StrId::STR_KANA_SA, "サ"}, {StrId::STR_KANA_TA, "タ"},
+    {StrId::STR_KANA_NA, "ナ"}, {StrId::STR_KANA_HA, "ハ"}, {StrId::STR_KANA_MA, "マ"}, {StrId::STR_KANA_YA, "ヤ"},
+    {StrId::STR_KANA_RA, "ラ"}, {StrId::STR_KANA_WA, "ワ"},
 };
 static constexpr int KANA_ROW_COUNT = 10;
 
 // 各行の個別文字（作品名検索の2段階目で使用）
 static const char* KANA_CHARS[][5] = {
-    {"あ", "い", "う", "え", "お"},
-    {"か", "き", "く", "け", "こ"},
-    {"さ", "し", "す", "せ", "そ"},
-    {"た", "ち", "つ", "て", "と"},
-    {"な", "に", "ぬ", "ね", "の"},
-    {"は", "ひ", "ふ", "へ", "ほ"},
-    {"ま", "み", "む", "め", "も"},
-    {"や", "ゆ", "よ", "", ""},
-    {"ら", "り", "る", "れ", "ろ"},
+    {"あ", "い", "う", "え", "お"}, {"か", "き", "く", "け", "こ"}, {"さ", "し", "す", "せ", "そ"},
+    {"た", "ち", "つ", "て", "と"}, {"な", "に", "ぬ", "ね", "の"}, {"は", "ひ", "ふ", "へ", "ほ"},
+    {"ま", "み", "む", "め", "も"}, {"や", "ゆ", "よ", "", ""},     {"ら", "り", "る", "れ", "ろ"},
     {"わ", "を", "ん", "", ""},
 };
 // 各行の文字数
@@ -53,9 +46,8 @@ struct GenreRow {
 };
 
 static const GenreRow GENRES[] = {
-    {StrId::STR_GENRE_NOVEL, "913"},      {StrId::STR_GENRE_POETRY, "911"},
-    {StrId::STR_GENRE_ESSAY, "914"},      {StrId::STR_GENRE_DRAMA, "912"},
-    {StrId::STR_GENRE_FAIRY_TALE, "388"},
+    {StrId::STR_GENRE_NOVEL, "913"}, {StrId::STR_GENRE_POETRY, "911"},     {StrId::STR_GENRE_ESSAY, "914"},
+    {StrId::STR_GENRE_DRAMA, "912"}, {StrId::STR_GENRE_FAIRY_TALE, "388"},
 };
 static constexpr int GENRE_COUNT = 5;
 
@@ -138,8 +130,8 @@ static void urlEncodeUtf8(const char* src, char* dest, size_t destSize) {
   size_t pos = 0;
   for (size_t i = 0; src[i] && pos < destSize - 4; i++) {
     unsigned char c = static_cast<unsigned char>(src[i]);
-    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
-        c == '-' || c == '_' || c == '.' || c == '~') {
+    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_' ||
+        c == '.' || c == '~') {
       dest[pos++] = static_cast<char>(c);
     } else {
       pos += snprintf(dest + pos, destSize - pos, "%%%02X", c);
@@ -167,8 +159,7 @@ static bool fetchApiJson(const char* url, JsonDocument& doc) {
     }
     result = HttpDownloader::downloadToFile(url, API_TMP_FILE, nullptr, 30000);
     if (result == HttpDownloader::OK) break;
-    LOG_ERR("AOZORA", "API fetch attempt %d failed: err=%d http=%d", attempt + 1, result,
-            HttpDownloader::lastHttpCode);
+    LOG_ERR("AOZORA", "API fetch attempt %d failed: err=%d http=%d", attempt + 1, result, HttpDownloader::lastHttpCode);
     Storage.remove(API_TMP_FILE);
   }
 
@@ -316,13 +307,14 @@ bool AozoraActivity::downloadBook() {
     return false;
   }
 
-  auto result = HttpDownloader::downloadToFile(std::string(url), std::string(destPath),
-                                               [this](size_t downloaded, size_t total) {
-                                                 downloadProgress_ = downloaded;
-                                                 downloadTotal_ = total;
-                                                 requestUpdate(true);
-                                               },
-                                               30000);
+  auto result = HttpDownloader::downloadToFile(
+      std::string(url), std::string(destPath),
+      [this](size_t downloaded, size_t total) {
+        downloadProgress_ = downloaded;
+        downloadTotal_ = total;
+        requestUpdate(true);
+      },
+      30000);
 
   if (result != HttpDownloader::OK) {
     LOG_ERR("AOZORA", "Download failed: err=%d http=%d", static_cast<int>(result), HttpDownloader::lastHttpCode);
@@ -957,9 +949,8 @@ void AozoraActivity::render(RenderLock&&) {
     GUI.drawList(
         renderer,
         Rect{0, contentTop, pageWidth, pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing},
-        KANA_ROW_COUNT, selectedIndex_,
-        [](int index) -> std::string { return I18N.get(KANA_ROWS[index].label); }, nullptr, nullptr, nullptr,
-        false, nullptr);
+        KANA_ROW_COUNT, selectedIndex_, [](int index) -> std::string { return I18N.get(KANA_ROWS[index].label); },
+        nullptr, nullptr, nullptr, false, nullptr);
 
     const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
@@ -980,9 +971,8 @@ void AozoraActivity::render(RenderLock&&) {
     GUI.drawList(
         renderer,
         Rect{0, contentTop, pageWidth, pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing},
-        GENRE_COUNT, selectedIndex_,
-        [](int index) -> std::string { return I18N.get(GENRES[index].label); }, nullptr, nullptr, nullptr, false,
-        nullptr);
+        GENRE_COUNT, selectedIndex_, [](int index) -> std::string { return I18N.get(GENRES[index].label); }, nullptr,
+        nullptr, nullptr, false, nullptr);
 
     const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
@@ -995,8 +985,7 @@ void AozoraActivity::render(RenderLock&&) {
     } else {
       GUI.drawList(
           renderer,
-          Rect{0, contentTop, pageWidth,
-               pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing},
+          Rect{0, contentTop, pageWidth, pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing},
           static_cast<int>(authors_.size()), selectedIndex_,
           [this](int index) -> std::string { return authors_[index].name; }, nullptr, nullptr,
           [this](int index) -> std::string {
@@ -1032,8 +1021,7 @@ void AozoraActivity::render(RenderLock&&) {
       const int listTop = (worksTotal_ > WORKS_PAGE_SIZE) ? contentTop + lineHeight + 4 : contentTop;
       GUI.drawList(
           renderer,
-          Rect{0, listTop, pageWidth,
-               pageHeight - listTop - metrics.buttonHintsHeight - metrics.verticalSpacing},
+          Rect{0, listTop, pageWidth, pageHeight - listTop - metrics.buttonHintsHeight - metrics.verticalSpacing},
           static_cast<int>(works_.size()), selectedIndex_,
           [this](int index) -> std::string { return works_[index].title; }, nullptr, nullptr,
           [this](int index) -> std::string {
@@ -1106,11 +1094,10 @@ void AozoraActivity::render(RenderLock&&) {
     } else {
       GUI.drawList(
           renderer,
-          Rect{0, contentTop, pageWidth,
-               pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing},
+          Rect{0, contentTop, pageWidth, pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing},
           static_cast<int>(favEntries.size()), selectedIndex_,
-          [&favEntries](int index) -> std::string { return favEntries[index].name; }, nullptr, nullptr,
-          nullptr, false, nullptr);
+          [&favEntries](int index) -> std::string { return favEntries[index].name; }, nullptr, nullptr, nullptr, false,
+          nullptr);
 
       const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
       GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
@@ -1123,8 +1110,8 @@ void AozoraActivity::render(RenderLock&&) {
     bool isFav = favoritesManager_.isFavorited(selectedAuthorId_);
     GUI.drawList(
         renderer,
-        Rect{0, listTop, pageWidth, pageHeight - listTop - metrics.buttonHintsHeight - metrics.verticalSpacing},
-        2, actionMenuIndex_,
+        Rect{0, listTop, pageWidth, pageHeight - listTop - metrics.buttonHintsHeight - metrics.verticalSpacing}, 2,
+        actionMenuIndex_,
         [isFav](int index) -> std::string {
           if (index == 0) return tr(STR_VIEW_WORKS);
           return isFav ? tr(STR_REMOVE_FROM_FAVORITES) : tr(STR_ADD_TO_FAVORITES);
@@ -1144,8 +1131,7 @@ void AozoraActivity::render(RenderLock&&) {
     } else {
       GUI.drawList(
           renderer,
-          Rect{0, contentTop, pageWidth,
-               pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing},
+          Rect{0, contentTop, pageWidth, pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing},
           static_cast<int>(entries.size()), selectedIndex_,
           [&entries](int index) -> std::string { return entries[index].title; }, nullptr, nullptr,
           [&entries](int index) -> std::string { return entries[index].author; }, false, nullptr);

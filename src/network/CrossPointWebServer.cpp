@@ -3,8 +3,8 @@
 #include <ArduinoJson.h>
 #include <Epub.h>
 #include <FontManager.h>
-#include <GfxRenderer.h>
 #include <FsHelpers.h>
+#include <GfxRenderer.h>
 #include <HalStorage.h>
 #include <Logging.h>
 #include <WiFi.h>
@@ -24,8 +24,8 @@
 #include "html/FilesPageHtml.generated.h"
 #include "html/FontsPageHtml.generated.h"
 #include "html/HomePageHtml.generated.h"
-#include "html/SleepPageHtml.generated.h"
 #include "html/SettingsPageHtml.generated.h"
+#include "html/SleepPageHtml.generated.h"
 #include "html/js/jszip_minJs.generated.h"
 
 extern GfxRenderer renderer;

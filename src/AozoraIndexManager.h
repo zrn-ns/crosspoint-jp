@@ -1,8 +1,9 @@
 #pragma once
 
+#include <HalStorage.h>
+
 #include <string>
 #include <vector>
-#include <HalStorage.h>
 
 struct AozoraBookEntry {
   int workId;

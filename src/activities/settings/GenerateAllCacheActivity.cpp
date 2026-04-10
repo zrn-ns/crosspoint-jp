@@ -67,8 +67,7 @@ void GenerateAllCacheActivity::render(RenderLock&&) {
   const auto pageHeight = renderer.getScreenHeight();
 
   renderer.clearScreen();
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight},
-                 tr(STR_GENERATE_ALL_CACHE));
+  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_GENERATE_ALL_CACHE));
 
   if (state == CONFIRMING) {
     renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 - 20, tr(STR_GENERATE_CACHE), true);
@@ -123,7 +122,8 @@ void GenerateAllCacheActivity::generateAllCaches() {
   // Calculate viewport dimensions (screenMargin depends on writing direction, resolved per-book below)
   // Use a placeholder margin here; it will be recalculated per book after resolving isVertical.
   int orientedMarginTop = 0, orientedMarginRight = 0, orientedMarginBottom = 0, orientedMarginLeft = 0;
-  renderer.getOrientedViewableTRBL(&orientedMarginTop, &orientedMarginRight, &orientedMarginBottom, &orientedMarginLeft);
+  renderer.getOrientedViewableTRBL(&orientedMarginTop, &orientedMarginRight, &orientedMarginBottom,
+                                   &orientedMarginLeft);
   const int baseMarginTop = orientedMarginTop;
   const int baseMarginRight = orientedMarginRight;
   const int baseMarginBottom = orientedMarginBottom;
@@ -165,8 +165,7 @@ void GenerateAllCacheActivity::generateAllCaches() {
 
     // Check if already fully cached
     const std::string firstSectionPath = epub->getCachePath() + "/sections/0.bin";
-    const std::string lastSectionPath =
-        epub->getCachePath() + "/sections/" + std::to_string(spineCount - 1) + ".bin";
+    const std::string lastSectionPath = epub->getCachePath() + "/sections/" + std::to_string(spineCount - 1) + ".bin";
     if (Storage.exists(firstSectionPath.c_str()) && Storage.exists(lastSectionPath.c_str())) {
       processedCount++;
       continue;  // Already cached
@@ -179,9 +178,8 @@ void GenerateAllCacheActivity::generateAllCaches() {
     } else if (SETTINGS.writingMode == CrossPointSettings::WM_HORIZONTAL) {
       isVertical = false;
     } else {
-      isVertical = epub->isPageProgressionRtl() &&
-                   (epub->getLanguage() == "ja" || epub->getLanguage() == "jpn" ||
-                    epub->getLanguage() == "zh" || epub->getLanguage() == "zho");
+      isVertical = epub->isPageProgressionRtl() && (epub->getLanguage() == "ja" || epub->getLanguage() == "jpn" ||
+                                                    epub->getLanguage() == "zh" || epub->getLanguage() == "zho");
     }
 
     const float lineCompression = SETTINGS.getReaderLineCompression(isVertical);
@@ -204,29 +202,29 @@ void GenerateAllCacheActivity::generateAllCaches() {
     const uint16_t viewportWidth = screenWidth - bmLeft - bmRight;
     const uint16_t viewportHeight = screenHeight - bmTop - bmBottom;
 
-    const int headingFontIds[6] = {SETTINGS.getHeadingFontId(1, isVertical), SETTINGS.getHeadingFontId(2, isVertical), 0, 0, 0, 0};
+    const int headingFontIds[6] = {
+        SETTINGS.getHeadingFontId(1, isVertical), SETTINGS.getHeadingFontId(2, isVertical), 0, 0, 0, 0};
 
     for (int i = 0; i < spineCount; i++) {
       Section sec(epub, i, renderer);
       if (sec.loadSectionFile(SETTINGS.getReaderFontId(isVertical), lineCompression, ds.extraParagraphSpacing,
-                              ds.paragraphAlignment, viewportWidth, viewportHeight,
-                              ds.hyphenationEnabled, ds.firstLineIndent, SETTINGS.embeddedStyle,
-                              SETTINGS.imageRendering, isVertical, ds.charSpacing)) {
+                              ds.paragraphAlignment, viewportWidth, viewportHeight, ds.hyphenationEnabled,
+                              ds.firstLineIndent, SETTINGS.embeddedStyle, SETTINGS.imageRendering, isVertical,
+                              ds.charSpacing)) {
         continue;
       }
 
       if (!sec.createSectionFile(SETTINGS.getReaderFontId(isVertical), lineCompression, ds.extraParagraphSpacing,
-                                 ds.paragraphAlignment, viewportWidth, viewportHeight,
-                                 ds.hyphenationEnabled, ds.firstLineIndent, SETTINGS.embeddedStyle,
-                                 SETTINGS.imageRendering, isVertical, ds.charSpacing, nullptr, headingFontIds,
-                                 SETTINGS.getTableFontId(isVertical))) {
+                                 ds.paragraphAlignment, viewportWidth, viewportHeight, ds.hyphenationEnabled,
+                                 ds.firstLineIndent, SETTINGS.embeddedStyle, SETTINGS.imageRendering, isVertical,
+                                 ds.charSpacing, nullptr, headingFontIds, SETTINGS.getTableFontId(isVertical))) {
         LOG_ERR("GENALL", "Failed section %d of %s", i, epubPath.c_str());
         continue;
       }
 
       // Generate image BMP caches
       const std::string imgPrefix = epub->getCachePath() + "/img_" + std::to_string(i) + "_";
-      for (int j = 0; ; j++) {
+      for (int j = 0;; j++) {
         std::string jpgPath = imgPrefix + std::to_string(j) + ".jpg";
         if (!Storage.exists(jpgPath.c_str())) {
           jpgPath = imgPrefix + std::to_string(j) + ".jpeg";

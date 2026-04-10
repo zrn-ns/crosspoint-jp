@@ -6,16 +6,16 @@
 
 #include <cstdio>
 
+#include "AozoraActivity.h"
 #include "ButtonRemapActivity.h"
 #include "CalibreSettingsActivity.h"
 #include "ClearCacheActivity.h"
-#include "DirectionSettingsActivity.h"
 #include "CrossPointSettings.h"
-#include "AozoraActivity.h"
-#include "GenerateAllCacheActivity.h"
+#include "DirectionSettingsActivity.h"
 #include "FontDownloadActivity.h"
 #include "FontSelectActivity.h"
 #include "FontSelectionActivity.h"
+#include "GenerateAllCacheActivity.h"
 #include "KOReaderSettingsActivity.h"
 #include "LanguageSelectActivity.h"
 #include "LineSpacingSelectionActivity.h"

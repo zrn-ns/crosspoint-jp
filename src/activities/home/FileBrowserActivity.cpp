@@ -5,9 +5,8 @@
 #include <GfxRenderer.h>
 #include <HalStorage.h>
 #include <I18n.h>
-#include <Utf8.h>
-
 #include <Logging.h>
+#include <Utf8.h>
 #include <esp_task_wdt.h>
 
 #include <algorithm>

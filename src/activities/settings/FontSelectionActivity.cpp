@@ -41,7 +41,9 @@ void FontSelectionActivity::onEnter() {
       }
     }
   } else {
-    selectedIndex_ = SETTINGS.getDirectionSettings(isVertical_).fontFamily < CrossPointSettings::BUILTIN_FONT_COUNT ? SETTINGS.getDirectionSettings(isVertical_).fontFamily : 0;
+    selectedIndex_ = SETTINGS.getDirectionSettings(isVertical_).fontFamily < CrossPointSettings::BUILTIN_FONT_COUNT
+                         ? SETTINGS.getDirectionSettings(isVertical_).fontFamily
+                         : 0;
   }
 
   requestUpdate();
@@ -80,8 +82,10 @@ void FontSelectionActivity::handleSelection() {
     int sdIdx = font.settingIndex - CrossPointSettings::BUILTIN_FONT_COUNT;
     const auto& families = registry_->getFamilies();
     if (sdIdx < static_cast<int>(families.size())) {
-      strncpy(SETTINGS.getDirectionSettings(isVertical_).sdFontFamilyName, families[sdIdx].name.c_str(), sizeof(SETTINGS.getDirectionSettings(isVertical_).sdFontFamilyName) - 1);
-      SETTINGS.getDirectionSettings(isVertical_).sdFontFamilyName[sizeof(SETTINGS.getDirectionSettings(isVertical_).sdFontFamilyName) - 1] = '\0';
+      strncpy(SETTINGS.getDirectionSettings(isVertical_).sdFontFamilyName, families[sdIdx].name.c_str(),
+              sizeof(SETTINGS.getDirectionSettings(isVertical_).sdFontFamilyName) - 1);
+      SETTINGS.getDirectionSettings(isVertical_)
+          .sdFontFamilyName[sizeof(SETTINGS.getDirectionSettings(isVertical_).sdFontFamilyName) - 1] = '\0';
     }
   }
   finish();
@@ -110,7 +114,9 @@ void FontSelectionActivity::render(RenderLock&&) {
       }
     }
   } else {
-    currentFontIndex = SETTINGS.getDirectionSettings(isVertical_).fontFamily < CrossPointSettings::BUILTIN_FONT_COUNT ? SETTINGS.getDirectionSettings(isVertical_).fontFamily : 0;
+    currentFontIndex = SETTINGS.getDirectionSettings(isVertical_).fontFamily < CrossPointSettings::BUILTIN_FONT_COUNT
+                           ? SETTINGS.getDirectionSettings(isVertical_).fontFamily
+                           : 0;
   }
 
   GUI.drawList(

@@ -177,7 +177,6 @@ void ImageBlock::render(GfxRenderer& renderer, const int x, const int y) {
 
     // Convert JPEG to BMP if not cached yet
     if (!Storage.exists(bmpPath.c_str())) {
-
       FsFile jpegFile;
       if (!Storage.openFileForRead("IMG", imagePath, jpegFile)) {
         LOG_ERR("IMG", "Failed to open JPEG for BMP conversion: %s", imagePath.c_str());

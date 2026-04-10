@@ -182,7 +182,8 @@ std::string EpubReaderMenuActivity::getMenuItemValue(const MenuAction action) co
     case MenuAction::ROTATE_SCREEN:
       return std::string(I18N.get(orientationLabels[pendingOrientation]));
     case MenuAction::STYLE_FIRST_LINE_INDENT:
-      return SETTINGS.getDirectionSettings(verticalMode).firstLineIndent ? std::string(tr(STR_STATE_ON)) : std::string(tr(STR_STATE_OFF));
+      return SETTINGS.getDirectionSettings(verticalMode).firstLineIndent ? std::string(tr(STR_STATE_ON))
+                                                                         : std::string(tr(STR_STATE_OFF));
     case MenuAction::STYLE_INVERT_IMAGES:
       return SETTINGS.invertImages ? std::string(tr(STR_STATE_ON)) : std::string(tr(STR_STATE_OFF));
     case MenuAction::STYLE_LINE_SPACING: {

@@ -250,7 +250,7 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
 
   if (!loadDirection(doc["horizontal"].as<JsonObject>(), s.horizontal)) {
     // Migration from flat format: copy old values to both directions
-    auto migrateBoth = [&](const char* key, uint8_t DirectionSettings::*field) {
+    auto migrateBoth = [&](const char* key, uint8_t DirectionSettings::* field) {
       uint8_t val = doc[key] | s.horizontal.*field;
       s.horizontal.*field = val;
       s.vertical.*field = val;

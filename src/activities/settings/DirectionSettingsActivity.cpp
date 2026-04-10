@@ -26,11 +26,15 @@ void DirectionSettingsActivity::buildItems() {
   items.push_back({StrId::STR_FONT_FAMILY, Item::Type::FONT_FAMILY, nullptr, {}, {}});
 
   // Font Size
-  items.push_back({StrId::STR_FONT_SIZE, Item::Type::ENUM, &DirectionSettings::fontSize,
-                    {StrId::STR_SMALL, StrId::STR_MEDIUM, StrId::STR_LARGE, StrId::STR_X_LARGE}, {}});
+  items.push_back({StrId::STR_FONT_SIZE,
+                   Item::Type::ENUM,
+                   &DirectionSettings::fontSize,
+                   {StrId::STR_SMALL, StrId::STR_MEDIUM, StrId::STR_LARGE, StrId::STR_X_LARGE},
+                   {}});
 
   // Line Spacing (slider)
-  items.push_back({StrId::STR_LINE_SPACING, Item::Type::LINE_SPACING, &DirectionSettings::lineSpacing, {}, {80, 250, 1}});
+  items.push_back(
+      {StrId::STR_LINE_SPACING, Item::Type::LINE_SPACING, &DirectionSettings::lineSpacing, {}, {80, 250, 1}});
 
   // Character Spacing (vertical only — horizontal char spacing is not supported by renderer)
   if (isVertical) {
@@ -39,7 +43,9 @@ void DirectionSettingsActivity::buildItems() {
 
   // Paragraph Alignment
   items.push_back(
-      {StrId::STR_PARA_ALIGNMENT, Item::Type::ENUM, &DirectionSettings::paragraphAlignment,
+      {StrId::STR_PARA_ALIGNMENT,
+       Item::Type::ENUM,
+       &DirectionSettings::paragraphAlignment,
        {StrId::STR_JUSTIFY, StrId::STR_ALIGN_LEFT, StrId::STR_CENTER, StrId::STR_ALIGN_RIGHT, StrId::STR_BOOK_S_STYLE},
        {}});
 
@@ -53,8 +59,7 @@ void DirectionSettingsActivity::buildItems() {
   items.push_back({StrId::STR_SCREEN_MARGIN, Item::Type::VALUE, &DirectionSettings::screenMargin, {}, {5, 40, 5}});
 
   // First Line Indent
-  items.push_back(
-      {StrId::STR_FIRST_LINE_INDENT, Item::Type::TOGGLE, &DirectionSettings::firstLineIndent, {}, {}});
+  items.push_back({StrId::STR_FIRST_LINE_INDENT, Item::Type::TOGGLE, &DirectionSettings::firstLineIndent, {}, {}});
 
   // Text Anti-Aliasing
   items.push_back({StrId::STR_TEXT_AA, Item::Type::TOGGLE, &DirectionSettings::textAntiAliasing, {}, {}});
@@ -186,8 +191,8 @@ void DirectionSettingsActivity::render(RenderLock&&) {
       Rect{0, metrics.topPadding + hintGutterHeight + metrics.headerHeight + metrics.verticalSpacing, pageWidth,
            pageHeight - (metrics.topPadding + hintGutterHeight + metrics.headerHeight + metrics.buttonHintsHeight +
                          metrics.verticalSpacing * 2)},
-      itemCount, selectedIndex,
-      [this](int index) { return std::string(I18N.get(items[index].nameId)); }, nullptr, nullptr,
+      itemCount, selectedIndex, [this](int index) { return std::string(I18N.get(items[index].nameId)); }, nullptr,
+      nullptr,
       [this](int i) -> std::string {
         const auto& item = items[i];
         switch (item.type) {

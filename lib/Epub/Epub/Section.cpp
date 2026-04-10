@@ -157,8 +157,8 @@ bool Section::createSectionFile(const int fontId, const float lineCompression, c
                                 const uint16_t viewportHeight, const bool hyphenationEnabled,
                                 const bool firstLineIndent, const bool embeddedStyle, const uint8_t imageRendering,
                                 const bool verticalMode, const uint8_t charSpacing,
-                                const std::function<void()>& popupFn,
-                                const int* headingFontIds, const int tableFontId) {
+                                const std::function<void()>& popupFn, const int* headingFontIds,
+                                const int tableFontId) {
   const auto localPath = epub->getSpineItem(spineIndex).href;
   const auto tmpHtmlPath = epub->getCachePath() + "/.tmp_" + std::to_string(spineIndex) + ".html";
 

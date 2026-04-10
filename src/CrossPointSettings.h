@@ -6,15 +6,15 @@
 
 // Direction-specific reader settings (horizontal / vertical writing)
 struct DirectionSettings {
-  uint8_t fontFamily = 0;         // CrossPointSettings::BOOKERLY
+  uint8_t fontFamily = 0;  // CrossPointSettings::BOOKERLY
   char sdFontFamilyName[32] = "";
-  uint8_t fontSize = 1;           // CrossPointSettings::MEDIUM
-  uint8_t lineSpacing = 185;      // 80-250 (%)
-  uint8_t charSpacing = 0;        // 0-50 (5刻み)
-  uint8_t paragraphAlignment = 0; // CrossPointSettings::JUSTIFIED
+  uint8_t fontSize = 1;            // CrossPointSettings::MEDIUM
+  uint8_t lineSpacing = 185;       // 80-250 (%)
+  uint8_t charSpacing = 0;         // 0-50 (5刻み)
+  uint8_t paragraphAlignment = 0;  // CrossPointSettings::JUSTIFIED
   uint8_t extraParagraphSpacing = 0;
   uint8_t hyphenationEnabled = 0;
-  uint8_t screenMargin = 10;      // 5-40
+  uint8_t screenMargin = 10;  // 5-40
   uint8_t firstLineIndent = 1;
   uint8_t textAntiAliasing = 0;
 };
@@ -262,12 +262,8 @@ class CrossPointSettings {
     return (shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::SLEEP) ? 10 : 400;
   }
   // Direction-specific settings access
-  const DirectionSettings& getDirectionSettings(bool isVertical) const {
-    return isVertical ? vertical : horizontal;
-  }
-  DirectionSettings& getDirectionSettings(bool isVertical) {
-    return isVertical ? vertical : horizontal;
-  }
+  const DirectionSettings& getDirectionSettings(bool isVertical) const { return isVertical ? vertical : horizontal; }
+  DirectionSettings& getDirectionSettings(bool isVertical) { return isVertical ? vertical : horizontal; }
 
   // Returns the vertical character spacing as a percentage (0–50).
   uint8_t getVerticalCharSpacingPercent() const { return vertical.charSpacing; }

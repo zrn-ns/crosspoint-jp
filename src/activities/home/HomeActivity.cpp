@@ -13,10 +13,10 @@
 #include <vector>
 
 #include "CrossPointSettings.h"
-#include "activities/settings/AozoraActivity.h"
 #include "CrossPointState.h"
 #include "MappedInputManager.h"
 #include "RecentBooksStore.h"
+#include "activities/settings/AozoraActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 
@@ -287,14 +287,13 @@ void HomeActivity::onAozoraOpen() {
   recentBooks.clear();
   recentBooks.shrink_to_fit();
 
-  startActivityForResult(std::make_unique<AozoraActivity>(renderer, mappedInput),
-                         [this](const ActivityResult&) {
-                           // 戻ってきたら再読み込み（フラグリセットして描画を再トリガー）
-                           coverRendered = false;
-                           coverBufferStored = false;
-                           recentsLoaded = false;
-                           recentsLoading = false;
-                           const auto& metrics = UITheme::getInstance().getMetrics();
-                           loadRecentBooks(metrics.homeRecentBooksCount);
-                         });
+  startActivityForResult(std::make_unique<AozoraActivity>(renderer, mappedInput), [this](const ActivityResult&) {
+    // 戻ってきたら再読み込み（フラグリセットして描画を再トリガー）
+    coverRendered = false;
+    coverBufferStored = false;
+    recentsLoaded = false;
+    recentsLoading = false;
+    const auto& metrics = UITheme::getInstance().getMetrics();
+    loadRecentBooks(metrics.homeRecentBooksCount);
+  });
 }

@@ -1,4 +1,5 @@
 #include "AozoraIndexManager.h"
+
 #include <ArduinoJson.h>
 #include <Logging.h>
 
@@ -109,8 +110,7 @@ static void sanitizeForFat32(const char* src, char* dest, size_t destSize) {
   size_t pos = 0;
   for (size_t i = 0; src[i] && pos < destSize - 1; i++) {
     unsigned char c = static_cast<unsigned char>(src[i]);
-    if (c == '<' || c == '>' || c == ':' || c == '"' ||
-        c == '/' || c == '\\' || c == '|' || c == '?' || c == '*') {
+    if (c == '<' || c == '>' || c == ':' || c == '"' || c == '/' || c == '\\' || c == '|' || c == '?' || c == '*') {
       dest[pos++] = '_';
     } else {
       dest[pos++] = static_cast<char>(c);

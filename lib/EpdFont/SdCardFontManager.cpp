@@ -28,8 +28,7 @@ int SdCardFontManager::computeFontId(uint32_t contentHash, const char* familyNam
   return id != 0 ? id : 1;  // 0 is reserved as "not found" sentinel
 }
 
-bool SdCardFontManager::loadFamily(const SdCardFontFamilyInfo& family, GfxRenderer& renderer,
-                                   uint8_t preferredBasePt) {
+bool SdCardFontManager::loadFamily(const SdCardFontFamilyInfo& family, GfxRenderer& renderer, uint8_t preferredBasePt) {
   if (!loadedFamilyName_.empty()) {
     unloadAll(renderer);
   }
