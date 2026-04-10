@@ -643,9 +643,10 @@ void BaseTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount
     const char* label = labelStr.c_str();
     const int textWidth = renderer.getTextWidth(UI_10_FONT_ID, label);
     const int textX = rect.x + (rect.width - textWidth) / 2;
-    const int lineHeight = renderer.getLineHeight(UI_10_FONT_ID);
-    const int textY =
-        tileY + (BaseMetrics::values.menuRowHeight - lineHeight) / 2;  // vertically centered assuming y is top of text
+    // UI text is rendered via CJK UI bitmap font (20px) even for Latin characters.
+    // The glyph's visual center sits (ascender - 6)px below textY, so center that in the tile.
+    const int ascender = renderer.getFontAscenderSize(UI_10_FONT_ID);
+    const int textY = tileY + BaseMetrics::values.menuRowHeight / 2 - ascender + 6;
     // Invert text when the tile is selected, to contrast with the filled background
     renderer.drawText(UI_10_FONT_ID, textX, textY, label, selectedIndex != i);
   }
