@@ -28,19 +28,21 @@ int SdCardFontManager::computeFontId(uint32_t contentHash, const char* familyNam
   return id != 0 ? id : 1;  // 0 is reserved as "not found" sentinel
 }
 
-bool SdCardFontManager::loadFamily(const SdCardFontFamilyInfo& family, GfxRenderer& renderer) {
+bool SdCardFontManager::loadFamily(const SdCardFontFamilyInfo& family, GfxRenderer& renderer,
+                                   uint8_t preferredBasePt) {
   if (!loadedFamilyName_.empty()) {
     unloadAll(renderer);
   }
 
-  // Single-variant loading: pick one base .cpfont file (prefer 14pt, else closest)
-  static constexpr uint8_t PREFERRED_BASE_PT = 14;
+  // Single-variant loading: pick one base .cpfont file closest to preferredBasePt.
+  // By matching the user's reading font size, body text renders at native resolution
+  // without nearest-neighbor scaling artifacts.
   static constexpr uint8_t ALL_SIZES[] = {10, 12, 14, 16, 18};
 
   const SdCardFontFileInfo* bestFile = nullptr;
   int bestDiff = INT_MAX;
   for (const auto& fileInfo : family.files) {
-    int diff = abs(static_cast<int>(fileInfo.pointSize) - PREFERRED_BASE_PT);
+    int diff = abs(static_cast<int>(fileInfo.pointSize) - static_cast<int>(preferredBasePt));
     if (diff < bestDiff) {
       bestDiff = diff;
       bestFile = &fileInfo;
@@ -98,6 +100,7 @@ bool SdCardFontManager::loadFamily(const SdCardFontFamilyInfo& family, GfxRender
   }
 
   loadedFamilyName_ = family.name;
+  loadedBasePt_ = basePt;
   LOG_DBG("SDMGR", "Loaded %s (base=%upt, %zu virtual IDs)", family.name.c_str(), basePt, virtualFontIds_.size());
   return true;
 }
@@ -117,6 +120,7 @@ void SdCardFontManager::unloadAll(GfxRenderer& renderer) {
   }
   loaded_.clear();
   loadedFamilyName_.clear();
+  loadedBasePt_ = 0;
 }
 
 int SdCardFontManager::getFontId(const std::string& familyName, uint8_t size, uint8_t /*style*/) const {

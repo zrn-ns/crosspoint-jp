@@ -10,6 +10,12 @@
 // Index 4 (TABLE_SIZE) maps to 10pt for table rendering.
 static constexpr uint8_t FONT_SIZE_TO_PT[] = {12, 14, 16, 18, 10};
 
+// Convert fontSize enum to the point size used as .cpfont base selection target.
+static uint8_t fontSizeEnumToPt(uint8_t fontSizeEnum) {
+  if (fontSizeEnum < sizeof(FONT_SIZE_TO_PT)) return FONT_SIZE_TO_PT[fontSizeEnum];
+  return 14;  // fallback
+}
+
 void SdCardFontSystem::begin(GfxRenderer& renderer) {
   registry_.discover();
 
@@ -24,8 +30,9 @@ void SdCardFontSystem::begin(GfxRenderer& renderer) {
   if (SETTINGS.horizontal.sdFontFamilyName[0] != '\0') {
     const auto* family = registry_.findFamily(SETTINGS.horizontal.sdFontFamilyName);
     if (family) {
-      if (manager_.loadFamily(*family, renderer)) {
-        LOG_DBG("SDFS", "Loaded SD card font family: %s", SETTINGS.horizontal.sdFontFamilyName);
+      uint8_t basePt = fontSizeEnumToPt(SETTINGS.horizontal.fontSize);
+      if (manager_.loadFamily(*family, renderer, basePt)) {
+        LOG_DBG("SDFS", "Loaded SD card font family: %s (base=%upt)", SETTINGS.horizontal.sdFontFamilyName, basePt);
       } else {
         LOG_ERR("SDFS", "Failed to load SD font family: %s (clearing)", SETTINGS.horizontal.sdFontFamilyName);
         SETTINGS.horizontal.sdFontFamilyName[0] = '\0';
@@ -61,7 +68,11 @@ void SdCardFontSystem::ensureLoaded(GfxRenderer& renderer, bool isVertical) {
     return;
   }
 
-  if (currentFamily == wantedFamily) return;
+  const uint8_t wantedBasePt = fontSizeEnumToPt(ds.fontSize);
+  const bool familyChanged = (currentFamily != wantedFamily);
+  const bool basePtChanged = (manager_.loadedBasePt() != wantedBasePt);
+
+  if (!familyChanged && !basePtChanged) return;
 
   if (!currentFamily.empty()) {
     manager_.unloadAll(renderer);
@@ -69,8 +80,8 @@ void SdCardFontSystem::ensureLoaded(GfxRenderer& renderer, bool isVertical) {
 
   const auto* family = registry_.findFamily(wantedFamily);
   if (family) {
-    if (manager_.loadFamily(*family, renderer)) {
-      LOG_DBG("SDFS", "Loaded SD font family: %s", wantedFamily);
+    if (manager_.loadFamily(*family, renderer, wantedBasePt)) {
+      LOG_DBG("SDFS", "Loaded SD font family: %s (base=%upt)", wantedFamily, wantedBasePt);
       FontManager::getInstance().setSdCardFontActive(true);
     } else {
       LOG_ERR("SDFS", "Failed to load SD font family: %s (clearing)", wantedFamily);

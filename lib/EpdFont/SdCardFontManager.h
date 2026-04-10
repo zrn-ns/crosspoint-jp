@@ -15,9 +15,13 @@ class SdCardFontManager {
   SdCardFontManager(const SdCardFontManager&) = delete;
   SdCardFontManager& operator=(const SdCardFontManager&) = delete;
 
-  // Load all size/style variants for a discovered family.
+  // Load a single .cpfont file for the family, preferring the size closest to preferredBasePt.
+  // All other sizes are rendered via nearest-neighbor scaling from this base.
   // Returns true if at least one font was loaded.
-  bool loadFamily(const SdCardFontFamilyInfo& family, GfxRenderer& renderer);
+  bool loadFamily(const SdCardFontFamilyInfo& family, GfxRenderer& renderer, uint8_t preferredBasePt = 14);
+
+  // Returns the point size of the currently loaded base .cpfont file (0 if none loaded).
+  uint8_t loadedBasePt() const { return loadedBasePt_; }
 
   // Unload everything, unregister from renderer.
   void unloadAll(GfxRenderer& renderer);
@@ -39,4 +43,5 @@ class SdCardFontManager {
   std::string loadedFamilyName_;
   std::vector<LoadedFont> loaded_;
   std::vector<int> virtualFontIds_;  // 全仮想fontId（unload時に全削除用）
+  uint8_t loadedBasePt_ = 0;  // 現在ロード中のベース.cpfontのptサイズ
 };
