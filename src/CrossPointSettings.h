@@ -243,6 +243,8 @@ class CrossPointSettings {
   uint8_t invertImages = 0;
   // Color mode (light/dark) for reader
   uint8_t colorMode = LIGHT_MODE;
+  // Debug display on sleep screen (shows time info)
+  uint8_t debugDisplay = 0;
 
   ~CrossPointSettings() = default;
 

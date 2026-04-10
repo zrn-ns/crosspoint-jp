@@ -45,6 +45,19 @@ void SleepActivity::onEnter() {
       break;
   }
 
+  // デバッグ: スリープ時の時刻を画面に表示（設定→本体→デバッグ表示で有効化）
+  if (SETTINGS.debugDisplay) {
+    const time_t now = time(nullptr);
+    struct tm ti;
+    localtime_r(&now, &ti);
+    char dbg[64];
+    snprintf(dbg, sizeof(dbg), "%d/%d/%d %d:%02d:%02d T:%ld", ti.tm_year + 1900, ti.tm_mon + 1, ti.tm_mday,
+             ti.tm_hour, ti.tm_min, ti.tm_sec, (long)now);
+    renderer.fillRect(5, 5, 380, 30, false);
+    renderer.drawText(UI_10_FONT_ID, 10, 10, dbg, true);
+    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+  }
+
   // ビットマップパスで消費されなかった場合（BLANK/DARK/LIGHT）はここで描画
   if (calendarPending) {
     calendarPending = false;
