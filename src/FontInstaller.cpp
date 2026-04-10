@@ -95,9 +95,17 @@ FontInstaller::Error FontInstaller::deleteFamily(const char* familyName) {
     return Error::SD_WRITE_ERROR;
   }
 
-  // If this was the active font, clear the setting
-  if (strcmp(SETTINGS.sdFontFamilyName, familyName) == 0) {
-    SETTINGS.sdFontFamilyName[0] = '\0';
+  // If this was the active font in either direction, clear the setting
+  bool cleared = false;
+  if (strcmp(SETTINGS.horizontal.sdFontFamilyName, familyName) == 0) {
+    SETTINGS.horizontal.sdFontFamilyName[0] = '\0';
+    cleared = true;
+  }
+  if (strcmp(SETTINGS.vertical.sdFontFamilyName, familyName) == 0) {
+    SETTINGS.vertical.sdFontFamilyName[0] = '\0';
+    cleared = true;
+  }
+  if (cleared) {
     SETTINGS.saveToFile();
     LOG_DBG("FONT", "Cleared active SD font (deleted family: %s)", familyName);
   }

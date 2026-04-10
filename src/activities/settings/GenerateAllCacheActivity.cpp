@@ -12,6 +12,7 @@
 
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
+#include "SdCardFontGlobals.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 
@@ -119,16 +120,17 @@ void GenerateAllCacheActivity::generateAllCaches() {
   GUI.fillPopupProgress(renderer, popupRect, 0);
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 
-  // Calculate viewport dimensions
+  // Calculate viewport dimensions (screenMargin depends on writing direction, resolved per-book below)
+  // Use a placeholder margin here; it will be recalculated per book after resolving isVertical.
   int orientedMarginTop = 0, orientedMarginRight = 0, orientedMarginBottom = 0, orientedMarginLeft = 0;
   renderer.getOrientedViewableTRBL(&orientedMarginTop, &orientedMarginRight, &orientedMarginBottom, &orientedMarginLeft);
-  orientedMarginTop += SETTINGS.screenMargin;
-  orientedMarginRight += SETTINGS.screenMargin;
-  orientedMarginLeft += SETTINGS.screenMargin;
+  const int baseMarginTop = orientedMarginTop;
+  const int baseMarginRight = orientedMarginRight;
+  const int baseMarginBottom = orientedMarginBottom;
+  const int baseMarginLeft = orientedMarginLeft;
   const uint8_t statusBarHeight = UITheme::getInstance().getStatusBarHeight();
-  orientedMarginBottom += std::max(SETTINGS.screenMargin, statusBarHeight);
-  const uint16_t viewportWidth = renderer.getScreenWidth() - orientedMarginLeft - orientedMarginRight;
-  const uint16_t viewportHeight = renderer.getScreenHeight() - orientedMarginTop - orientedMarginBottom;
+  const int screenWidth = renderer.getScreenWidth();
+  const int screenHeight = renderer.getScreenHeight();
 
   for (int bookIdx = 0; bookIdx < totalCount; bookIdx++) {
     const auto& epubPath = epubFiles[bookIdx];
@@ -191,22 +193,33 @@ void GenerateAllCacheActivity::generateAllCaches() {
       fcm->freeKernLigatureData();
     }
 
-    const int headingFontIds[6] = {SETTINGS.getHeadingFontId(1), SETTINGS.getHeadingFontId(2), 0, 0, 0, 0};
+    const auto& ds = SETTINGS.getDirectionSettings(isVertical);
+    ensureSdFontLoaded(isVertical);
+
+    // Calculate viewport dimensions with direction-specific margins
+    const int bmTop = baseMarginTop + ds.screenMargin;
+    const int bmRight = baseMarginRight + ds.screenMargin;
+    const int bmLeft = baseMarginLeft + ds.screenMargin;
+    const int bmBottom = baseMarginBottom + std::max(ds.screenMargin, statusBarHeight);
+    const uint16_t viewportWidth = screenWidth - bmLeft - bmRight;
+    const uint16_t viewportHeight = screenHeight - bmTop - bmBottom;
+
+    const int headingFontIds[6] = {SETTINGS.getHeadingFontId(1, isVertical), SETTINGS.getHeadingFontId(2, isVertical), 0, 0, 0, 0};
 
     for (int i = 0; i < spineCount; i++) {
       Section sec(epub, i, renderer);
-      if (sec.loadSectionFile(SETTINGS.getReaderFontId(), lineCompression, SETTINGS.extraParagraphSpacing,
-                              SETTINGS.paragraphAlignment, viewportWidth, viewportHeight,
-                              SETTINGS.hyphenationEnabled, SETTINGS.firstLineIndent, SETTINGS.embeddedStyle,
-                              SETTINGS.imageRendering, isVertical)) {
+      if (sec.loadSectionFile(SETTINGS.getReaderFontId(isVertical), lineCompression, ds.extraParagraphSpacing,
+                              ds.paragraphAlignment, viewportWidth, viewportHeight,
+                              ds.hyphenationEnabled, ds.firstLineIndent, SETTINGS.embeddedStyle,
+                              SETTINGS.imageRendering, isVertical, ds.charSpacing)) {
         continue;
       }
 
-      if (!sec.createSectionFile(SETTINGS.getReaderFontId(), lineCompression, SETTINGS.extraParagraphSpacing,
-                                 SETTINGS.paragraphAlignment, viewportWidth, viewportHeight,
-                                 SETTINGS.hyphenationEnabled, SETTINGS.firstLineIndent, SETTINGS.embeddedStyle,
-                                 SETTINGS.imageRendering, isVertical, nullptr, headingFontIds,
-                                 SETTINGS.getTableFontId())) {
+      if (!sec.createSectionFile(SETTINGS.getReaderFontId(isVertical), lineCompression, ds.extraParagraphSpacing,
+                                 ds.paragraphAlignment, viewportWidth, viewportHeight,
+                                 ds.hyphenationEnabled, ds.firstLineIndent, SETTINGS.embeddedStyle,
+                                 SETTINGS.imageRendering, isVertical, ds.charSpacing, nullptr, headingFontIds,
+                                 SETTINGS.getTableFontId(isVertical))) {
         LOG_ERR("GENALL", "Failed section %d of %s", i, epubPath.c_str());
         continue;
       }

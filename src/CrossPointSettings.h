@@ -4,6 +4,21 @@
 #include <cstdint>
 #include <iosfwd>
 
+// Direction-specific reader settings (horizontal / vertical writing)
+struct DirectionSettings {
+  uint8_t fontFamily = 0;         // CrossPointSettings::BOOKERLY
+  char sdFontFamilyName[32] = "";
+  uint8_t fontSize = 1;           // CrossPointSettings::MEDIUM
+  uint8_t lineSpacing = 185;      // 80-250 (%)
+  uint8_t charSpacing = 0;        // 0-50 (5刻み)
+  uint8_t paragraphAlignment = 0; // CrossPointSettings::JUSTIFIED
+  uint8_t extraParagraphSpacing = 0;
+  uint8_t hyphenationEnabled = 0;
+  uint8_t screenMargin = 10;      // 5-40
+  uint8_t firstLineIndent = 1;
+  uint8_t textAntiAliasing = 0;
+};
+
 class CrossPointSettings {
  private:
   // Private constructor for singleton
@@ -179,9 +194,9 @@ class CrossPointSettings {
   uint8_t statusBarProgressBarThickness = PROGRESS_BAR_NORMAL;
   uint8_t statusBarTitle = 0;
   uint8_t statusBarBattery = 0;
-  // Text rendering settings
-  uint8_t extraParagraphSpacing = 0;
-  uint8_t textAntiAliasing = 0;
+  // Direction-specific reader settings
+  DirectionSettings horizontal;
+  DirectionSettings vertical = {0, "", 1, 185, 15, 0, 0, 0, 10, 1, 0};  // charSpacing=15 for vertical
   // Short power button click behaviour
   uint8_t shortPwrBtn = IGNORE;
   // EPUB reading orientation settings
@@ -196,22 +211,12 @@ class CrossPointSettings {
   uint8_t frontButtonConfirm = FRONT_HW_CONFIRM;
   uint8_t frontButtonLeft = FRONT_HW_LEFT;
   uint8_t frontButtonRight = FRONT_HW_RIGHT;
-  // Reader font settings
-  uint8_t fontFamily = BOOKERLY;
-  uint8_t fontSize = MEDIUM;
-  uint8_t lineSpacingHorizontal = 185;
-  uint8_t lineSpacingVertical = 185;
-  uint8_t paragraphAlignment = JUSTIFIED;
+  // Reader writing mode setting
   uint8_t writingMode = WM_AUTO;
-  uint8_t verticalCharSpacing = 15;
   // Auto-sleep timeout setting (default 10 minutes)
   uint8_t sleepTimeout = SLEEP_10_MIN;
   // E-ink refresh frequency (default 15 pages)
   uint8_t refreshFrequency = REFRESH_15;
-  uint8_t hyphenationEnabled = 0;
-
-  // Reader screen margin settings
-  uint8_t screenMargin = 10;
   // OPDS browser settings
   char opdsServerUrl[128] = "";
   char opdsUsername[64] = "";
@@ -226,8 +231,6 @@ class CrossPointSettings {
   uint8_t fadingFix = 0;
   // Use book's embedded CSS styles for EPUB rendering (1 = enabled, 0 = disabled)
   uint8_t embeddedStyle = 1;
-  // SD card font family name (empty = use built-in fontFamily)
-  char sdFontFamilyName[32] = "";
   // Show hidden files/directories (starting with '.') in the file browser (0 = hidden, 1 = show)
   uint8_t showHiddenFiles = 0;
   // Image rendering mode in EPUB reader
@@ -237,8 +240,6 @@ class CrossPointSettings {
   // UI orientation (Portrait or Inverted only)
   // 0 = UI_PORTRAIT, 1 = UI_INVERTED
   uint8_t uiOrientation = UI_PORTRAIT;
-  // First line indent for paragraphs
-  uint8_t firstLineIndent = 1;
   // Invert images in dark mode (1 = invert, 0 = keep original)
   uint8_t invertImages = 0;
   // Color mode (light/dark) for reader
@@ -260,15 +261,23 @@ class CrossPointSettings {
   uint16_t getPowerButtonDuration() const {
     return (shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::SLEEP) ? 10 : 400;
   }
-  // Returns the vertical character spacing as a percentage (0–30).
-  uint8_t getVerticalCharSpacingPercent() const { return verticalCharSpacing; }
-  int getReaderFontId() const;
-  int getBuiltInReaderFontId() const;
+  // Direction-specific settings access
+  const DirectionSettings& getDirectionSettings(bool isVertical) const {
+    return isVertical ? vertical : horizontal;
+  }
+  DirectionSettings& getDirectionSettings(bool isVertical) {
+    return isVertical ? vertical : horizontal;
+  }
+
+  // Returns the vertical character spacing as a percentage (0–50).
+  uint8_t getVerticalCharSpacingPercent() const { return vertical.charSpacing; }
+  int getReaderFontId(bool isVertical) const;
+  int getBuiltInReaderFontId(bool isVertical) const;
   // Returns font ID for heading level (1-6). Returns 0 if same as body font.
-  int getHeadingFontId(int headingLevel) const;
+  int getHeadingFontId(int headingLevel, bool isVertical) const;
   // Returns a smaller font ID for table rendering (10pt for SD card fonts,
   // SMALL for built-in fonts). Returns 0 if same as reader font.
-  int getTableFontId() const;
+  int getTableFontId(bool isVertical) const;
 
   // If count_only is true, returns the number of settings items that would be written.
   uint8_t writeSettings(FsFile& file, bool count_only = false) const;

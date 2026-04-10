@@ -35,7 +35,7 @@ void FontSelectActivity::onEnter() {
     if (currentExternal >= 0) {
       selectedIndex = kBuiltinReaderFontCount + currentExternal;
     } else {
-      const int familyIndex = static_cast<int>(SETTINGS.fontFamily);
+      const int familyIndex = static_cast<int>(SETTINGS.horizontal.fontFamily);
       selectedIndex = (familyIndex < kBuiltinReaderFontCount) ? familyIndex : 0;
     }
   } else {
@@ -92,7 +92,7 @@ void FontSelectActivity::handleSelection() {
       // Select built-in reader font
       LOG_DBG("FNT", "Selecting built-in reader font index %d", selectedIndex);
       FontMgr.selectFont(-1);
-      SETTINGS.fontFamily = static_cast<uint8_t>(kBuiltinReaderFonts[selectedIndex]);
+      SETTINGS.horizontal.fontFamily = static_cast<uint8_t>(kBuiltinReaderFonts[selectedIndex]);
       SETTINGS.saveToFile();
     } else {
       // Select external reader font (skip if glyph too large)
@@ -105,7 +105,7 @@ void FontSelectActivity::handleSelection() {
       LOG_DBG("FNT", "Selecting reader font index %d", externalIndex);
       FontMgr.selectFont(externalIndex);
     }
-    renderer.setReaderFallbackFontId(SETTINGS.getBuiltInReaderFontId());
+    renderer.setReaderFallbackFontId(SETTINGS.getBuiltInReaderFontId(false));
   } else {
     if (selectedIndex == 0) {
       // Select built-in UI font (disable external font)
@@ -151,7 +151,7 @@ void FontSelectActivity::render() {
     if (currentExternal >= 0) {
       currentIndex = kBuiltinReaderFontCount + currentExternal;
     } else {
-      const int familyIndex = static_cast<int>(SETTINGS.fontFamily);
+      const int familyIndex = static_cast<int>(SETTINGS.horizontal.fontFamily);
       currentIndex = (familyIndex < kBuiltinReaderFontCount) ? familyIndex : 0;
     }
   } else {

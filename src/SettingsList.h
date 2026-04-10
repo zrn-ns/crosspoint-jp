@@ -62,26 +62,27 @@ inline SettingInfo buildFontFamilySetting(const SdCardFontRegistry* registry) {
 
   s.valueGetter = [sdFamilyNames]() -> uint8_t {
     // If an SD card font is selected, find its index
-    if (SETTINGS.sdFontFamilyName[0] != '\0') {
+    if (SETTINGS.horizontal.sdFontFamilyName[0] != '\0') {
       for (int i = 0; i < static_cast<int>(sdFamilyNames.size()); i++) {
-        if (sdFamilyNames[i] == SETTINGS.sdFontFamilyName) {
+        if (sdFamilyNames[i] == SETTINGS.horizontal.sdFontFamilyName) {
           return static_cast<uint8_t>(CrossPointSettings::BUILTIN_FONT_COUNT + i);
         }
       }
       // SD font name not found in registry — fall through to built-in
     }
-    return SETTINGS.fontFamily < CrossPointSettings::BUILTIN_FONT_COUNT ? SETTINGS.fontFamily : 0;
+    return SETTINGS.horizontal.fontFamily < CrossPointSettings::BUILTIN_FONT_COUNT ? SETTINGS.horizontal.fontFamily : 0;
   };
 
   s.valueSetter = [sdFamilyNames](uint8_t v) {
     if (v < CrossPointSettings::BUILTIN_FONT_COUNT) {
-      SETTINGS.fontFamily = v;
-      SETTINGS.sdFontFamilyName[0] = '\0';
+      SETTINGS.horizontal.fontFamily = v;
+      SETTINGS.horizontal.sdFontFamilyName[0] = '\0';
     } else {
       int sdIdx = v - CrossPointSettings::BUILTIN_FONT_COUNT;
       if (sdIdx < static_cast<int>(sdFamilyNames.size())) {
-        strncpy(SETTINGS.sdFontFamilyName, sdFamilyNames[sdIdx].c_str(), sizeof(SETTINGS.sdFontFamilyName) - 1);
-        SETTINGS.sdFontFamilyName[sizeof(SETTINGS.sdFontFamilyName) - 1] = '\0';
+        strncpy(SETTINGS.horizontal.sdFontFamilyName, sdFamilyNames[sdIdx].c_str(),
+                sizeof(SETTINGS.horizontal.sdFontFamilyName) - 1);
+        SETTINGS.horizontal.sdFontFamilyName[sizeof(SETTINGS.horizontal.sdFontFamilyName) - 1] = '\0';
       }
     }
   };
@@ -128,41 +129,17 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
                         {StrId::STR_PORTRAIT, StrId::STR_INVERTED}, "uiOrientation", StrId::STR_CAT_DISPLAY),
 
       // --- Reader ---
-      buildFontFamilySetting(registry),
-      SettingInfo::Enum(StrId::STR_FONT_SIZE, &CrossPointSettings::fontSize,
-                        {StrId::STR_SMALL, StrId::STR_MEDIUM, StrId::STR_LARGE, StrId::STR_X_LARGE}, "fontSize",
-                        StrId::STR_CAT_READER),
-      SettingInfo::Value(StrId::STR_LINE_SPACING_HORIZONTAL, &CrossPointSettings::lineSpacingHorizontal, {80, 250, 1},
-                         "lineSpacingHorizontal", StrId::STR_CAT_READER),
-      SettingInfo::Value(StrId::STR_LINE_SPACING_VERTICAL, &CrossPointSettings::lineSpacingVertical, {80, 250, 1},
-                         "lineSpacingVertical", StrId::STR_CAT_READER),
-      SettingInfo::Value(StrId::STR_SCREEN_MARGIN, &CrossPointSettings::screenMargin, {5, 40, 5}, "screenMargin",
-                         StrId::STR_CAT_READER),
-      SettingInfo::Enum(StrId::STR_PARA_ALIGNMENT, &CrossPointSettings::paragraphAlignment,
-                        {StrId::STR_JUSTIFY, StrId::STR_ALIGN_LEFT, StrId::STR_CENTER, StrId::STR_ALIGN_RIGHT,
-                         StrId::STR_BOOK_S_STYLE},
-                        "paragraphAlignment", StrId::STR_CAT_READER),
       SettingInfo::Toggle(StrId::STR_EMBEDDED_STYLE, &CrossPointSettings::embeddedStyle, "embeddedStyle",
-                          StrId::STR_CAT_READER),
-      SettingInfo::Toggle(StrId::STR_HYPHENATION, &CrossPointSettings::hyphenationEnabled, "hyphenationEnabled",
                           StrId::STR_CAT_READER),
       SettingInfo::Enum(StrId::STR_ORIENTATION, &CrossPointSettings::orientation,
                         {StrId::STR_PORTRAIT, StrId::STR_LANDSCAPE_CW, StrId::STR_INVERTED, StrId::STR_LANDSCAPE_CCW},
                         "orientation", StrId::STR_CAT_READER),
-      SettingInfo::Toggle(StrId::STR_EXTRA_SPACING, &CrossPointSettings::extraParagraphSpacing, "extraParagraphSpacing",
-                          StrId::STR_CAT_READER),
-      SettingInfo::Toggle(StrId::STR_TEXT_AA, &CrossPointSettings::textAntiAliasing, "textAntiAliasing",
-                          StrId::STR_CAT_READER),
       SettingInfo::Enum(StrId::STR_IMAGES, &CrossPointSettings::imageRendering,
                         {StrId::STR_IMAGES_DISPLAY, StrId::STR_IMAGES_PLACEHOLDER, StrId::STR_IMAGES_SUPPRESS},
                         "imageRendering", StrId::STR_CAT_READER),
-      SettingInfo::Toggle(StrId::STR_FIRST_LINE_INDENT, &CrossPointSettings::firstLineIndent, "firstLineIndent",
-                          StrId::STR_CAT_READER),
       SettingInfo::Enum(StrId::STR_WRITING_MODE, &CrossPointSettings::writingMode,
                         {StrId::STR_WM_AUTO, StrId::STR_WM_HORIZONTAL, StrId::STR_WM_VERTICAL}, "writingMode",
                         StrId::STR_CAT_READER),
-      SettingInfo::Value(StrId::STR_VERT_CHAR_SPACING, &CrossPointSettings::verticalCharSpacing, {0, 50, 5},
-                         "verticalCharSpacing", StrId::STR_CAT_READER),
       SettingInfo::Toggle(StrId::STR_INVERT_IMAGES, &CrossPointSettings::invertImages, "invertImages",
                           StrId::STR_CAT_READER),
 

@@ -215,7 +215,7 @@ void enterDeepSleep() {
   powerManager.startDeepSleep(gpio);
 }
 
-void ensureSdFontLoaded() { sdFontSystem.ensureLoaded(renderer); }
+void ensureSdFontLoaded(bool isVertical) { sdFontSystem.ensureLoaded(renderer, isVertical); }
 
 void setupDisplayAndFonts() {
   display.begin();
@@ -323,7 +323,7 @@ void setup() {
   ButtonNavigator::setMappedInputManager(mappedInputManager);
 
   // CJK: External font system
-  renderer.setReaderFallbackFontId(SETTINGS.getBuiltInReaderFontId());
+  renderer.setReaderFallbackFontId(SETTINGS.getBuiltInReaderFontId(false));
   FontManager::getInstance().scanFonts();
   FontManager::getInstance().loadSettings();
 

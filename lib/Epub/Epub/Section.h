@@ -18,7 +18,8 @@ class Section {
 
   void writeSectionFileHeader(int fontId, float lineCompression, bool extraParagraphSpacing, uint8_t paragraphAlignment,
                               uint16_t viewportWidth, uint16_t viewportHeight, bool hyphenationEnabled,
-                              bool firstLineIndent, bool embeddedStyle, uint8_t imageRendering, bool verticalMode);
+                              bool firstLineIndent, bool embeddedStyle, uint8_t imageRendering, bool verticalMode,
+                              uint8_t charSpacing);
   uint32_t onPageComplete(std::unique_ptr<Page> page);
 
  public:
@@ -33,11 +34,11 @@ class Section {
   ~Section() = default;
   bool loadSectionFile(int fontId, float lineCompression, bool extraParagraphSpacing, uint8_t paragraphAlignment,
                        uint16_t viewportWidth, uint16_t viewportHeight, bool hyphenationEnabled, bool firstLineIndent,
-                       bool embeddedStyle, uint8_t imageRendering, bool verticalMode);
+                       bool embeddedStyle, uint8_t imageRendering, bool verticalMode, uint8_t charSpacing);
   bool clearCache() const;
   bool createSectionFile(int fontId, float lineCompression, bool extraParagraphSpacing, uint8_t paragraphAlignment,
                          uint16_t viewportWidth, uint16_t viewportHeight, bool hyphenationEnabled, bool firstLineIndent,
-                         bool embeddedStyle, uint8_t imageRendering, bool verticalMode,
+                         bool embeddedStyle, uint8_t imageRendering, bool verticalMode, uint8_t charSpacing,
                          const std::function<void()>& popupFn = nullptr, const int* headingFontIds = nullptr,
                          int tableFontId = 0);
   std::unique_ptr<Page> loadPageFromSectionFile();

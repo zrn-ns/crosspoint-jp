@@ -11,7 +11,7 @@
 class FontSelectionActivity final : public Activity {
  public:
   explicit FontSelectionActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
-                                 const SdCardFontRegistry* registry);
+                                 const SdCardFontRegistry* registry, bool isVertical = false);
 
   void onEnter() override;
   void onExit() override;
@@ -28,6 +28,7 @@ class FontSelectionActivity final : public Activity {
   };
 
   const SdCardFontRegistry* registry_;
+  bool isVertical_;
   ButtonNavigator buttonNavigator_;
   std::vector<FontEntry> fonts_;
   int selectedIndex_ = 0;

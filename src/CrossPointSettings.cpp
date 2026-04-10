@@ -152,7 +152,8 @@ bool CrossPointSettings::loadFromBinaryFile() {
   do {
     readAndValidate(inputFile, sleepScreen, SLEEP_SCREEN_MODE_COUNT);
     if (++settingsRead >= fileSettingsCount) break;
-    serialization::readPod(inputFile, extraParagraphSpacing);
+    serialization::readPod(inputFile, horizontal.extraParagraphSpacing);
+    vertical.extraParagraphSpacing = horizontal.extraParagraphSpacing;
     if (++settingsRead >= fileSettingsCount) break;
     readAndValidate(inputFile, shortPwrBtn, SHORT_PWRBTN_COUNT);
     if (++settingsRead >= fileSettingsCount) break;
@@ -164,9 +165,11 @@ bool CrossPointSettings::loadFromBinaryFile() {
     if (++settingsRead >= fileSettingsCount) break;
     readAndValidate(inputFile, sideButtonLayout, SIDE_BUTTON_LAYOUT_COUNT);
     if (++settingsRead >= fileSettingsCount) break;
-    readAndValidate(inputFile, fontFamily, FONT_FAMILY_COUNT);
+    readAndValidate(inputFile, horizontal.fontFamily, FONT_FAMILY_COUNT);
+    vertical.fontFamily = horizontal.fontFamily;
     if (++settingsRead >= fileSettingsCount) break;
-    readAndValidate(inputFile, fontSize, FONT_SIZE_COUNT);
+    readAndValidate(inputFile, horizontal.fontSize, FONT_SIZE_COUNT);
+    vertical.fontSize = horizontal.fontSize;
     if (++settingsRead >= fileSettingsCount) break;
     {
       uint8_t rawLineSpacing = LINE_SPACING_DEFAULT;
@@ -181,17 +184,19 @@ bool CrossPointSettings::loadFromBinaryFile() {
       } else {
         migratedValue = LINE_SPACING_DEFAULT;
       }
-      lineSpacingHorizontal = migratedValue;
-      lineSpacingVertical = migratedValue;
+      horizontal.lineSpacing = migratedValue;
+      vertical.lineSpacing = migratedValue;
     }
     if (++settingsRead >= fileSettingsCount) break;
-    readAndValidate(inputFile, paragraphAlignment, PARAGRAPH_ALIGNMENT_COUNT);
+    readAndValidate(inputFile, horizontal.paragraphAlignment, PARAGRAPH_ALIGNMENT_COUNT);
+    vertical.paragraphAlignment = horizontal.paragraphAlignment;
     if (++settingsRead >= fileSettingsCount) break;
     readAndValidate(inputFile, sleepTimeout, SLEEP_TIMEOUT_COUNT);
     if (++settingsRead >= fileSettingsCount) break;
     readAndValidate(inputFile, refreshFrequency, REFRESH_FREQUENCY_COUNT);
     if (++settingsRead >= fileSettingsCount) break;
-    serialization::readPod(inputFile, screenMargin);
+    serialization::readPod(inputFile, horizontal.screenMargin);
+    vertical.screenMargin = horizontal.screenMargin;
     if (++settingsRead >= fileSettingsCount) break;
     readAndValidate(inputFile, sleepScreenCoverMode, SLEEP_SCREEN_COVER_MODE_COUNT);
     if (++settingsRead >= fileSettingsCount) break;
@@ -202,13 +207,15 @@ bool CrossPointSettings::loadFromBinaryFile() {
       opdsServerUrl[sizeof(opdsServerUrl) - 1] = '\0';
     }
     if (++settingsRead >= fileSettingsCount) break;
-    serialization::readPod(inputFile, textAntiAliasing);
+    serialization::readPod(inputFile, horizontal.textAntiAliasing);
+    vertical.textAntiAliasing = horizontal.textAntiAliasing;
     if (++settingsRead >= fileSettingsCount) break;
     readAndValidate(inputFile, hideBatteryPercentage, HIDE_BATTERY_PERCENTAGE_COUNT);
     if (++settingsRead >= fileSettingsCount) break;
     serialization::readPod(inputFile, longPressChapterSkip);
     if (++settingsRead >= fileSettingsCount) break;
-    serialization::readPod(inputFile, hyphenationEnabled);
+    serialization::readPod(inputFile, horizontal.hyphenationEnabled);
+    vertical.hyphenationEnabled = horizontal.hyphenationEnabled;
     if (++settingsRead >= fileSettingsCount) break;
     {
       std::string usernameStr;
@@ -244,7 +251,8 @@ bool CrossPointSettings::loadFromBinaryFile() {
     // CJK-specific fields appended at end for backward compatibility
     serialization::readPod(inputFile, uiOrientation);
     if (++settingsRead >= fileSettingsCount) break;
-    serialization::readPod(inputFile, firstLineIndent);
+    serialization::readPod(inputFile, horizontal.firstLineIndent);
+    vertical.firstLineIndent = horizontal.firstLineIndent;
     if (++settingsRead >= fileSettingsCount) break;
     serialization::readPod(inputFile, colorMode);
     if (++settingsRead >= fileSettingsCount) break;
@@ -262,7 +270,7 @@ bool CrossPointSettings::loadFromBinaryFile() {
 }
 
 float CrossPointSettings::getReaderLineCompression(const bool vertical) const {
-  const uint8_t raw = vertical ? lineSpacingVertical : lineSpacingHorizontal;
+  const uint8_t raw = getDirectionSettings(vertical).lineSpacing;
   const uint8_t clamped =
       (raw < LINE_SPACING_MIN) ? LINE_SPACING_MIN : ((raw > LINE_SPACING_MAX) ? LINE_SPACING_MAX : raw);
   return static_cast<float>(clamped) / 100.0f;
@@ -300,10 +308,11 @@ int CrossPointSettings::getRefreshFrequency() const {
   }
 }
 
-int CrossPointSettings::getReaderFontId() const {
+int CrossPointSettings::getReaderFontId(bool isVertical) const {
+  const auto& ds = getDirectionSettings(isVertical);
   // Check SD card font first (upstream PR #1392)
-  if (sdFontFamilyName[0] != '\0' && sdFontIdResolver) {
-    int id = sdFontIdResolver(sdFontResolverCtx, sdFontFamilyName, fontSize);
+  if (ds.sdFontFamilyName[0] != '\0' && sdFontIdResolver) {
+    int id = sdFontIdResolver(sdFontResolverCtx, ds.sdFontFamilyName, ds.fontSize);
     if (id != 0) return id;
     // Fall through to built-in if SD font not found
   }
@@ -313,14 +322,15 @@ int CrossPointSettings::getReaderFontId() const {
   if (fm.isExternalFontEnabled()) {
     return -(fm.getSelectedIndex() + 1000);
   }
-  return getBuiltInReaderFontId();
+  return getBuiltInReaderFontId(isVertical);
 }
 
-int CrossPointSettings::getBuiltInReaderFontId() const {
-  switch (fontFamily) {
+int CrossPointSettings::getBuiltInReaderFontId(bool isVertical) const {
+  const auto& ds = getDirectionSettings(isVertical);
+  switch (ds.fontFamily) {
     case BOOKERLY:
     default:
-      switch (fontSize) {
+      switch (ds.fontSize) {
         case SMALL:
           return BOOKERLY_12_FONT_ID;
         case MEDIUM:
@@ -332,7 +342,7 @@ int CrossPointSettings::getBuiltInReaderFontId() const {
           return BOOKERLY_18_FONT_ID;
       }
     case NOTOSANS:
-      switch (fontSize) {
+      switch (ds.fontSize) {
         case SMALL:
           return NOTOSANS_12_FONT_ID;
         case MEDIUM:
@@ -344,7 +354,7 @@ int CrossPointSettings::getBuiltInReaderFontId() const {
           return NOTOSANS_18_FONT_ID;
       }
     case OPENDYSLEXIC:
-      switch (fontSize) {
+      switch (ds.fontSize) {
         case SMALL:
           return OPENDYSLEXIC_8_FONT_ID;
         case MEDIUM:
@@ -358,7 +368,8 @@ int CrossPointSettings::getBuiltInReaderFontId() const {
   }
 }
 
-int CrossPointSettings::getHeadingFontId(const int headingLevel) const {
+int CrossPointSettings::getHeadingFontId(const int headingLevel, bool isVertical) const {
+  const auto& ds = getDirectionSettings(isVertical);
   // h3-h6: same size as body
   uint8_t sizeStep = 0;
   if (headingLevel == 1) {
@@ -368,12 +379,12 @@ int CrossPointSettings::getHeadingFontId(const int headingLevel) const {
   }
   if (sizeStep == 0) return 0;  // 0 = use page-level fontId
 
-  const uint8_t headingSize = std::min<uint8_t>(fontSize + sizeStep, EXTRA_LARGE);
-  if (headingSize == fontSize) return 0;  // already at max size
+  const uint8_t headingSize = std::min<uint8_t>(ds.fontSize + sizeStep, EXTRA_LARGE);
+  if (headingSize == ds.fontSize) return 0;  // already at max size
 
   // SD card font path
-  if (sdFontFamilyName[0] != '\0' && sdFontIdResolver) {
-    int id = sdFontIdResolver(sdFontResolverCtx, sdFontFamilyName, headingSize);
+  if (ds.sdFontFamilyName[0] != '\0' && sdFontIdResolver) {
+    int id = sdFontIdResolver(sdFontResolverCtx, ds.sdFontFamilyName, headingSize);
     if (id != 0) return id;
   }
 
@@ -384,7 +395,7 @@ int CrossPointSettings::getHeadingFontId(const int headingLevel) const {
   }
 
   // Built-in font: resolve with heading size
-  switch (fontFamily) {
+  switch (ds.fontFamily) {
     case BOOKERLY:
     default:
       switch (headingSize) {
@@ -425,13 +436,14 @@ int CrossPointSettings::getHeadingFontId(const int headingLevel) const {
   }
 }
 
-int CrossPointSettings::getTableFontId() const {
+int CrossPointSettings::getTableFontId(bool isVertical) const {
+  const auto& ds = getDirectionSettings(isVertical);
   // Index 4 in FONT_SIZE_TO_PT maps to 10pt
   static constexpr uint8_t TABLE_FONT_SIZE_ENUM = 4;
 
   // SD card font: resolve same family at 10pt
-  if (sdFontFamilyName[0] != '\0' && sdFontIdResolver) {
-    int id = sdFontIdResolver(sdFontResolverCtx, sdFontFamilyName, TABLE_FONT_SIZE_ENUM);
+  if (ds.sdFontFamilyName[0] != '\0' && sdFontIdResolver) {
+    int id = sdFontIdResolver(sdFontResolverCtx, ds.sdFontFamilyName, TABLE_FONT_SIZE_ENUM);
     if (id != 0) return id;
   }
 
@@ -442,8 +454,8 @@ int CrossPointSettings::getTableFontId() const {
   }
 
   // Built-in font: use SMALL (smallest available)
-  if (fontSize == SMALL) return 0;  // already at smallest size
-  switch (fontFamily) {
+  if (ds.fontSize == SMALL) return 0;  // already at smallest size
+  switch (ds.fontFamily) {
     case BOOKERLY:
     default:
       return BOOKERLY_12_FONT_ID;

@@ -29,6 +29,7 @@
 #include "activities/settings/SettingsActivity.h"
 #include "activities/settings/StatusBarSettingsActivity.h"
 #include "activities/util/ConfirmationActivity.h"
+#include "SdCardFontGlobals.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "util/ScreenshotUtil.h"
@@ -57,20 +58,7 @@ void EpubReaderActivity::pregenerateCache() {
   const int spineCount = epub->getSpineItemsCount();
   if (spineCount <= 0) return;
 
-  // Calculate viewport dimensions (same logic as render())
-  int orientedMarginTop = 0, orientedMarginRight = 0, orientedMarginBottom = 0, orientedMarginLeft = 0;
-  renderer.getOrientedViewableTRBL(&orientedMarginTop, &orientedMarginRight, &orientedMarginBottom, &orientedMarginLeft);
-  orientedMarginTop += SETTINGS.screenMargin;
-  orientedMarginRight += SETTINGS.screenMargin;
-  orientedMarginLeft += SETTINGS.screenMargin;
-
-  const uint8_t statusBarHeight = UITheme::getInstance().getStatusBarHeight();
-  orientedMarginBottom += std::max(SETTINGS.screenMargin, statusBarHeight);
-
-  const uint16_t viewportWidth = renderer.getScreenWidth() - orientedMarginLeft - orientedMarginRight;
-  const uint16_t viewportHeight = renderer.getScreenHeight() - orientedMarginTop - orientedMarginBottom;
-
-  // Resolve writing mode
+  // Resolve writing mode first (needed for direction-specific settings)
   bool isVertical = false;
   if (SETTINGS.writingMode == CrossPointSettings::WM_VERTICAL) {
     isVertical = true;
@@ -82,6 +70,22 @@ void EpubReaderActivity::pregenerateCache() {
                   epub->getLanguage() == "zh" || epub->getLanguage() == "zho");
   }
 
+  const auto& ds = SETTINGS.getDirectionSettings(isVertical);
+  ensureSdFontLoaded(isVertical);
+
+  // Calculate viewport dimensions (same logic as render())
+  int orientedMarginTop = 0, orientedMarginRight = 0, orientedMarginBottom = 0, orientedMarginLeft = 0;
+  renderer.getOrientedViewableTRBL(&orientedMarginTop, &orientedMarginRight, &orientedMarginBottom, &orientedMarginLeft);
+  orientedMarginTop += ds.screenMargin;
+  orientedMarginRight += ds.screenMargin;
+  orientedMarginLeft += ds.screenMargin;
+
+  const uint8_t statusBarHeight = UITheme::getInstance().getStatusBarHeight();
+  orientedMarginBottom += std::max(ds.screenMargin, statusBarHeight);
+
+  const uint16_t viewportWidth = renderer.getScreenWidth() - orientedMarginLeft - orientedMarginRight;
+  const uint16_t viewportHeight = renderer.getScreenHeight() - orientedMarginTop - orientedMarginBottom;
+
   const float lineCompression = SETTINGS.getReaderLineCompression(isVertical);
   renderer.setVerticalCharSpacing(SETTINGS.getVerticalCharSpacingPercent());
 
@@ -92,7 +96,7 @@ void EpubReaderActivity::pregenerateCache() {
     fcm->freeKernLigatureData();
   }
 
-  const int headingFontIds[6] = {SETTINGS.getHeadingFontId(1), SETTINGS.getHeadingFontId(2), 0, 0, 0, 0};
+  const int headingFontIds[6] = {SETTINGS.getHeadingFontId(1, isVertical), SETTINGS.getHeadingFontId(2, isVertical), 0, 0, 0, 0};
 
   // Show initial popup
   Rect popupRect = GUI.drawPopup(renderer, tr(STR_GENERATING_CACHE));
@@ -122,18 +126,18 @@ void EpubReaderActivity::pregenerateCache() {
 
     // Create section cache
     Section sec(epub, i, renderer);
-    if (sec.loadSectionFile(SETTINGS.getReaderFontId(), lineCompression, SETTINGS.extraParagraphSpacing,
-                            SETTINGS.paragraphAlignment, viewportWidth, viewportHeight,
-                            SETTINGS.hyphenationEnabled, SETTINGS.firstLineIndent, SETTINGS.embeddedStyle,
-                            SETTINGS.imageRendering, isVertical)) {
+    if (sec.loadSectionFile(SETTINGS.getReaderFontId(isVertical), lineCompression, ds.extraParagraphSpacing,
+                            ds.paragraphAlignment, viewportWidth, viewportHeight,
+                            ds.hyphenationEnabled, ds.firstLineIndent, SETTINGS.embeddedStyle,
+                            SETTINGS.imageRendering, isVertical, ds.charSpacing)) {
       continue;  // Already cached
     }
 
-    if (!sec.createSectionFile(SETTINGS.getReaderFontId(), lineCompression, SETTINGS.extraParagraphSpacing,
-                               SETTINGS.paragraphAlignment, viewportWidth, viewportHeight,
-                               SETTINGS.hyphenationEnabled, SETTINGS.firstLineIndent, SETTINGS.embeddedStyle,
-                               SETTINGS.imageRendering, isVertical, nullptr, headingFontIds,
-                               SETTINGS.getTableFontId())) {
+    if (!sec.createSectionFile(SETTINGS.getReaderFontId(isVertical), lineCompression, ds.extraParagraphSpacing,
+                               ds.paragraphAlignment, viewportWidth, viewportHeight,
+                               ds.hyphenationEnabled, ds.firstLineIndent, SETTINGS.embeddedStyle,
+                               SETTINGS.imageRendering, isVertical, ds.charSpacing, nullptr, headingFontIds,
+                               SETTINGS.getTableFontId(isVertical))) {
       LOG_ERR("ERS", "Pregenerate: failed section %d (heap: %d)", i, ESP.getFreeHeap());
       continue;
     }
@@ -520,7 +524,8 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
       break;
     }
     case EpubReaderMenuActivity::MenuAction::STYLE_FIRST_LINE_INDENT: {
-      SETTINGS.firstLineIndent = !SETTINGS.firstLineIndent;
+      auto& dirSettings = SETTINGS.getDirectionSettings(verticalMode);
+      dirSettings.firstLineIndent = !dirSettings.firstLineIndent;
       SETTINGS.saveToFile();
       invalidateSectionPreservingPosition();
       break;
@@ -532,7 +537,7 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
       break;
     }
     case EpubReaderMenuActivity::MenuAction::STYLE_LINE_SPACING: {
-      uint8_t& target = verticalMode ? SETTINGS.lineSpacingVertical : SETTINGS.lineSpacingHorizontal;
+      uint8_t& target = SETTINGS.getDirectionSettings(verticalMode).lineSpacing;
       startActivityForResult(std::make_unique<LineSpacingSelectionActivity>(
                                  renderer, mappedInput, static_cast<int>(target),
                                  [this, &target](const int selectedValue) {
@@ -738,31 +743,8 @@ void EpubReaderActivity::render(RenderLock&& lock) {
     return;
   }
 
-  // Apply screen viewable areas and additional padding
-  int orientedMarginTop, orientedMarginRight, orientedMarginBottom, orientedMarginLeft;
-  renderer.getOrientedViewableTRBL(&orientedMarginTop, &orientedMarginRight, &orientedMarginBottom,
-                                   &orientedMarginLeft);
-  orientedMarginTop += SETTINGS.screenMargin;
-  orientedMarginLeft += SETTINGS.screenMargin;
-  orientedMarginRight += SETTINGS.screenMargin;
-
-  const uint8_t statusBarHeight = UITheme::getInstance().getStatusBarHeight();
-
-  // reserves space for automatic page turn indicator when no status bar or progress bar only
-  if (automaticPageTurnActive &&
-      (statusBarHeight == 0 || statusBarHeight == UITheme::getInstance().getProgressBarHeight())) {
-    orientedMarginBottom +=
-        std::max(SETTINGS.screenMargin,
-                 static_cast<uint8_t>(statusBarHeight + UITheme::getInstance().getMetrics().statusBarVerticalMargin));
-  } else {
-    orientedMarginBottom += std::max(SETTINGS.screenMargin, statusBarHeight);
-  }
-
-  const uint16_t viewportWidth = renderer.getScreenWidth() - orientedMarginLeft - orientedMarginRight;
-  const uint16_t viewportHeight = renderer.getScreenHeight() - orientedMarginTop - orientedMarginBottom;
-
+  // Resolve effective writing mode before viewport calculation (needed for direction-specific settings)
   if (!section) {
-    // Resolve effective writing mode
     if (SETTINGS.writingMode == CrossPointSettings::WM_VERTICAL) {
       verticalMode = true;
     } else if (SETTINGS.writingMode == CrossPointSettings::WM_HORIZONTAL) {
@@ -773,6 +755,38 @@ void EpubReaderActivity::render(RenderLock&& lock) {
                      (epub->getLanguage() == "ja" || epub->getLanguage() == "jpn" || epub->getLanguage() == "zh" ||
                       epub->getLanguage() == "zho");
     }
+  }
+
+  const auto& ds = SETTINGS.getDirectionSettings(verticalMode);
+
+  // Apply screen viewable areas and additional padding
+  int orientedMarginTop, orientedMarginRight, orientedMarginBottom, orientedMarginLeft;
+  renderer.getOrientedViewableTRBL(&orientedMarginTop, &orientedMarginRight, &orientedMarginBottom,
+                                   &orientedMarginLeft);
+  orientedMarginTop += ds.screenMargin;
+  orientedMarginLeft += ds.screenMargin;
+  orientedMarginRight += ds.screenMargin;
+
+  const uint8_t statusBarHeight = UITheme::getInstance().getStatusBarHeight();
+
+  // reserves space for automatic page turn indicator when no status bar or progress bar only
+  if (automaticPageTurnActive &&
+      (statusBarHeight == 0 || statusBarHeight == UITheme::getInstance().getProgressBarHeight())) {
+    orientedMarginBottom +=
+        std::max(ds.screenMargin,
+                 static_cast<uint8_t>(statusBarHeight + UITheme::getInstance().getMetrics().statusBarVerticalMargin));
+  } else {
+    orientedMarginBottom += std::max(ds.screenMargin, statusBarHeight);
+  }
+
+  const uint16_t viewportWidth = renderer.getScreenWidth() - orientedMarginLeft - orientedMarginRight;
+  const uint16_t viewportHeight = renderer.getScreenHeight() - orientedMarginTop - orientedMarginBottom;
+
+  if (!section) {
+    // Ensure the correct SD card font is loaded for the resolved writing direction.
+    // goToReader() calls ensureSdFontLoaded(false) before verticalMode is known,
+    // so we reload here with the correct direction after resolution.
+    ensureSdFontLoaded(verticalMode);
 
     const auto filepath = epub->getSpineItem(currentSpineIndex).href;
     LOG_DBG("ERS", "Loading file: %s, index: %d", filepath.c_str(), currentSpineIndex);
@@ -781,13 +795,13 @@ void EpubReaderActivity::render(RenderLock&& lock) {
     const float lineCompression = SETTINGS.getReaderLineCompression(verticalMode);
     renderer.setVerticalCharSpacing(SETTINGS.getVerticalCharSpacingPercent());
     LOG_DBG("ERS", "Reflow params: lineSpacing=%u, compression=%.2f, viewport=%ux%u, vertical=%d",
-            verticalMode ? SETTINGS.lineSpacingVertical : SETTINGS.lineSpacingHorizontal, lineCompression,
+            ds.lineSpacing, lineCompression,
             viewportWidth, viewportHeight, verticalMode);
 
-    if (!section->loadSectionFile(SETTINGS.getReaderFontId(), lineCompression, SETTINGS.extraParagraphSpacing,
-                                  SETTINGS.paragraphAlignment, viewportWidth, viewportHeight,
-                                  SETTINGS.hyphenationEnabled, SETTINGS.firstLineIndent, SETTINGS.embeddedStyle,
-                                  SETTINGS.imageRendering, verticalMode)) {
+    if (!section->loadSectionFile(SETTINGS.getReaderFontId(verticalMode), lineCompression, ds.extraParagraphSpacing,
+                                  ds.paragraphAlignment, viewportWidth, viewportHeight,
+                                  ds.hyphenationEnabled, ds.firstLineIndent, SETTINGS.embeddedStyle,
+                                  SETTINGS.imageRendering, verticalMode, ds.charSpacing)) {
       LOG_DBG("ERS", "Cache not found, building...");
 
       // Apply vertical character spacing for layout calculation
@@ -805,13 +819,13 @@ void EpubReaderActivity::render(RenderLock&& lock) {
 
       const auto popupFn = [this]() { GUI.drawPopup(renderer, tr(STR_INDEXING)); };
 
-      const int headingFontIds[6] = {SETTINGS.getHeadingFontId(1), SETTINGS.getHeadingFontId(2), 0, 0, 0, 0};
+      const int headingFontIds[6] = {SETTINGS.getHeadingFontId(1, verticalMode), SETTINGS.getHeadingFontId(2, verticalMode), 0, 0, 0, 0};
 
-      if (!section->createSectionFile(SETTINGS.getReaderFontId(), lineCompression, SETTINGS.extraParagraphSpacing,
-                                      SETTINGS.paragraphAlignment, viewportWidth, viewportHeight,
-                                      SETTINGS.hyphenationEnabled, SETTINGS.firstLineIndent, SETTINGS.embeddedStyle,
-                                      SETTINGS.imageRendering, verticalMode, popupFn, headingFontIds,
-                                      SETTINGS.getTableFontId())) {
+      if (!section->createSectionFile(SETTINGS.getReaderFontId(verticalMode), lineCompression, ds.extraParagraphSpacing,
+                                      ds.paragraphAlignment, viewportWidth, viewportHeight,
+                                      ds.hyphenationEnabled, ds.firstLineIndent, SETTINGS.embeddedStyle,
+                                      SETTINGS.imageRendering, verticalMode, ds.charSpacing, popupFn, headingFontIds,
+                                      SETTINGS.getTableFontId(verticalMode))) {
         LOG_ERR("ERS", "Failed to persist page data to SD (free heap: %d)", ESP.getFreeHeap());
         section.reset();
         // Show error and return to home to avoid infinite retry loop
@@ -928,21 +942,22 @@ void EpubReaderActivity::silentIndexNextChapterIfNeeded(const uint16_t viewportW
     return;
   }
 
+  const auto& silentDs = SETTINGS.getDirectionSettings(verticalMode);
   Section nextSection(epub, nextSpineIndex, renderer);
-  if (nextSection.loadSectionFile(SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(verticalMode),
-                                  SETTINGS.extraParagraphSpacing, SETTINGS.paragraphAlignment, viewportWidth,
-                                  viewportHeight, SETTINGS.hyphenationEnabled, SETTINGS.firstLineIndent,
-                                  SETTINGS.embeddedStyle, SETTINGS.imageRendering, verticalMode)) {
+  if (nextSection.loadSectionFile(SETTINGS.getReaderFontId(verticalMode), SETTINGS.getReaderLineCompression(verticalMode),
+                                  silentDs.extraParagraphSpacing, silentDs.paragraphAlignment, viewportWidth,
+                                  viewportHeight, silentDs.hyphenationEnabled, silentDs.firstLineIndent,
+                                  SETTINGS.embeddedStyle, SETTINGS.imageRendering, verticalMode, silentDs.charSpacing)) {
     return;
   }
 
   LOG_DBG("ERS", "Silently indexing next chapter: %d", nextSpineIndex);
-  const int silentHeadingFontIds[6] = {SETTINGS.getHeadingFontId(1), SETTINGS.getHeadingFontId(2), 0, 0, 0, 0};
-  if (!nextSection.createSectionFile(SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(verticalMode),
-                                     SETTINGS.extraParagraphSpacing, SETTINGS.paragraphAlignment, viewportWidth,
-                                     viewportHeight, SETTINGS.hyphenationEnabled, SETTINGS.firstLineIndent,
-                                     SETTINGS.embeddedStyle, SETTINGS.imageRendering, verticalMode, nullptr,
-                                     silentHeadingFontIds, SETTINGS.getTableFontId())) {
+  const int silentHeadingFontIds[6] = {SETTINGS.getHeadingFontId(1, verticalMode), SETTINGS.getHeadingFontId(2, verticalMode), 0, 0, 0, 0};
+  if (!nextSection.createSectionFile(SETTINGS.getReaderFontId(verticalMode), SETTINGS.getReaderLineCompression(verticalMode),
+                                     silentDs.extraParagraphSpacing, silentDs.paragraphAlignment, viewportWidth,
+                                     viewportHeight, silentDs.hyphenationEnabled, silentDs.firstLineIndent,
+                                     SETTINGS.embeddedStyle, SETTINGS.imageRendering, verticalMode, silentDs.charSpacing,
+                                     nullptr, silentHeadingFontIds, SETTINGS.getTableFontId(verticalMode))) {
     LOG_ERR("ERS", "Failed silent indexing for chapter: %d", nextSpineIndex);
   }
 }
@@ -990,15 +1005,15 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
   // Font prewarm: scan pass accumulates text, then prewarm, then real render
   auto* fcm = renderer.getFontCacheManager();
   auto scope = fcm->createPrewarmScope();
-  page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop,
+  page->render(renderer, SETTINGS.getReaderFontId(verticalMode), orientedMarginLeft, orientedMarginTop,
                viewportWidth);  // scan pass
   scope.endScanAndPrewarm();
   const auto tPrewarm = millis();
 
   // Force special handling for pages with images when anti-aliasing is on
-  bool imagePageWithAA = page->hasImages() && SETTINGS.textAntiAliasing;
+  bool imagePageWithAA = page->hasImages() && SETTINGS.getDirectionSettings(verticalMode).textAntiAliasing;
 
-  page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop, viewportWidth);
+  page->render(renderer, SETTINGS.getReaderFontId(verticalMode), orientedMarginLeft, orientedMarginTop, viewportWidth);
   renderStatusBar();
   const auto tBwRender = millis();
 
@@ -1015,7 +1030,7 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
 
       // Re-render page content to restore images into the blanked area
       // Status bar is not re-rendered here to avoid reading stale dynamic values (e.g. battery %)
-      page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop, viewportWidth);
+      page->render(renderer, SETTINGS.getReaderFontId(verticalMode), orientedMarginLeft, orientedMarginTop, viewportWidth);
       renderer.displayBuffer(HalDisplay::FAST_REFRESH);
     } else {
       renderer.displayBuffer(HalDisplay::HALF_REFRESH);
@@ -1032,17 +1047,17 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
 
   // Grayscale rendering - skip for external fonts (1-bit bitmap, no antialiasing benefit)
   const bool useExternalFont = FontManager::getInstance().isExternalFontEnabled();
-  if (SETTINGS.textAntiAliasing && !useExternalFont) {
+  if (SETTINGS.getDirectionSettings(verticalMode).textAntiAliasing && !useExternalFont) {
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-    page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop, viewportWidth);
+    page->render(renderer, SETTINGS.getReaderFontId(verticalMode), orientedMarginLeft, orientedMarginTop, viewportWidth);
     renderer.copyGrayscaleLsbBuffers();
     const auto tGrayLsb = millis();
 
     // Render and copy to MSB buffer
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-    page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop, viewportWidth);
+    page->render(renderer, SETTINGS.getReaderFontId(verticalMode), orientedMarginLeft, orientedMarginTop, viewportWidth);
     renderer.copyGrayscaleMsbBuffers();
     const auto tGrayMsb = millis();
 

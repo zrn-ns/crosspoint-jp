@@ -25,6 +25,8 @@ enum class SettingAction {
   SelectUiFont,
   GenerateAllCache,
   AozoraBunko,
+  HorizontalSettings,
+  VerticalSettings,
 };
 
 struct SettingInfo {
@@ -161,6 +163,7 @@ class SettingsActivity final : public Activity {
   const std::function<void()> onGoHome;
   int initialCategoryIndex = 0;
   int initialSettingIndex = 0;
+  bool skipNextButtonCheck = false;
 
   static constexpr int categoryCount = 4;
   static const StrId categoryNames[categoryCount];

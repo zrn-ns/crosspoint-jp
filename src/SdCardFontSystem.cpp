@@ -21,35 +21,36 @@ void SdCardFontSystem::begin(GfxRenderer& renderer) {
   SETTINGS.sdFontResolverCtx = this;
 
   // If user has a saved SD font selection, load it
-  if (SETTINGS.sdFontFamilyName[0] != '\0') {
-    const auto* family = registry_.findFamily(SETTINGS.sdFontFamilyName);
+  if (SETTINGS.horizontal.sdFontFamilyName[0] != '\0') {
+    const auto* family = registry_.findFamily(SETTINGS.horizontal.sdFontFamilyName);
     if (family) {
       if (manager_.loadFamily(*family, renderer)) {
-        LOG_DBG("SDFS", "Loaded SD card font family: %s", SETTINGS.sdFontFamilyName);
+        LOG_DBG("SDFS", "Loaded SD card font family: %s", SETTINGS.horizontal.sdFontFamilyName);
       } else {
-        LOG_ERR("SDFS", "Failed to load SD font family: %s (clearing)", SETTINGS.sdFontFamilyName);
-        SETTINGS.sdFontFamilyName[0] = '\0';
+        LOG_ERR("SDFS", "Failed to load SD font family: %s (clearing)", SETTINGS.horizontal.sdFontFamilyName);
+        SETTINGS.horizontal.sdFontFamilyName[0] = '\0';
       }
     } else {
-      LOG_DBG("SDFS", "SD font family not found on card: %s (clearing)", SETTINGS.sdFontFamilyName);
-      SETTINGS.sdFontFamilyName[0] = '\0';
+      LOG_DBG("SDFS", "SD font family not found on card: %s (clearing)", SETTINGS.horizontal.sdFontFamilyName);
+      SETTINGS.horizontal.sdFontFamilyName[0] = '\0';
     }
   }
 
   // Suppress ExternalFont reader rendering when SD card font is active
-  FontManager::getInstance().setSdCardFontActive(SETTINGS.sdFontFamilyName[0] != '\0');
+  FontManager::getInstance().setSdCardFontActive(SETTINGS.horizontal.sdFontFamilyName[0] != '\0');
 
   LOG_DBG("SDFS", "SD font system ready (%d families discovered)", registry_.getFamilyCount());
 }
 
-void SdCardFontSystem::ensureLoaded(GfxRenderer& renderer) {
+void SdCardFontSystem::ensureLoaded(GfxRenderer& renderer, bool isVertical) {
   // If the web server (or another task) installed/deleted fonts, re-discover.
   if (registryDirty_.exchange(false, std::memory_order_acquire)) {
     LOG_DBG("SDFS", "Registry dirty — re-discovering fonts");
     registry_.discover();
   }
 
-  const char* wantedFamily = SETTINGS.sdFontFamilyName;
+  auto& ds = SETTINGS.getDirectionSettings(isVertical);
+  const char* wantedFamily = ds.sdFontFamilyName;
   const std::string& currentFamily = manager_.currentFamilyName();
 
   if (wantedFamily[0] == '\0') {
@@ -73,11 +74,11 @@ void SdCardFontSystem::ensureLoaded(GfxRenderer& renderer) {
       FontManager::getInstance().setSdCardFontActive(true);
     } else {
       LOG_ERR("SDFS", "Failed to load SD font family: %s (clearing)", wantedFamily);
-      SETTINGS.sdFontFamilyName[0] = '\0';
+      ds.sdFontFamilyName[0] = '\0';
     }
   } else {
     LOG_DBG("SDFS", "SD font family not found: %s (clearing)", wantedFamily);
-    SETTINGS.sdFontFamilyName[0] = '\0';
+    ds.sdFontFamilyName[0] = '\0';
   }
 }
 

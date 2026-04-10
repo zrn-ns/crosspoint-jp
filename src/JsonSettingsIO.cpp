@@ -122,12 +122,25 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["frontButtonConfirm"] = s.frontButtonConfirm;
   doc["frontButtonLeft"] = s.frontButtonLeft;
   doc["frontButtonRight"] = s.frontButtonRight;
-  // Font family — uses dynamic getter/setter in SettingsList so the generic loop skips it.
-  doc["fontFamily"] = s.fontFamily;
-  // SD card font family name — not in SettingsList, save manually
-  if (s.sdFontFamilyName[0] != '\0') {
-    doc["sdFontFamilyName"] = s.sdFontFamilyName;
-  }
+
+  // Direction-specific settings (nested objects)
+  auto saveDirection = [](JsonObject obj, const DirectionSettings& ds) {
+    obj["fontFamily"] = ds.fontFamily;
+    if (ds.sdFontFamilyName[0] != '\0') {
+      obj["sdFontFamilyName"] = ds.sdFontFamilyName;
+    }
+    obj["fontSize"] = ds.fontSize;
+    obj["lineSpacing"] = ds.lineSpacing;
+    obj["charSpacing"] = ds.charSpacing;
+    obj["paragraphAlignment"] = ds.paragraphAlignment;
+    obj["extraParagraphSpacing"] = ds.extraParagraphSpacing;
+    obj["hyphenationEnabled"] = ds.hyphenationEnabled;
+    obj["screenMargin"] = ds.screenMargin;
+    obj["firstLineIndent"] = ds.firstLineIndent;
+    obj["textAntiAliasing"] = ds.textAntiAliasing;
+  };
+  saveDirection(doc["horizontal"].to<JsonObject>(), s.horizontal);
+  saveDirection(doc["vertical"].to<JsonObject>(), s.vertical);
 
   String json;
   serializeJson(doc, json);
@@ -196,18 +209,6 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
     }
   }
 
-  // Legacy migration: single "lineSpacing" key → split into horizontal/vertical
-  if (!doc["lineSpacing"].isNull() && doc["lineSpacingHorizontal"].isNull() && doc["lineSpacingVertical"].isNull()) {
-    const uint8_t legacy = doc["lineSpacing"] | CrossPointSettings::LINE_SPACING_DEFAULT;
-    const uint8_t clamped =
-        (legacy < CrossPointSettings::LINE_SPACING_MIN)
-            ? CrossPointSettings::LINE_SPACING_MIN
-            : ((legacy > CrossPointSettings::LINE_SPACING_MAX) ? CrossPointSettings::LINE_SPACING_MAX : legacy);
-    s.lineSpacingHorizontal = clamped;
-    s.lineSpacingVertical = clamped;
-    if (needsResave) *needsResave = true;
-  }
-
   // Front button remap — managed by RemapFrontButtons sub-activity, not in SettingsList.
   using S = CrossPointSettings;
   s.frontButtonBack =
@@ -220,12 +221,90 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
       clamp(doc["frontButtonRight"] | (uint8_t)S::FRONT_HW_RIGHT, S::FRONT_BUTTON_HARDWARE_COUNT, S::FRONT_HW_RIGHT);
   CrossPointSettings::validateFrontButtonMapping(s);
 
-  // Font family — uses dynamic getter/setter in SettingsList so the generic loop skips it.
-  s.fontFamily = clamp(doc["fontFamily"] | (uint8_t)0, CrossPointSettings::BUILTIN_FONT_COUNT, 0);
-  // SD card font family name — not in SettingsList, load manually
-  const char* sfn = doc["sdFontFamilyName"] | "";
-  strncpy(s.sdFontFamilyName, sfn, sizeof(s.sdFontFamilyName) - 1);
-  s.sdFontFamilyName[sizeof(s.sdFontFamilyName) - 1] = '\0';
+  // Load direction-specific settings (nested objects)
+  auto loadDirection = [](JsonObject obj, DirectionSettings& ds) -> bool {
+    if (obj.isNull()) return false;
+    ds.fontFamily = obj["fontFamily"] | ds.fontFamily;
+    if (ds.fontFamily >= CrossPointSettings::FONT_FAMILY_COUNT) ds.fontFamily = 0;
+    const char* sfn = obj["sdFontFamilyName"] | "";
+    strncpy(ds.sdFontFamilyName, sfn, sizeof(ds.sdFontFamilyName) - 1);
+    ds.sdFontFamilyName[sizeof(ds.sdFontFamilyName) - 1] = '\0';
+    ds.fontSize = obj["fontSize"] | ds.fontSize;
+    if (ds.fontSize >= CrossPointSettings::FONT_SIZE_COUNT) ds.fontSize = 1;
+    ds.lineSpacing = obj["lineSpacing"] | ds.lineSpacing;
+    if (ds.lineSpacing < CrossPointSettings::LINE_SPACING_MIN) ds.lineSpacing = CrossPointSettings::LINE_SPACING_MIN;
+    if (ds.lineSpacing > CrossPointSettings::LINE_SPACING_MAX) ds.lineSpacing = CrossPointSettings::LINE_SPACING_MAX;
+    ds.charSpacing = obj["charSpacing"] | ds.charSpacing;
+    if (ds.charSpacing > 50) ds.charSpacing = 0;
+    ds.paragraphAlignment = obj["paragraphAlignment"] | ds.paragraphAlignment;
+    if (ds.paragraphAlignment >= CrossPointSettings::PARAGRAPH_ALIGNMENT_COUNT) ds.paragraphAlignment = 0;
+    ds.extraParagraphSpacing = obj["extraParagraphSpacing"] | ds.extraParagraphSpacing;
+    ds.hyphenationEnabled = obj["hyphenationEnabled"] | ds.hyphenationEnabled;
+    ds.screenMargin = obj["screenMargin"] | ds.screenMargin;
+    if (ds.screenMargin < 5) ds.screenMargin = 5;
+    if (ds.screenMargin > 40) ds.screenMargin = 40;
+    ds.firstLineIndent = obj["firstLineIndent"] | ds.firstLineIndent;
+    ds.textAntiAliasing = obj["textAntiAliasing"] | ds.textAntiAliasing;
+    return true;
+  };
+
+  if (!loadDirection(doc["horizontal"].as<JsonObject>(), s.horizontal)) {
+    // Migration from flat format: copy old values to both directions
+    auto migrateBoth = [&](const char* key, uint8_t DirectionSettings::*field) {
+      uint8_t val = doc[key] | s.horizontal.*field;
+      s.horizontal.*field = val;
+      s.vertical.*field = val;
+    };
+    migrateBoth("extraParagraphSpacing", &DirectionSettings::extraParagraphSpacing);
+    migrateBoth("textAntiAliasing", &DirectionSettings::textAntiAliasing);
+    migrateBoth("paragraphAlignment", &DirectionSettings::paragraphAlignment);
+    migrateBoth("hyphenationEnabled", &DirectionSettings::hyphenationEnabled);
+    migrateBoth("screenMargin", &DirectionSettings::screenMargin);
+    migrateBoth("firstLineIndent", &DirectionSettings::firstLineIndent);
+    migrateBoth("fontSize", &DirectionSettings::fontSize);
+    // fontFamily
+    uint8_t ff = doc["fontFamily"] | (uint8_t)0;
+    if (ff >= CrossPointSettings::BUILTIN_FONT_COUNT) ff = 0;
+    s.horizontal.fontFamily = ff;
+    s.vertical.fontFamily = ff;
+    // sdFontFamilyName
+    const char* sfn = doc["sdFontFamilyName"] | "";
+    strncpy(s.horizontal.sdFontFamilyName, sfn, sizeof(s.horizontal.sdFontFamilyName) - 1);
+    s.horizontal.sdFontFamilyName[sizeof(s.horizontal.sdFontFamilyName) - 1] = '\0';
+    strncpy(s.vertical.sdFontFamilyName, sfn, sizeof(s.vertical.sdFontFamilyName) - 1);
+    s.vertical.sdFontFamilyName[sizeof(s.vertical.sdFontFamilyName) - 1] = '\0';
+    // lineSpacing: use legacy split fields if present, else single lineSpacing
+    if (!doc["lineSpacingHorizontal"].isNull()) {
+      s.horizontal.lineSpacing = doc["lineSpacingHorizontal"] | s.horizontal.lineSpacing;
+    } else if (!doc["lineSpacing"].isNull()) {
+      uint8_t ls = doc["lineSpacing"] | CrossPointSettings::LINE_SPACING_DEFAULT;
+      s.horizontal.lineSpacing = ls;
+    }
+    if (!doc["lineSpacingVertical"].isNull()) {
+      s.vertical.lineSpacing = doc["lineSpacingVertical"] | s.vertical.lineSpacing;
+    } else if (!doc["lineSpacing"].isNull()) {
+      uint8_t ls = doc["lineSpacing"] | CrossPointSettings::LINE_SPACING_DEFAULT;
+      s.vertical.lineSpacing = ls;
+    }
+    // verticalCharSpacing → vertical.charSpacing only
+    s.vertical.charSpacing = doc["verticalCharSpacing"] | s.vertical.charSpacing;
+    // Clamp migrated values to valid ranges
+    auto clampDs = [](DirectionSettings& d) {
+      if (d.fontFamily >= CrossPointSettings::FONT_FAMILY_COUNT) d.fontFamily = 0;
+      if (d.fontSize >= CrossPointSettings::FONT_SIZE_COUNT) d.fontSize = 1;
+      if (d.lineSpacing < CrossPointSettings::LINE_SPACING_MIN) d.lineSpacing = CrossPointSettings::LINE_SPACING_MIN;
+      if (d.lineSpacing > CrossPointSettings::LINE_SPACING_MAX) d.lineSpacing = CrossPointSettings::LINE_SPACING_MAX;
+      if (d.charSpacing > 50) d.charSpacing = 0;
+      if (d.paragraphAlignment >= CrossPointSettings::PARAGRAPH_ALIGNMENT_COUNT) d.paragraphAlignment = 0;
+      if (d.screenMargin < 5) d.screenMargin = 5;
+      if (d.screenMargin > 40) d.screenMargin = 40;
+    };
+    clampDs(s.horizontal);
+    clampDs(s.vertical);
+    if (needsResave) *needsResave = true;
+  } else {
+    loadDirection(doc["vertical"].as<JsonObject>(), s.vertical);
+  }
 
   LOG_DBG("CPS", "Settings loaded from file");
 

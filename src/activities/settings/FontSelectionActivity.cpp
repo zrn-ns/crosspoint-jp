@@ -9,8 +9,8 @@
 #include "fontIds.h"
 
 FontSelectionActivity::FontSelectionActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
-                                             const SdCardFontRegistry* registry)
-    : Activity("FontSelect", renderer, mappedInput), registry_(registry) {}
+                                             const SdCardFontRegistry* registry, bool isVertical)
+    : Activity("FontSelect", renderer, mappedInput), registry_(registry), isVertical_(isVertical) {}
 
 void FontSelectionActivity::onEnter() {
   Activity::onEnter();
@@ -32,16 +32,16 @@ void FontSelectionActivity::onEnter() {
 
   // Find current selection
   selectedIndex_ = 0;
-  if (SETTINGS.sdFontFamilyName[0] != '\0' && registry_) {
+  if (SETTINGS.getDirectionSettings(isVertical_).sdFontFamilyName[0] != '\0' && registry_) {
     const auto& families = registry_->getFamilies();
     for (int i = 0; i < static_cast<int>(families.size()); i++) {
-      if (families[i].name == SETTINGS.sdFontFamilyName) {
+      if (families[i].name == SETTINGS.getDirectionSettings(isVertical_).sdFontFamilyName) {
         selectedIndex_ = CrossPointSettings::BUILTIN_FONT_COUNT + i;
         break;
       }
     }
   } else {
-    selectedIndex_ = SETTINGS.fontFamily < CrossPointSettings::BUILTIN_FONT_COUNT ? SETTINGS.fontFamily : 0;
+    selectedIndex_ = SETTINGS.getDirectionSettings(isVertical_).fontFamily < CrossPointSettings::BUILTIN_FONT_COUNT ? SETTINGS.getDirectionSettings(isVertical_).fontFamily : 0;
   }
 
   requestUpdate();
@@ -74,14 +74,14 @@ void FontSelectionActivity::loop() {
 void FontSelectionActivity::handleSelection() {
   const auto& font = fonts_[selectedIndex_];
   if (font.settingIndex < CrossPointSettings::BUILTIN_FONT_COUNT) {
-    SETTINGS.fontFamily = font.settingIndex;
-    SETTINGS.sdFontFamilyName[0] = '\0';
+    SETTINGS.getDirectionSettings(isVertical_).fontFamily = font.settingIndex;
+    SETTINGS.getDirectionSettings(isVertical_).sdFontFamilyName[0] = '\0';
   } else if (registry_) {
     int sdIdx = font.settingIndex - CrossPointSettings::BUILTIN_FONT_COUNT;
     const auto& families = registry_->getFamilies();
     if (sdIdx < static_cast<int>(families.size())) {
-      strncpy(SETTINGS.sdFontFamilyName, families[sdIdx].name.c_str(), sizeof(SETTINGS.sdFontFamilyName) - 1);
-      SETTINGS.sdFontFamilyName[sizeof(SETTINGS.sdFontFamilyName) - 1] = '\0';
+      strncpy(SETTINGS.getDirectionSettings(isVertical_).sdFontFamilyName, families[sdIdx].name.c_str(), sizeof(SETTINGS.getDirectionSettings(isVertical_).sdFontFamilyName) - 1);
+      SETTINGS.getDirectionSettings(isVertical_).sdFontFamilyName[sizeof(SETTINGS.getDirectionSettings(isVertical_).sdFontFamilyName) - 1] = '\0';
     }
   }
   finish();
@@ -101,16 +101,16 @@ void FontSelectionActivity::render(RenderLock&&) {
 
   // Determine which font index is currently active (to mark as "Selected")
   int currentFontIndex = 0;
-  if (SETTINGS.sdFontFamilyName[0] != '\0' && registry_) {
+  if (SETTINGS.getDirectionSettings(isVertical_).sdFontFamilyName[0] != '\0' && registry_) {
     const auto& families = registry_->getFamilies();
     for (int i = 0; i < static_cast<int>(families.size()); i++) {
-      if (families[i].name == SETTINGS.sdFontFamilyName) {
+      if (families[i].name == SETTINGS.getDirectionSettings(isVertical_).sdFontFamilyName) {
         currentFontIndex = CrossPointSettings::BUILTIN_FONT_COUNT + i;
         break;
       }
     }
   } else {
-    currentFontIndex = SETTINGS.fontFamily < CrossPointSettings::BUILTIN_FONT_COUNT ? SETTINGS.fontFamily : 0;
+    currentFontIndex = SETTINGS.getDirectionSettings(isVertical_).fontFamily < CrossPointSettings::BUILTIN_FONT_COUNT ? SETTINGS.getDirectionSettings(isVertical_).fontFamily : 0;
   }
 
   GUI.drawList(
