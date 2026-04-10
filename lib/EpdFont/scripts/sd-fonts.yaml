@@ -228,6 +228,15 @@ families:
       regular: {url: "https://github.com/notofonts/noto-cjk/raw/main/Serif/Variable/OTF/Subset/NotoSerifJP-VF.otf", variable: {wght: 400}}
       bold:    {url: "https://github.com/notofonts/noto-cjk/raw/main/Serif/Variable/OTF/Subset/NotoSerifJP-VF.otf", variable: {wght: 700}}
 
+  - name: BIZUDMincho
+    description: "UD Mincho Japanese (MORISAWA, optimized for readability)"
+    intervals: ascii,latin1,punctuation,cjk
+    codepoints_file: codepoints/japanese_jis0213.txt
+    sizes: [10, 12, 14, 16, 18]
+    styles:
+      regular: {url: "https://github.com/googlefonts/morisawa-biz-ud-mincho/raw/main/fonts/ttf/BIZUDMincho-Regular.ttf"}
+      bold:    {url: "https://github.com/googlefonts/morisawa-biz-ud-mincho/raw/main/fonts/ttf/BIZUDMincho-Bold.ttf"}
+
   # ── Additional scripts (no complex shaping needed) ─────────────────────
 
   - name: NotoSansArmenian
