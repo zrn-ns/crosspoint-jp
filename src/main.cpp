@@ -13,8 +13,8 @@
 #include <I18n.h>
 #include <Logging.h>
 #include <SPI.h>
-#include <builtinFonts/all.h>
 #include <Wire.h>
+#include <builtinFonts/all.h>
 #include <esp_task_wdt.h>
 #include <sys/time.h>
 
@@ -206,12 +206,14 @@ static void appendPowerLog(const char* event) {
   if (gpio.deviceIsX3()) {
     Wire.beginTransmission(0x55);
     Wire.write(0x08);  // BQ27220_VOLT_REG
-    if (Wire.endTransmission(false) == 0 && Wire.requestFrom(static_cast<uint8_t>(0x55), static_cast<uint8_t>(2)) == 2) {
+    if (Wire.endTransmission(false) == 0 &&
+        Wire.requestFrom(static_cast<uint8_t>(0x55), static_cast<uint8_t>(2)) == 2) {
       voltageMv = Wire.read() | (static_cast<uint16_t>(Wire.read()) << 8);
     }
     Wire.beginTransmission(0x55);
     Wire.write(0x0C);  // BQ27220_CUR_REG
-    if (Wire.endTransmission(false) == 0 && Wire.requestFrom(static_cast<uint8_t>(0x55), static_cast<uint8_t>(2)) == 2) {
+    if (Wire.endTransmission(false) == 0 &&
+        Wire.requestFrom(static_cast<uint8_t>(0x55), static_cast<uint8_t>(2)) == 2) {
       currentMa = static_cast<int16_t>(Wire.read() | (static_cast<uint16_t>(Wire.read()) << 8));
     }
   }
