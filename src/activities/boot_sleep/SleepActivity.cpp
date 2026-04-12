@@ -31,7 +31,7 @@ void SleepActivity::onEnter() {
 
   // カレンダーをBW描画パスに挿入するためのフラグ設定
   // X4 では DS3231 がないため、電源断後に正確な日付を保持できない → カレンダー無効
-  calendarPending = SETTINGS.sleepCalendar && isTimeValid() && gpio.deviceIsX3();
+  calendarPending = SETTINGS.rtcEnabled && SETTINGS.sleepCalendar && isTimeValid() && gpio.deviceIsX3();
 
   switch (SETTINGS.sleepScreen) {
     case (CrossPointSettings::SLEEP_SCREEN_MODE::BLANK):
