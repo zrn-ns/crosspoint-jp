@@ -52,7 +52,20 @@ class FontCacheManager {
 
   enum class ScanMode : uint8_t { None, Scanning };
   ScanMode scanMode_ = ScanMode::None;
-  std::string scanText_;
-  uint32_t scanStyleCounts_[4] = {};
-  int scanFontId_ = -1;
+
+  // Per-SdCardFont scan data: tracks text separately for each unique SdCardFont*
+  // to enable efficient per-font prewarming (heading font only prewarms heading text).
+  struct ScanPerFont {
+    SdCardFont* font = nullptr;
+    std::string text;
+    uint32_t styleCounts[4] = {};
+  };
+  static constexpr int MAX_SCAN_FONTS = 2;
+  ScanPerFont scanPerFont_[MAX_SCAN_FONTS];
+  int scanPerFontCount_ = 0;
+
+  // For compressed (non-SD) fonts: accumulate text in a single buffer
+  std::string scanCompressedText_;
+  uint32_t scanCompressedStyleCounts_[4] = {};
+  int scanCompressedFontId_ = -1;
 };

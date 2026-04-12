@@ -16,6 +16,14 @@ static uint8_t fontSizeEnumToPt(uint8_t fontSizeEnum) {
   return 14;  // fallback
 }
 
+// Compute the heading base point size for the largest heading (h1, sizeStep=2).
+// Returns 0 if heading size equals body size (no secondary base needed).
+static uint8_t computeHeadingBasePt(uint8_t fontSizeEnum) {
+  uint8_t headingEnum = std::min<uint8_t>(fontSizeEnum + 2, CrossPointSettings::EXTRA_LARGE);
+  if (headingEnum == fontSizeEnum) return 0;
+  return fontSizeEnumToPt(headingEnum);
+}
+
 void SdCardFontSystem::begin(GfxRenderer& renderer) {
   registry_.discover();
 
@@ -31,8 +39,10 @@ void SdCardFontSystem::begin(GfxRenderer& renderer) {
     const auto* family = registry_.findFamily(SETTINGS.horizontal.sdFontFamilyName);
     if (family) {
       uint8_t basePt = fontSizeEnumToPt(SETTINGS.horizontal.fontSize);
-      if (manager_.loadFamily(*family, renderer, basePt)) {
-        LOG_DBG("SDFS", "Loaded SD card font family: %s (base=%upt)", SETTINGS.horizontal.sdFontFamilyName, basePt);
+      uint8_t headingPt = computeHeadingBasePt(SETTINGS.horizontal.fontSize);
+      if (manager_.loadFamily(*family, renderer, basePt, headingPt)) {
+        LOG_DBG("SDFS", "Loaded SD card font family: %s (base=%upt, heading=%upt)", SETTINGS.horizontal.sdFontFamilyName,
+                basePt, headingPt);
       } else {
         LOG_ERR("SDFS", "Failed to load SD font family: %s (clearing)", SETTINGS.horizontal.sdFontFamilyName);
         SETTINGS.horizontal.sdFontFamilyName[0] = '\0';
@@ -69,10 +79,12 @@ void SdCardFontSystem::ensureLoaded(GfxRenderer& renderer, bool isVertical) {
   }
 
   const uint8_t wantedBasePt = fontSizeEnumToPt(ds.fontSize);
+  const uint8_t wantedHeadingPt = computeHeadingBasePt(ds.fontSize);
   const bool familyChanged = (currentFamily != wantedFamily);
   const bool basePtChanged = (manager_.loadedBasePt() != wantedBasePt);
+  const bool headingPtChanged = (manager_.loadedHeadingBasePt() != wantedHeadingPt);
 
-  if (!familyChanged && !basePtChanged) return;
+  if (!familyChanged && !basePtChanged && !headingPtChanged) return;
 
   if (!currentFamily.empty()) {
     manager_.unloadAll(renderer);
@@ -80,8 +92,9 @@ void SdCardFontSystem::ensureLoaded(GfxRenderer& renderer, bool isVertical) {
 
   const auto* family = registry_.findFamily(wantedFamily);
   if (family) {
-    if (manager_.loadFamily(*family, renderer, wantedBasePt)) {
-      LOG_DBG("SDFS", "Loaded SD font family: %s (base=%upt)", wantedFamily, wantedBasePt);
+    if (manager_.loadFamily(*family, renderer, wantedBasePt, wantedHeadingPt)) {
+      LOG_DBG("SDFS", "Loaded SD font family: %s (base=%upt, heading=%upt)", wantedFamily, wantedBasePt,
+              wantedHeadingPt);
       FontManager::getInstance().setSdCardFontActive(true);
     } else {
       LOG_ERR("SDFS", "Failed to load SD font family: %s (clearing)", wantedFamily);

@@ -28,68 +28,119 @@ int SdCardFontManager::computeFontId(uint32_t contentHash, const char* familyNam
   return id != 0 ? id : 1;  // 0 is reserved as "not found" sentinel
 }
 
-bool SdCardFontManager::loadFamily(const SdCardFontFamilyInfo& family, GfxRenderer& renderer, uint8_t preferredBasePt) {
+bool SdCardFontManager::loadFamily(const SdCardFontFamilyInfo& family, GfxRenderer& renderer, uint8_t preferredBasePt,
+                                   uint8_t headingBasePt) {
   if (!loadedFamilyName_.empty()) {
     unloadAll(renderer);
   }
 
-  // Single-variant loading: pick one base .cpfont file closest to preferredBasePt.
-  // By matching the user's reading font size, body text renders at native resolution
-  // without nearest-neighbor scaling artifacts.
+  // Dual-base loading: pick a primary .cpfont closest to preferredBasePt (body text),
+  // and optionally a secondary .cpfont closest to headingBasePt (heading text).
+  // Each virtual font ID is assigned to the closer base, eliminating upscaling artifacts.
   static constexpr uint8_t ALL_SIZES[] = {10, 12, 14, 16, 18};
 
-  const SdCardFontFileInfo* bestFile = nullptr;
+  // --- Primary base selection ---
+  const SdCardFontFileInfo* primaryFile = nullptr;
   int bestDiff = INT_MAX;
   for (const auto& fileInfo : family.files) {
     int diff = abs(static_cast<int>(fileInfo.pointSize) - static_cast<int>(preferredBasePt));
     if (diff < bestDiff) {
       bestDiff = diff;
-      bestFile = &fileInfo;
+      primaryFile = &fileInfo;
     }
   }
-  if (!bestFile) return false;
+  if (!primaryFile) return false;
 
-  auto* font = new (std::nothrow) SdCardFont();
-  if (!font) {
-    LOG_ERR("SDMGR", "Failed to allocate SdCardFont");
+  auto* primaryFont = new (std::nothrow) SdCardFont();
+  if (!primaryFont) {
+    LOG_ERR("SDMGR", "Failed to allocate primary SdCardFont");
     return false;
   }
-  if (!font->load(bestFile->path.c_str())) {
-    LOG_ERR("SDMGR", "Failed to load %s", bestFile->path.c_str());
-    delete font;
+  if (!primaryFont->load(primaryFile->path.c_str())) {
+    LOG_ERR("SDMGR", "Failed to load %s", primaryFile->path.c_str());
+    delete primaryFont;
     return false;
   }
 
-  const uint8_t basePt = bestFile->pointSize;
-  loaded_.push_back({font, 0, basePt});
+  const uint8_t primaryPt = primaryFile->pointSize;
+  loaded_.push_back({primaryFont, 0, primaryPt});
 
-  // Register the same SdCardFont under 4 virtual fontIds (one per target size)
-  EpdFontFamily fontFamily(font->getEpdFont(0), font->getEpdFont(1), font->getEpdFont(2), font->getEpdFont(3));
+  // --- Secondary base selection (for headings) ---
+  SdCardFont* secondaryFont = nullptr;
+  uint8_t secondaryPt = 0;
+
+  if (headingBasePt != 0 && headingBasePt != primaryPt) {
+    const SdCardFontFileInfo* headingFile = nullptr;
+    int headBestDiff = INT_MAX;
+    for (const auto& fileInfo : family.files) {
+      int diff = abs(static_cast<int>(fileInfo.pointSize) - static_cast<int>(headingBasePt));
+      if (diff < headBestDiff) {
+        headBestDiff = diff;
+        headingFile = &fileInfo;
+      }
+    }
+
+    // Only load secondary if it's a different file than primary
+    if (headingFile && headingFile->path != primaryFile->path) {
+      secondaryFont = new (std::nothrow) SdCardFont();
+      if (secondaryFont) {
+        if (secondaryFont->load(headingFile->path.c_str())) {
+          secondaryPt = headingFile->pointSize;
+          loaded_.push_back({secondaryFont, 0, secondaryPt});
+          LOG_DBG("SDMGR", "Loaded secondary base: %s (%upt)", headingFile->path.c_str(), secondaryPt);
+        } else {
+          LOG_ERR("SDMGR", "Failed to load secondary %s, falling back to single base", headingFile->path.c_str());
+          delete secondaryFont;
+          secondaryFont = nullptr;
+        }
+      }
+    }
+  }
+
+  // --- Register virtual font IDs ---
   virtualFontIds_.clear();
 
   for (uint8_t targetPt : ALL_SIZES) {
-    int fontId = computeFontId(font->contentHash(), family.name.c_str(), targetPt);
+    // fontId is always computed from primary contentHash for getFontId() consistency
+    int fontId = computeFontId(primaryFont->contentHash(), family.name.c_str(), targetPt);
     if (renderer.getFontMap().count(fontId) != 0) {
       LOG_ERR("SDMGR", "Font ID %d collides, skipping size %u", fontId, targetPt);
       continue;
     }
-    renderer.registerSdCardFont(fontId, font);
+
+    // Choose base: use the closer one. On tie, prefer larger base (downscale > upscale).
+    SdCardFont* chosenFont = primaryFont;
+    uint8_t chosenPt = primaryPt;
+
+    if (secondaryFont) {
+      int diffPrimary = abs(static_cast<int>(targetPt) - static_cast<int>(primaryPt));
+      int diffSecondary = abs(static_cast<int>(targetPt) - static_cast<int>(secondaryPt));
+      if (diffSecondary < diffPrimary || (diffSecondary == diffPrimary && secondaryPt > primaryPt)) {
+        chosenFont = secondaryFont;
+        chosenPt = secondaryPt;
+      }
+    }
+
+    EpdFontFamily fontFamily(chosenFont->getEpdFont(0), chosenFont->getEpdFont(1), chosenFont->getEpdFont(2),
+                             chosenFont->getEpdFont(3));
+    renderer.registerSdCardFont(fontId, chosenFont);
     renderer.insertFont(fontId, fontFamily);
 
     // Scale factor: 8.8 fixed-point (256 = 1.0x)
-    uint16_t scale = static_cast<uint16_t>(static_cast<uint32_t>(targetPt) * 256 / basePt);
+    uint16_t scale = static_cast<uint16_t>(static_cast<uint32_t>(targetPt) * 256 / chosenPt);
     renderer.registerSdCardFontScale(fontId, scale);
     virtualFontIds_.push_back(fontId);
 
-    if (targetPt == basePt) {
+    if (targetPt == primaryPt) {
       loaded_[0].fontId = fontId;
     }
 
-    LOG_DBG("SDMGR", "Registered size=%u id=%d scale=%u/256 (base=%u)", targetPt, fontId, scale, basePt);
+    LOG_DBG("SDMGR", "Registered size=%u id=%d scale=%u/256 (base=%u%s)", targetPt, fontId, scale, chosenPt,
+            chosenFont == secondaryFont ? " [heading]" : "");
   }
 
   if (virtualFontIds_.empty()) {
-    delete font;
+    for (auto& lf : loaded_) delete lf.font;
     loaded_.clear();
     return false;
   }
@@ -99,8 +150,10 @@ bool SdCardFontManager::loadFamily(const SdCardFontFamilyInfo& family, GfxRender
   }
 
   loadedFamilyName_ = family.name;
-  loadedBasePt_ = basePt;
-  LOG_DBG("SDMGR", "Loaded %s (base=%upt, %zu virtual IDs)", family.name.c_str(), basePt, virtualFontIds_.size());
+  loadedBasePt_ = primaryPt;
+  loadedHeadingBasePt_ = secondaryPt;
+  LOG_DBG("SDMGR", "Loaded %s (primary=%upt, heading=%upt, %zu virtual IDs)", family.name.c_str(), primaryPt,
+          secondaryPt, virtualFontIds_.size());
   return true;
 }
 
@@ -120,6 +173,7 @@ void SdCardFontManager::unloadAll(GfxRenderer& renderer) {
   loaded_.clear();
   loadedFamilyName_.clear();
   loadedBasePt_ = 0;
+  loadedHeadingBasePt_ = 0;
 }
 
 int SdCardFontManager::getFontId(const std::string& familyName, uint8_t size, uint8_t /*style*/) const {
