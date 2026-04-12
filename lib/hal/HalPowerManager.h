@@ -39,7 +39,8 @@ class HalPowerManager {
 
   // Setup wake up GPIO and enter deep sleep
   // Should be called inside main loop() to handle the currentLockMode
-  void startDeepSleep(HalGPIO& gpio) const;
+  // useFullPowerOff: true=GPIO13でバッテリー切断（完全電源断）, false=ESP32ディープスリープ（RTC維持）
+  void startDeepSleep(HalGPIO& gpio, bool useFullPowerOff = false) const;
 
   // Get battery percentage (range 0-100)
   uint16_t getBatteryPercentage() const;

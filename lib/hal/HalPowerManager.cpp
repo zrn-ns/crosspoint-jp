@@ -61,18 +61,18 @@ void HalPowerManager::setPowerSaving(bool enabled) {
   // Otherwise, no change needed
 }
 
-void HalPowerManager::startDeepSleep(HalGPIO& gpio) const {
+void HalPowerManager::startDeepSleep(HalGPIO& gpio, bool useFullPowerOff) const {
   // Ensure that the power button has been released to avoid immediately turning back on if you're holding it
   while (gpio.isPressed(HalGPIO::BTN_POWER)) {
     delay(50);
     gpio.update();
   }
   // Pre-sleep routines from the original firmware (crosspoint-reader/crosspoint-reader#1298)
-  // X4: GPIO13はバッテリーラッチMOSFET。LOWにしてバッテリー切断→MCU全電源断。
-  // X3: GPIO13はSD電源制御のみの可能性がある。LOWにしないことで
-  //     MCUのディープスリープ（RTC維持）を試み、DS3231の時刻保持を狙う。
+  // GPIO13はバッテリーラッチMOSFET。LOWにしてバッテリー切断→MCU全電源断。
+  // useFullPowerOff=false の場合はGPIO13を触らず、MCUのディープスリープ（RTC維持）で
+  // DS3231の時刻保持を狙う（X3 + RTC有効時）。
   constexpr gpio_num_t GPIO_SPIWP = GPIO_NUM_13;
-  if (gpio.deviceIsX4()) {
+  if (useFullPowerOff) {
     gpio_set_direction(GPIO_SPIWP, GPIO_MODE_OUTPUT);
     gpio_set_level(GPIO_SPIWP, 0);
     gpio_hold_en(GPIO_SPIWP);
