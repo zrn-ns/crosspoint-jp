@@ -3183,8 +3183,8 @@ async function convertZipToXtc(file, progressCallback) {
   progressCallback(1.0);
 
   // XTC コンテナ構築
-  const xtcBlob = buildXtcContainer(pagesData, targetW, targetH, isRtl, file.name);
-  const xtcName = file.name.replace(/\.(zip|cbz)$/i, '.xtc');
+  const xtcBlob = buildXtcContainer(pagesData, targetW, targetH, isRtl, file.name.normalize('NFC'));
+  const xtcName = file.name.normalize('NFC').replace(/\.(zip|cbz)$/i, '.xtc');
   return { blob: xtcBlob, name: xtcName };
 }
 
@@ -4845,7 +4845,9 @@ function uploadFileWebSocket(file, onProgress, onComplete, onError) {
     ws.onopen = function() {
       console.log('[WS] Connected, starting upload:', file.name);
       // Send start message: START:<filename>:<size>:<path>
-      ws.send(`START:${file.name}:${file.size}:${currentPath}`);
+      // NFC normalize filename to avoid decomposed dakuten/handakuten on macOS
+      const normalizedName = file.name.normalize ? file.name.normalize('NFC') : file.name;
+      ws.send(`START:${normalizedName}:${file.size}:${currentPath}`);
     };
 
     ws.onmessage = async function(event) {
