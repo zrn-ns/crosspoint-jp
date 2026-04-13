@@ -9,16 +9,20 @@
 
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
+#include <HalIMU.h>
 #include <HalStorage.h>
 #include <I18n.h>
 
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
+#include "EpubReaderPercentSelectionActivity.h"
 #include "MappedInputManager.h"
 #include "RecentBooksStore.h"
 #include "XtcReaderChapterSelectionActivity.h"
+#include "XtcReaderMenuActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "util/ScreenshotUtil.h"
 
 namespace {
 constexpr unsigned long skipPageMs = 700;
@@ -55,17 +59,62 @@ void XtcReaderActivity::onExit() {
 }
 
 void XtcReaderActivity::loop() {
-  // Enter chapter selection activity
+  // リーダーメニューを開く
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-    if (xtc && xtc->hasChapters() && !xtc->getChapters().empty()) {
-      startActivityForResult(
-          std::make_unique<XtcReaderChapterSelectionActivity>(renderer, mappedInput, xtc, currentPage),
-          [this](const ActivityResult& result) {
-            if (!result.isCancelled) {
-              currentPage = std::get<PageResult>(result.data).page;
+    if (!xtc) return;
+    const bool hasChapters = xtc->hasChapters() && !xtc->getChapters().empty();
+    startActivityForResult(
+        std::make_unique<XtcReaderMenuActivity>(renderer, mappedInput, xtc->getTitle(), currentPage,
+                                                xtc->getPageCount(), hasChapters),
+        [this](const ActivityResult& result) {
+          if (SETTINGS.tiltPageTurn && !imu.isAvailable()) {
+            imu.begin();
+          } else if (!SETTINGS.tiltPageTurn && imu.isAvailable()) {
+            imu.standby();
+          }
+          if (result.isCancelled) return;
+          const auto& menu = std::get<MenuResult>(result.data);
+          const auto action = static_cast<XtcReaderMenuActivity::MenuAction>(menu.action);
+          switch (action) {
+            case XtcReaderMenuActivity::MenuAction::SELECT_CHAPTER: {
+              startActivityForResult(
+                  std::make_unique<XtcReaderChapterSelectionActivity>(renderer, mappedInput, xtc, currentPage),
+                  [this](const ActivityResult& chapterResult) {
+                    if (!chapterResult.isCancelled) {
+                      currentPage = std::get<PageResult>(chapterResult.data).page;
+                    }
+                  });
+              break;
             }
-          });
-    }
+            case XtcReaderMenuActivity::MenuAction::GO_TO_PERCENT: {
+              const int percent = xtc->getPageCount() > 0
+                                      ? static_cast<int>(static_cast<float>(currentPage) / xtc->getPageCount() * 100.0f + 0.5f)
+                                      : 0;
+              startActivityForResult(
+                  std::make_unique<EpubReaderPercentSelectionActivity>(renderer, mappedInput, percent),
+                  [this](const ActivityResult& percentResult) {
+                    if (!percentResult.isCancelled) {
+                      const int selectedPercent = std::get<PercentResult>(percentResult.data).percent;
+                      currentPage = static_cast<uint32_t>(static_cast<float>(selectedPercent) / 100.0f * xtc->getPageCount());
+                      if (currentPage >= xtc->getPageCount() && xtc->getPageCount() > 0) {
+                        currentPage = xtc->getPageCount() - 1;
+                      }
+                    }
+                  });
+              break;
+            }
+            case XtcReaderMenuActivity::MenuAction::SCREENSHOT: {
+              pendingScreenshot = true;
+              break;
+            }
+            case XtcReaderMenuActivity::MenuAction::GO_HOME: {
+              onGoHome();
+              return;
+            }
+            case XtcReaderMenuActivity::MenuAction::TILT_PAGE_TURN:
+              break;
+          }
+        });
   }
 
   // Long press BACK (1s+) goes to file selection
@@ -294,6 +343,11 @@ void XtcReaderActivity::renderPage() {
 
     LOG_DBG("XTR", "Rendered page %lu/%lu (2-bit grayscale)", currentPage + 1, xtc->getPageCount());
     renderer.setDarkMode(wasDarkMode);
+
+    if (pendingScreenshot) {
+      pendingScreenshot = false;
+      ScreenshotUtil::takeScreenshot(renderer);
+    }
     return;
   } else {
     // 1-bit mode: 8 pixels per byte, MSB first
@@ -331,6 +385,11 @@ void XtcReaderActivity::renderPage() {
 
   LOG_DBG("XTR", "Rendered page %lu/%lu (%u-bit)", currentPage + 1, xtc->getPageCount(), bitDepth);
   renderer.setDarkMode(wasDarkMode);
+
+  if (pendingScreenshot) {
+    pendingScreenshot = false;
+    ScreenshotUtil::takeScreenshot(renderer);
+  }
 }
 
 void XtcReaderActivity::saveProgress() const {
