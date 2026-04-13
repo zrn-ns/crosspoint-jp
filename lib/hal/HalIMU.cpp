@@ -109,12 +109,12 @@ bool HalIMU::begin() {
 void HalIMU::update() {
   if (!available) return;
 
-  // Burst read 4 bytes: AX_L, AX_H, AY_L, AY_H
+  // Burst read 6 bytes: AX_L, AX_H, AY_L, AY_H, AZ_L, AZ_H
   // Requires CTRL1 address auto-increment to be enabled.
   Wire.beginTransmission(chipAddr);
   Wire.write(REG_AX_L);
   if (Wire.endTransmission(false) != 0) return;
-  if (Wire.requestFrom(chipAddr, static_cast<uint8_t>(4), static_cast<uint8_t>(true)) < 4) {
+  if (Wire.requestFrom(chipAddr, static_cast<uint8_t>(6), static_cast<uint8_t>(true)) < 6) {
     while (Wire.available()) Wire.read();
     return;
   }
@@ -122,8 +122,11 @@ void HalIMU::update() {
   const uint8_t axh = Wire.read();
   const uint8_t ayl = Wire.read();
   const uint8_t ayh = Wire.read();
+  const uint8_t azl = Wire.read();
+  const uint8_t azh = Wire.read();
   accelX = static_cast<int16_t>((static_cast<uint16_t>(axh) << 8) | axl);
   accelY = static_cast<int16_t>((static_cast<uint16_t>(ayh) << 8) | ayl);
+  accelZ = static_cast<int16_t>((static_cast<uint16_t>(azh) << 8) | azl);
 }
 
 void HalIMU::standby() {

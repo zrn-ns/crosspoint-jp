@@ -49,7 +49,7 @@ class MappedInputManager {
   TiltState tiltState = TiltState::IDLE;
   bool tiltPageForward = false;  // One-shot event: tilt triggered PageForward
   bool tiltPageBack = false;     // One-shot event: tilt triggered PageBack
-  int16_t filteredAccel = 0;     // Low-pass filtered acceleration for tilt axis
+  int16_t filteredRoll = 0;      // Low-pass filtered roll angle (milliradians)
 
   void updateTilt();
   bool wasTiltTriggered(Button button) const;

@@ -19,12 +19,14 @@ class HalIMU {
   void standby();
 
   // X-axis acceleration (raw 16-bit signed value, ±2G range).
-  // Positive = tilt right, Negative = tilt left (in Portrait orientation).
   int16_t getAccelX() const { return accelX; }
 
   // Y-axis acceleration (raw 16-bit signed value, ±2G range).
-  // Used for landscape orientation tilt detection.
   int16_t getAccelY() const { return accelY; }
+
+  // Z-axis acceleration (raw 16-bit signed value, ±2G range).
+  // Perpendicular to screen surface.
+  int16_t getAccelZ() const { return accelZ; }
 
   // True if begin() succeeded and chip is active.
   bool isAvailable() const { return available; }
@@ -32,6 +34,7 @@ class HalIMU {
  private:
   int16_t accelX = 0;
   int16_t accelY = 0;
+  int16_t accelZ = 0;
   bool available = false;
   uint8_t chipAddr = 0;  // Resolved I2C address (0x6B or 0x6A)
 

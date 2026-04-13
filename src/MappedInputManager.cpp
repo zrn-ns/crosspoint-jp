@@ -2,6 +2,8 @@
 
 #include <HalIMU.h>
 
+#include <cmath>
+
 #include "CrossPointSettings.h"
 
 namespace {
@@ -146,11 +148,11 @@ int MappedInputManager::getPressedFrontButton() const {
 }
 
 namespace {
-// QMI8658 ±2G range: 16384 LSB/G
-// threshold_high = 0.4G ≈ 6554 LSB
-// threshold_low  = 0.2G ≈ 3277 LSB
-constexpr int16_t TILT_THRESHOLD_HIGH = 6554;
-constexpr int16_t TILT_THRESHOLD_LOW = 3277;
+// ロール角の閾値（ミリラジアン）。
+// デバイスの縦軸まわりのひねり角で判定し、前後の傾き（ピッチ）には依存しない。
+// HIGH ≈ 23° (0.40 rad), LOW ≈ 11.5° (0.20 rad)
+constexpr int16_t ROLL_THRESHOLD_HIGH = 400;
+constexpr int16_t ROLL_THRESHOLD_LOW = 200;
 }  // namespace
 
 void MappedInputManager::updateTilt() {
@@ -162,41 +164,45 @@ void MappedInputManager::updateTilt() {
 
   imu.update();
 
-  // Select axis and sign based on screen orientation.
-  // QMI8658 on X3 PCB: Y-axis = left/right tilt (roll), X-axis = forward/backward (pitch).
-  int16_t rawAccel = 0;
+  // ロール角を算出: atan2(横軸加速度, -Z軸加速度)
+  // 横軸 = 画面の左右方向の加速度成分。Z軸 = 画面法線方向。
+  // atan2 によりピッチ（前後の傾き）がキャンセルされ、
+  // デバイスを縦に持っても水平に持ってもロール感度が一定になる。
+  float crossAccel = 0.0f;
   bool invertDirection = false;
   switch (effectiveOrientation) {
     case Orientation::Portrait:
-      rawAccel = imu.getAccelY();
+      crossAccel = static_cast<float>(imu.getAccelY());
       break;
     case Orientation::PortraitInverted:
-      rawAccel = imu.getAccelY();
+      crossAccel = static_cast<float>(imu.getAccelY());
       invertDirection = true;
       break;
     case Orientation::LandscapeClockwise:
-      rawAccel = imu.getAccelX();
+      crossAccel = static_cast<float>(imu.getAccelX());
       break;
     case Orientation::LandscapeCounterClockwise:
-      rawAccel = imu.getAccelX();
+      crossAccel = static_cast<float>(imu.getAccelX());
       invertDirection = true;
       break;
   }
 
-  // Low-pass filter (EMA): filteredAccel += (raw - filteredAccel) / N
-  // N=6 gives smooth response (~0.2s settling) while filtering out shakes.
-  filteredAccel += (rawAccel - filteredAccel) / 6;
+  const float rollRad = atan2f(crossAccel, static_cast<float>(-imu.getAccelZ()));
+  const int16_t rawRoll = static_cast<int16_t>(rollRad * 1000.0f);
 
-  const int16_t absAccel = (filteredAccel > 0) ? filteredAccel : ((filteredAccel == -32768) ? 32767 : -filteredAccel);
+  // Low-pass filter (EMA): N=6 gives ~0.2s settling while filtering out shakes.
+  filteredRoll += (rawRoll - filteredRoll) / 6;
+
+  const int16_t absRoll = (filteredRoll > 0) ? filteredRoll : ((filteredRoll == -32768) ? 32767 : -filteredRoll);
 
   switch (tiltState) {
     case TiltState::IDLE:
-      if (absAccel > TILT_THRESHOLD_HIGH) {
-        // Trigger page turn. Tilt direction follows sideButtonLayout setting:
-        // PREV_NEXT (Standard): right tilt = forward, left tilt = back
-        // NEXT_PREV (Reversed): right tilt = back, left tilt = forward
+      if (absRoll > ROLL_THRESHOLD_HIGH) {
+        // Tilt direction follows sideButtonLayout setting:
+        // PREV_NEXT (Standard): right roll = forward, left roll = back
+        // NEXT_PREV (Reversed): right roll = back, left roll = forward
         const bool reversedLayout = SETTINGS.sideButtonLayout == CrossPointSettings::SIDE_BUTTON_LAYOUT::NEXT_PREV;
-        bool forward = invertDirection ? (filteredAccel < 0) : (filteredAccel > 0);
+        bool forward = invertDirection ? (filteredRoll < 0) : (filteredRoll > 0);
         if (reversedLayout) forward = !forward;
         if (forward) {
           tiltPageForward = true;
@@ -208,8 +214,8 @@ void MappedInputManager::updateTilt() {
       break;
 
     case TiltState::COOLDOWN:
-      // Wait until device returns to near-horizontal
-      if (absAccel < TILT_THRESHOLD_LOW) {
+      // ロールが十分に戻るまで次のイベントを抑制
+      if (absRoll < ROLL_THRESHOLD_LOW) {
         tiltState = TiltState::IDLE;
       }
       break;
