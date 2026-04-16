@@ -178,8 +178,8 @@ void EpubReaderActivity::onEnter() {
     return;
   }
 
-  // ルビ描画用フォントID: 同じフォントファミリーの最小サイズ（10pt）を使用
-  TextBlock::rubyFontId = SETTINGS.getTableFontId(epub->isPageProgressionRtl());
+  // ルビ描画用フォントID: まずメインフォントと同じIDを使用（サイズは同一だがレンダリング確認のため）
+  TextBlock::rubyFontId = SETTINGS.getReaderFontId(epub->isPageProgressionRtl());
 
   // Screen orientation (both renderer and input) is already set by
   // enterNewActivity() → OrientationHelper::applyOrientation() before onEnter().

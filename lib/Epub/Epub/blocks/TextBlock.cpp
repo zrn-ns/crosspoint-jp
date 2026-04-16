@@ -89,10 +89,9 @@ void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int 
       if (isSingleCjk) {
         renderer.drawTextVertical(effectiveFontId, wx, wy, w, true, currentStyle);
         // 縦書きルビ描画（親文字の右側）
-        if (TextBlock::rubyFontId != 0 && i < rubyTexts.size() && !rubyTexts[i].empty()) {
-          const int rFontId = TextBlock::rubyFontId;
+        if (i < rubyTexts.size() && !rubyTexts[i].empty()) {
           const int rubyX = wx + columnWidth + 2;
-          renderer.drawTextVertical(rFontId, rubyX, wy, rubyTexts[i].c_str(), true, EpdFontFamily::REGULAR);
+          renderer.drawTextVertical(effectiveFontId, rubyX, wy, rubyTexts[i].c_str(), true, EpdFontFamily::REGULAR);
         }
       } else {
         bool allDigits = true;
@@ -120,13 +119,12 @@ void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int 
       const int wordX = wordXpos[i] + x;
       renderer.drawText(effectiveFontId, wordX, y, words[i].c_str(), true, currentStyle);
       // 横書きルビ描画
-      if (TextBlock::rubyFontId != 0 && i < rubyTexts.size() && !rubyTexts[i].empty()) {
-        const int rFontId = TextBlock::rubyFontId;
+      if (i < rubyTexts.size() && !rubyTexts[i].empty()) {
         const int baseWidth = renderer.getTextAdvanceX(effectiveFontId, words[i].c_str(), currentStyle);
-        const int rubyWidth = renderer.getTextWidth(rFontId, rubyTexts[i].c_str(), EpdFontFamily::REGULAR);
+        const int rubyWidth = renderer.getTextWidth(effectiveFontId, rubyTexts[i].c_str(), EpdFontFamily::REGULAR);
         const int rubyX = wordXpos[i] + x + (baseWidth - rubyWidth) / 2;
-        const int rubyY = y - renderer.getLineHeight(rFontId) - 1;
-        renderer.drawText(rFontId, rubyX, rubyY, rubyTexts[i].c_str(), true, EpdFontFamily::REGULAR);
+        const int rubyY = y - renderer.getLineHeight(effectiveFontId) - 1;
+        renderer.drawText(effectiveFontId, rubyX, rubyY, rubyTexts[i].c_str(), true, EpdFontFamily::REGULAR);
       }
 
       if ((currentStyle & EpdFontFamily::UNDERLINE) != 0) {
