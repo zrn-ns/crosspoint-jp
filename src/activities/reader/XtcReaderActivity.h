@@ -19,7 +19,7 @@ class XtcReaderActivity final : public Activity {
   bool pendingScreenshot = false;
 
   void renderPage();
-  void saveProgress() const;
+  void saveProgress(bool isFinished = false) const;
   void loadProgress();
 
  public:

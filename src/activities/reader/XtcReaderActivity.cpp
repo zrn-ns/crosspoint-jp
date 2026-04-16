@@ -150,6 +150,7 @@ void XtcReaderActivity::loop() {
   // At end of the book, forward button goes home and back button returns to last page
   if (currentPage >= xtc->getPageCount()) {
     if (nextTriggered) {
+      saveProgress(true);
       onGoHome();
     } else {
       currentPage = xtc->getPageCount() - 1;
@@ -192,7 +193,11 @@ void XtcReaderActivity::render(RenderLock&&) {
   }
 
   renderPage();
-  saveProgress();
+  {
+    bool nearEnd = xtc && xtc->getPageCount() > 0 &&
+                   static_cast<float>(currentPage + 1) / xtc->getPageCount() >= 0.95f;
+    saveProgress(nearEnd);
+  }
 }
 
 void XtcReaderActivity::renderPage() {
@@ -392,15 +397,16 @@ void XtcReaderActivity::renderPage() {
   }
 }
 
-void XtcReaderActivity::saveProgress() const {
+void XtcReaderActivity::saveProgress(bool isFinished) const {
   FsFile f;
   if (Storage.openFileForWrite("XTR", xtc->getCachePath() + "/progress.bin", f)) {
-    uint8_t data[4];
+    uint8_t data[5];
     data[0] = currentPage & 0xFF;
     data[1] = (currentPage >> 8) & 0xFF;
     data[2] = (currentPage >> 16) & 0xFF;
     data[3] = (currentPage >> 24) & 0xFF;
-    f.write(data, 4);
+    data[4] = isFinished ? 1 : 0;
+    f.write(data, 5);
     f.close();
   }
 }
