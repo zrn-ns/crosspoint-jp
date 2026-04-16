@@ -7,6 +7,7 @@
 
 #include "../Activity.h"
 #include "RecentBooksStore.h"
+#include "ReadingStatusHelper.h"
 #include "util/ButtonNavigator.h"
 
 class RecentBooksActivity final : public Activity {
@@ -17,6 +18,7 @@ class RecentBooksActivity final : public Activity {
 
   // Recent tab state
   std::vector<RecentBook> recentBooks;
+  std::vector<ReadingStatus> bookStatuses;
 
   // Data loading
   void loadRecentBooks();

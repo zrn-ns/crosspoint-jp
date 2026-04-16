@@ -3,6 +3,7 @@
 #include <GfxRenderer.h>
 #include <HalStorage.h>
 #include <I18n.h>
+#include "ReadingStatusHelper.h"
 
 #include <algorithm>
 
@@ -17,15 +18,17 @@ constexpr unsigned long GO_HOME_MS = 1000;
 
 void RecentBooksActivity::loadRecentBooks() {
   recentBooks.clear();
+  bookStatuses.clear();
   const auto& books = RECENT_BOOKS.getBooks();
   recentBooks.reserve(books.size());
+  bookStatuses.reserve(books.size());
 
   for (const auto& book : books) {
-    // Skip if file no longer exists
     if (!Storage.exists(book.path.c_str())) {
       continue;
     }
     recentBooks.push_back(book);
+    bookStatuses.push_back(getReadingStatus(book.path, "/.crosspoint"));
   }
 }
 
@@ -42,6 +45,7 @@ void RecentBooksActivity::onEnter() {
 void RecentBooksActivity::onExit() {
   Activity::onExit();
   recentBooks.clear();
+  bookStatuses.clear();
 }
 
 void RecentBooksActivity::loop() {
@@ -101,7 +105,7 @@ void RecentBooksActivity::render(RenderLock&&) {
     GUI.drawList(
         renderer, Rect{0, contentTop, pageWidth, contentHeight}, recentBooks.size(), selectorIndex,
         [this](int index) { return recentBooks[index].title; }, [this](int index) { return recentBooks[index].author; },
-        [this](int index) { return UITheme::getFileIcon(recentBooks[index].path); });
+        [this](int index) { return UITheme::getFileIcon(recentBooks[index].path, bookStatuses[index]); });
   }
 
   // Help text

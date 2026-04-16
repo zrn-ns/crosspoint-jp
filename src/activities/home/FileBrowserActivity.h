@@ -6,6 +6,7 @@
 
 #include "../Activity.h"
 #include "RecentBooksStore.h"
+#include "ReadingStatusHelper.h"
 #include "util/ButtonNavigator.h"
 
 class FileBrowserActivity final : public Activity {
@@ -20,6 +21,7 @@ class FileBrowserActivity final : public Activity {
   // Files state
   std::string basepath = "/";
   std::vector<std::string> files;
+  std::vector<ReadingStatus> fileStatuses;
 
   // Data loading
   void loadFiles();

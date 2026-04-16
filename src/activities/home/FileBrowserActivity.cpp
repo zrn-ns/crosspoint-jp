@@ -2,6 +2,7 @@
 
 #include <Epub.h>
 #include <FsHelpers.h>
+#include "ReadingStatusHelper.h"
 #include <GfxRenderer.h>
 #include <HalStorage.h>
 #include <I18n.h>
@@ -150,6 +151,7 @@ void sortFileList(std::vector<std::string>& strs) {
 
 void FileBrowserActivity::loadFiles() {
   files.clear();
+  fileStatuses.clear();
 
   auto root = Storage.open(basepath.c_str());
   if (!root || !root.isDirectory()) {
@@ -184,6 +186,18 @@ void FileBrowserActivity::loadFiles() {
   }
   root.close();
   sortFileList(files);
+
+  // 各書籍ファイルの読書状態を取得
+  std::string fullBase = basepath;
+  if (fullBase.back() != '/') fullBase += '/';
+  fileStatuses.reserve(files.size());
+  for (const auto& file : files) {
+    if (FsHelpers::hasEpubExtension(file) || FsHelpers::hasXtcExtension(file)) {
+      fileStatuses.push_back(getReadingStatus(fullBase + file, "/.crosspoint"));
+    } else {
+      fileStatuses.push_back(ReadingStatus::Unread);
+    }
+  }
 }
 
 void FileBrowserActivity::onEnter() {
@@ -365,7 +379,7 @@ void FileBrowserActivity::render(RenderLock&&) {
     GUI.drawList(
         renderer, Rect{0, contentTop, pageWidth, contentHeight}, files.size(), selectorIndex,
         [this](int index) { return getFileName(files[index]); }, nullptr,
-        [this](int index) { return UITheme::getFileIcon(files[index]); },
+        [this](int index) { return UITheme::getFileIcon(files[index], fileStatuses[index]); },
         [this](int index) { return getFileExtension(files[index]); }, false);
   }
 
