@@ -20,7 +20,7 @@ DirectionSettingsActivity::DirectionSettingsActivity(GfxRenderer& renderer, Mapp
 
 void DirectionSettingsActivity::buildItems() {
   items.clear();
-  items.reserve(11);
+  items.reserve(12);
 
   // Font Family
   items.push_back({StrId::STR_FONT_FAMILY, Item::Type::FONT_FAMILY, nullptr, {}, {}});
@@ -63,6 +63,9 @@ void DirectionSettingsActivity::buildItems() {
 
   // Text Anti-Aliasing
   items.push_back({StrId::STR_TEXT_AA, Item::Type::TOGGLE, &DirectionSettings::textAntiAliasing, {}, {}});
+
+  // Ruby (Furigana)
+  items.push_back({StrId::STR_RUBY_ENABLED, Item::Type::TOGGLE, &DirectionSettings::rubyEnabled, {}, {}});
 }
 
 void DirectionSettingsActivity::onEnter() {

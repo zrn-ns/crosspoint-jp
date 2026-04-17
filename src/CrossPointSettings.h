@@ -17,6 +17,7 @@ struct DirectionSettings {
   uint8_t screenMargin = 10;  // 5-40
   uint8_t firstLineIndent = 1;
   uint8_t textAntiAliasing = 0;
+  uint8_t rubyEnabled = 1;  // 0=OFF, 1=ON (default ON)
 };
 
 class CrossPointSettings {
@@ -199,7 +200,7 @@ class CrossPointSettings {
   uint8_t statusBarBattery = 0;
   // Direction-specific reader settings
   DirectionSettings horizontal;
-  DirectionSettings vertical = {0, "", 1, 185, 15, 0, 0, 0, 10, 1, 0};  // charSpacing=15 for vertical
+  DirectionSettings vertical = {0, "", 1, 185, 15, 0, 0, 0, 10, 1, 0, 1};  // charSpacing=15 for vertical, rubyEnabled=1
   // Short power button click behaviour
   uint8_t shortPwrBtn = IGNORE;
   // EPUB reading orientation settings

@@ -138,6 +138,7 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
     obj["screenMargin"] = ds.screenMargin;
     obj["firstLineIndent"] = ds.firstLineIndent;
     obj["textAntiAliasing"] = ds.textAntiAliasing;
+    obj["rubyEnabled"] = ds.rubyEnabled;
   };
   saveDirection(doc["horizontal"].to<JsonObject>(), s.horizontal);
   saveDirection(doc["vertical"].to<JsonObject>(), s.vertical);
@@ -247,6 +248,8 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
     if (ds.screenMargin > 40) ds.screenMargin = 40;
     ds.firstLineIndent = obj["firstLineIndent"] | ds.firstLineIndent;
     ds.textAntiAliasing = obj["textAntiAliasing"] | ds.textAntiAliasing;
+    ds.rubyEnabled = obj["rubyEnabled"] | ds.rubyEnabled;
+    if (ds.rubyEnabled > 1) ds.rubyEnabled = 1;
     return true;
   };
 
