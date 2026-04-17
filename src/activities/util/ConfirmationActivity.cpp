@@ -9,13 +9,14 @@
 ConfirmationActivity::ConfirmationActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                                            const std::string& heading, const std::string& body,
                                            const std::string& neverLabel, const std::string& confirmLabel,
-                                           const std::string& backLabel)
+                                           const std::string& backLabel, const std::string& confirmMiddleLabel)
     : Activity("Confirmation", renderer, mappedInput),
       heading(heading),
       body(body),
       neverLabel(neverLabel),
       confirmLabel(confirmLabel),
-      backLabel(backLabel) {}
+      backLabel(backLabel),
+      confirmMiddleLabel(confirmMiddleLabel) {}
 
 void ConfirmationActivity::onEnter() {
   Activity::onEnter();
@@ -60,9 +61,10 @@ void ConfirmationActivity::render(RenderLock&& lock) {
   const char* confirmText = confirmLabel.empty() ? I18N.get(StrId::STR_CONFIRM) : confirmLabel.c_str();
   const char* backText =
       backLabel.empty() ? (neverLabel.empty() ? "" : I18N.get(StrId::STR_CLOSE_BOOK)) : backLabel.c_str();
+  const char* middleText = confirmMiddleLabel.empty() ? "" : confirmMiddleLabel.c_str();
   const auto labels = neverLabel.empty()
-                          ? mappedInput.mapLabels(backText, "", I18N.get(StrId::STR_CANCEL), confirmText)
-                          : mappedInput.mapLabels(backText, "", neverLabel.c_str(), confirmText);
+                          ? mappedInput.mapLabels(backText, middleText, I18N.get(StrId::STR_CANCEL), confirmText)
+                          : mappedInput.mapLabels(backText, middleText, neverLabel.c_str(), confirmText);
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer(HalDisplay::RefreshMode::FAST_REFRESH);
@@ -72,6 +74,15 @@ void ConfirmationActivity::loop() {
   if (mappedInput.wasReleased(MappedInputManager::Button::Right)) {
     ActivityResult res;
     res.isCancelled = false;
+    setResult(std::move(res));
+    finish();
+    return;
+  }
+
+  if (!confirmMiddleLabel.empty() && mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+    ActivityResult res;
+    res.isCancelled = true;
+    res.data = MenuResult{RESULT_MIDDLE};
     setResult(std::move(res));
     finish();
     return;

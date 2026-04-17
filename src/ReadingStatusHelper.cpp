@@ -2,7 +2,9 @@
 
 #include <FsHelpers.h>
 #include <HalStorage.h>
+#include <Logging.h>
 
+#include <cstring>
 #include <functional>
 #include <string>
 
@@ -43,4 +45,49 @@ ReadingStatus getReadingStatus(const std::string& filepath, const std::string& c
   }
 
   return ReadingStatus::Reading;
+}
+
+bool markAsFinished(const std::string& filepath, const std::string& cacheDir) {
+  const char* prefix;
+  bool isEpub;
+  if (FsHelpers::hasEpubExtension(filepath)) {
+    prefix = "epub_";
+    isEpub = true;
+  } else if (FsHelpers::hasXtcExtension(filepath)) {
+    prefix = "xtc_";
+    isEpub = false;
+  } else {
+    return false;
+  }
+
+  const std::string hash = std::to_string(std::hash<std::string>{}(filepath));
+  const std::string bookDir = cacheDir + "/" + prefix + hash;
+  const std::string progressPath = bookDir + "/progress.bin";
+
+  // EPUB=7, XTC=5
+  const size_t recordSize = isEpub ? 7 : 5;
+  const size_t flagOffset = isEpub ? 6 : 4;
+
+  // 既存progress.binを読み込んで読書位置を保持する（なければゼロ初期化）
+  uint8_t data[7] = {0};
+  FsFile rf;
+  if (Storage.openFileForRead("RSH", progressPath, rf)) {
+    rf.read(data, recordSize);
+    rf.close();
+  }
+  data[flagOffset] = 1;
+
+  // ディレクトリを確保してから書き込む
+  Storage.mkdir(cacheDir.c_str());
+  Storage.mkdir(bookDir.c_str());
+
+  FsFile wf;
+  if (!Storage.openFileForWrite("RSH", progressPath, wf)) {
+    LOG_ERR("RSH", "markAsFinished: Could not open %s for write", progressPath.c_str());
+    return false;
+  }
+  wf.write(data, recordSize);
+  wf.close();
+  LOG_DBG("RSH", "Marked as finished: %s", filepath.c_str());
+  return true;
 }

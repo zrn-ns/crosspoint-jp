@@ -265,19 +265,33 @@ void FileBrowserActivity::loop() {
             return;
           }
         } else if (std::holds_alternative<MenuResult>(res.data)) {
-          // Left ボタン → アーカイブ（/Archived/ に移動）
-          std::string filename = isDirectory ? entry.substr(0, entry.length() - 1) : entry;
-          std::string destPath = "/Archived/" + filename;
-          Storage.mkdir("/Archived");
-          // 同名ファイルが存在する場合は先に削除
-          if (Storage.exists(destPath.c_str())) {
-            isDirectory ? Storage.removeDir(destPath.c_str()) : Storage.remove(destPath.c_str());
-          }
-          if (!isDirectory) clearFileMetadata(fullPath);
-          if (Storage.rename(fullPath.c_str(), destPath.c_str())) {
-            LOG_DBG("FileBrowser", "Archived to: %s", destPath.c_str());
+          const int code = std::get<MenuResult>(res.data).action;
+          if (code == ConfirmationActivity::RESULT_NEVER) {
+            // Left ボタン → アーカイブ（/Archived/ に移動）
+            std::string filename = isDirectory ? entry.substr(0, entry.length() - 1) : entry;
+            std::string destPath = "/Archived/" + filename;
+            Storage.mkdir("/Archived");
+            // 同名ファイルが存在する場合は先に削除
+            if (Storage.exists(destPath.c_str())) {
+              isDirectory ? Storage.removeDir(destPath.c_str()) : Storage.remove(destPath.c_str());
+            }
+            if (!isDirectory) clearFileMetadata(fullPath);
+            if (Storage.rename(fullPath.c_str(), destPath.c_str())) {
+              LOG_DBG("FileBrowser", "Archived to: %s", destPath.c_str());
+            } else {
+              LOG_ERR("FileBrowser", "Failed to archive: %s", fullPath.c_str());
+              return;
+            }
+          } else if (code == ConfirmationActivity::RESULT_MIDDLE) {
+            // Confirm ボタン → 既読にする
+            if (isDirectory) return;
+            if (!markAsFinished(fullPath, "/.crosspoint")) {
+              LOG_ERR("FileBrowser", "Failed to mark as finished: %s", fullPath.c_str());
+              return;
+            }
           } else {
-            LOG_ERR("FileBrowser", "Failed to archive: %s", fullPath.c_str());
+            // Back ボタン → キャンセル
+            LOG_DBG("FileBrowser", "Action cancelled by user");
             return;
           }
         } else {
@@ -285,7 +299,7 @@ void FileBrowserActivity::loop() {
           LOG_DBG("FileBrowser", "Action cancelled by user");
           return;
         }
-        // 削除またはアーカイブ成功後、ファイル一覧を更新
+        // 操作成功後、ファイル一覧を更新（アイコン状態反映のため）
         loadFiles();
         if (files.empty()) {
           selectorIndex = 0;
@@ -297,9 +311,12 @@ void FileBrowserActivity::loop() {
 
       std::string heading = entry;
 
+      // ディレクトリには既読操作を提供しない（btn2を空にする）
+      const char* markAsReadLabel = isDirectory ? "" : tr(STR_MARK_AS_READ);
       startActivityForResult(
           std::make_unique<ConfirmationActivity>(renderer, mappedInput, heading, "",
-                                                 tr(STR_ARCHIVE), tr(STR_DELETE), tr(STR_CANCEL)),
+                                                 tr(STR_ARCHIVE), tr(STR_DELETE), tr(STR_CANCEL),
+                                                 markAsReadLabel),
           handler);
       return;
     } else {
