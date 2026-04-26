@@ -949,7 +949,7 @@ void EpubReaderActivity::render(RenderLock&& lock) {
   silentIndexNextChapterIfNeeded(viewportWidth, viewportHeight);
   {
     bool nearEnd = false;
-    if (epub && epub->getBookSize() > 0 && section && section->pageCount > 0) {
+    if (epub->getBookSize() > 0 && section->pageCount > 0) {
       const float chapterProgress =
           static_cast<float>(section->currentPage + 1) / static_cast<float>(section->pageCount);
       nearEnd = epub->calculateProgress(currentSpineIndex, chapterProgress) >= 0.95f;
