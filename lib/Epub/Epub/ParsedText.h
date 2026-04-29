@@ -58,5 +58,6 @@ class ParsedText {
                              const std::function<void(std::shared_ptr<TextBlock>)>& processLine,
                              bool includeLastLine = true);
   void layoutVerticalColumns(const GfxRenderer& renderer, int fontId, uint16_t columnHeight,
-                             const std::function<void(std::shared_ptr<TextBlock>)>& processColumn);
+                             const std::function<void(std::shared_ptr<TextBlock>)>& processColumn,
+                             bool includeLastColumn = true);
 };

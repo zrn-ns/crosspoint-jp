@@ -231,7 +231,8 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
 }
 
 void ParsedText::layoutVerticalColumns(const GfxRenderer& renderer, const int fontId, const uint16_t columnHeight,
-                                       const std::function<void(std::shared_ptr<TextBlock>)>& processColumn) {
+                                       const std::function<void(std::shared_ptr<TextBlock>)>& processColumn,
+                                       const bool includeLastColumn) {
   if (words.empty()) return;
 
   // Ensure SD card font metrics are loaded
@@ -294,12 +295,56 @@ void ParsedText::layoutVerticalColumns(const GfxRenderer& renderer, const int fo
     verticalIndent = cjkCharAdvance > 0 ? cjkCharAdvance : lineHeight;
   }
 
-  // Break into columns when cumulative height exceeds columnHeight
-  size_t columnStart = 0;
-  int currentY = verticalIndent;
-  bool isFirstColumn = true;
+  // Helper: get the first codepoint of a word string
+  auto firstCodepoint = [](const std::string& w) -> uint32_t {
+    const auto* p = reinterpret_cast<const unsigned char*>(w.c_str());
+    return utf8NextCodepoint(&p);
+  };
 
-  auto emitColumn = [&](size_t start, size_t end) {
+  // First pass: compute column boundaries without emitting.
+  // columnEnds[i] is the exclusive end index of column i (= start of column i+1).
+  std::vector<size_t> columnEnds;
+  {
+    size_t columnStart = 0;
+    int currentY = verticalIndent;
+    for (size_t i = 0; i < words.size(); i++) {
+      if (currentY + wordHeights[i] > columnHeight && i > columnStart) {
+        size_t breakAt = i;
+        // Kinsoku-head pullback (e.g., closing brackets, small kana cannot start a column)
+        while (breakAt > columnStart + 1 && VerticalTextUtils::isKinsokuHead(firstCodepoint(words[breakAt]))) {
+          breakAt--;
+        }
+        // Kinsoku-tail pullback (e.g., opening brackets cannot end a column)
+        if (breakAt > columnStart + 1 && VerticalTextUtils::isKinsokuTail(firstCodepoint(words[breakAt - 1]))) {
+          breakAt--;
+        }
+        columnEnds.push_back(breakAt);
+        columnStart = breakAt;
+        currentY = 0;
+        for (size_t j = columnStart; j <= i; j++) {
+          currentY += wordHeights[j];
+        }
+        continue;
+      }
+      currentY += wordHeights[i];
+    }
+    if (columnStart < words.size()) {
+      columnEnds.push_back(words.size());
+    }
+  }
+
+  // Determine how many columns to emit. Mid-block flushes pass includeLastColumn=false
+  // so the trailing partial column is preserved for the next layout call (avoids visually
+  // short columns at flush boundaries). makePages calls use the default true to flush all.
+  const size_t totalCols = columnEnds.size();
+  const size_t emitCols = (includeLastColumn || totalCols <= 1) ? totalCols : totalCols - 1;
+
+  // Second pass: emit columns up to emitCols.
+  bool isFirstColumn = true;
+  size_t emitStart = 0;
+  for (size_t i = 0; i < emitCols; i++) {
+    const size_t start = emitStart;
+    const size_t end = columnEnds[i];
     std::vector<std::string> colWords(std::make_move_iterator(words.begin() + start),
                                       std::make_move_iterator(words.begin() + end));
     std::vector<int16_t> colYpos;
@@ -324,54 +369,24 @@ void ParsedText::layoutVerticalColumns(const GfxRenderer& renderer, const int fo
     processColumn(std::make_shared<TextBlock>(std::move(colWords), std::move(colXpos), std::move(colStyles), blockStyle,
                                               std::move(colYpos), true, std::move(colRubyTexts)));
     isFirstColumn = false;
-  };
+    emitStart = end;
+  }
 
-  // Helper: get the first codepoint of a word string
-  auto firstCodepoint = [](const std::string& w) -> uint32_t {
-    const auto* p = reinterpret_cast<const unsigned char*>(w.c_str());
-    return utf8NextCodepoint(&p);
-  };
-
-  for (size_t i = 0; i < words.size(); i++) {
-    if (currentY + wordHeights[i] > columnHeight && i > columnStart) {
-      // Kinsoku: adjust break point to avoid prohibited line-head/line-tail characters
-      size_t breakAt = i;
-
-      // Check if word at breakAt would start with a kinsoku-head character
-      // If so, pull it back (include it in the current column instead)
-      while (breakAt > columnStart + 1 && VerticalTextUtils::isKinsokuHead(firstCodepoint(words[breakAt]))) {
-        breakAt--;
-      }
-
-      // Check if the last word in the current column is a kinsoku-tail character
-      // If so, pull it to the next column
-      if (breakAt > columnStart + 1 && VerticalTextUtils::isKinsokuTail(firstCodepoint(words[breakAt - 1]))) {
-        breakAt--;
-      }
-
-      emitColumn(columnStart, breakAt);
-      columnStart = breakAt;
-      // Recalculate currentY for the new column
-      currentY = 0;
-      for (size_t j = columnStart; j <= i; j++) {
-        currentY += wordHeights[j];
-      }
-      continue;
+  // Erase only consumed words. Words from emitStart onwards remain in the TextBlock
+  // for the next layout call to render together with newly accumulated text.
+  if (emitStart > 0) {
+    words.erase(words.begin(), words.begin() + emitStart);
+    wordStyles.erase(wordStyles.begin(), wordStyles.begin() + emitStart);
+    wordContinues.erase(wordContinues.begin(), wordContinues.begin() + emitStart);
+    if (!wordVerticalBehaviors.empty()) {
+      const size_t vbConsumed = std::min(emitStart, wordVerticalBehaviors.size());
+      wordVerticalBehaviors.erase(wordVerticalBehaviors.begin(), wordVerticalBehaviors.begin() + vbConsumed);
     }
-    currentY += wordHeights[i];
+    if (!rubyTexts.empty()) {
+      const size_t rtConsumed = std::min(emitStart, rubyTexts.size());
+      rubyTexts.erase(rubyTexts.begin(), rubyTexts.begin() + rtConsumed);
+    }
   }
-
-  // Emit remaining words as final column
-  if (columnStart < words.size()) {
-    emitColumn(columnStart, words.size());
-  }
-
-  // Consume all data (same pattern as layoutAndExtractLines)
-  words.clear();
-  wordStyles.clear();
-  wordContinues.clear();
-  wordVerticalBehaviors.clear();
-  rubyTexts.clear();
 }
 
 std::vector<uint16_t> ParsedText::calculateWordWidths(const GfxRenderer& renderer, const int fontId) {

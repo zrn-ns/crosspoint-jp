@@ -989,9 +989,13 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
   if (normalFlush || earlyFlush) {
     LOG_DBG("EHP", "Text block too long, splitting into multiple pages");
     if (self->verticalMode) {
+      // Mid-block flush: keep the trailing partial column so that newly accumulated
+      // text continues into the same column on the next call. Without this, the partial
+      // last column would be emitted prematurely, creating visually short columns at
+      // ruby tag / chunk boundaries (Issue #51).
       self->currentTextBlock->layoutVerticalColumns(
           self->renderer, self->fontId, self->viewportHeight,
-          [self](const std::shared_ptr<TextBlock>& textBlock) { self->addLineToPage(textBlock); });
+          [self](const std::shared_ptr<TextBlock>& textBlock) { self->addLineToPage(textBlock); }, false);
     } else {
       const int horizontalInset = self->currentTextBlock->getBlockStyle().totalHorizontalInset();
       const uint16_t effectiveWidth = (horizontalInset < self->viewportWidth)
