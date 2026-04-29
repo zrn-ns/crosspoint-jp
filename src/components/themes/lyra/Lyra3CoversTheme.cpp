@@ -9,6 +9,8 @@
 
 #include "RecentBooksStore.h"
 #include "components/UITheme.h"
+#include "components/icons/book_finished24.h"
+#include "components/icons/book_reading24.h"
 #include "components/icons/cover.h"
 #include "fontIds.h"
 
@@ -19,8 +21,9 @@ constexpr int cornerRadius = 6;
 }  // namespace
 
 void Lyra3CoversTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std::vector<RecentBook>& recentBooks,
-                                           const int selectorIndex, bool& coverRendered, bool& coverBufferStored,
-                                           bool& bufferRestored, std::function<bool()> storeCoverBuffer) const {
+                                           const std::vector<ReadingStatus>& bookStatuses, const int selectorIndex,
+                                           bool& coverRendered, bool& coverBufferStored, bool& bufferRestored,
+                                           std::function<bool()> storeCoverBuffer) const {
   const int tileWidth = (rect.width - 2 * Lyra3CoversMetrics::values.contentSidePadding) / 3;
   const int tileY = rect.y;
   const bool hasContinueReading = !recentBooks.empty();
@@ -73,6 +76,22 @@ void Lyra3CoversTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, con
                             tileWidth - 2 * hPaddingInSelection, 2 * Lyra3CoversMetrics::values.homeCoverHeight / 3,
                             true);
           renderer.drawIcon(CoverIcon, tileX + hPaddingInSelection + 24, tileY + hPaddingInSelection + 24, 32, 32);
+        }
+
+        // Overlay reading status icon (Reading or Finished) at the bottom-right of each cover
+        if (i < static_cast<int>(bookStatuses.size())) {
+          constexpr int iconSize = 24;
+          constexpr int iconMargin = 4;
+          const int iconX = tileX + tileWidth - hPaddingInSelection - iconSize - iconMargin;
+          const int iconY =
+              tileY + hPaddingInSelection + Lyra3CoversMetrics::values.homeCoverHeight - iconSize - iconMargin;
+          if (bookStatuses[i] == ReadingStatus::Reading) {
+            renderer.fillRect(iconX, iconY, iconSize, iconSize, false);
+            renderer.drawIcon(BookReading24Icon, iconX, iconY, iconSize, iconSize);
+          } else if (bookStatuses[i] == ReadingStatus::Finished) {
+            renderer.fillRect(iconX, iconY, iconSize, iconSize, false);
+            renderer.drawIcon(BookFinished24Icon, iconX, iconY, iconSize, iconSize);
+          }
         }
       }
 
