@@ -58,6 +58,11 @@ class EpubReaderActivity final : public Activity {
   void navigateToHref(const std::string& href, bool savePosition = false);
   void restoreSavedPosition();
 
+  // End-of-book actions
+  void showEndOfBookConfirmation();
+  void archiveCurrentBookFile(const std::string& filepath);
+  void deleteCurrentBookFile(const std::string& filepath);
+
  public:
   explicit EpubReaderActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::unique_ptr<Epub> epub)
       : Activity("EpubReader", renderer, mappedInput), epub(std::move(epub)) {}

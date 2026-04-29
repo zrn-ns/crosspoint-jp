@@ -22,6 +22,11 @@ class XtcReaderActivity final : public Activity {
   void saveProgress(bool isFinished = false) const;
   void loadProgress();
 
+  // End-of-book actions
+  void showEndOfBookConfirmation();
+  void archiveCurrentBookFile(const std::string& filepath);
+  void deleteCurrentBookFile(const std::string& filepath);
+
  public:
   explicit XtcReaderActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::unique_ptr<Xtc> xtc)
       : Activity("XtcReader", renderer, mappedInput), xtc(std::move(xtc)) {}

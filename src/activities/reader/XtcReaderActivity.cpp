@@ -20,6 +20,7 @@
 #include "RecentBooksStore.h"
 #include "XtcReaderChapterSelectionActivity.h"
 #include "XtcReaderMenuActivity.h"
+#include "activities/util/ConfirmationActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "util/ScreenshotUtil.h"
@@ -149,11 +150,11 @@ void XtcReaderActivity::loop() {
     return;
   }
 
-  // At end of the book, forward button goes home and back button returns to last page
+  // At end of the book, forward button shows archive/delete prompt and back button returns to last page
   if (currentPage >= xtc->getPageCount()) {
     if (nextTriggered) {
       saveProgress(true);
-      onGoHome();
+      showEndOfBookConfirmation();
     } else {
       currentPage = xtc->getPageCount() - 1;
       requestUpdate();
@@ -426,5 +427,65 @@ void XtcReaderActivity::loadProgress() {
       }
     }
     f.close();
+  }
+}
+
+void XtcReaderActivity::showEndOfBookConfirmation() {
+  if (!xtc) {
+    onGoHome();
+    return;
+  }
+  const std::string filepath = xtc->getPath();
+
+  auto handler = [this, filepath](const ActivityResult& res) {
+    if (!res.isCancelled) {
+      // Right ボタン → 削除
+      deleteCurrentBookFile(filepath);
+      onGoHome();
+    } else if (auto* menu = std::get_if<MenuResult>(&res.data)) {
+      if (menu->action == ConfirmationActivity::RESULT_NEVER) {
+        // Left ボタン → アーカイブ
+        archiveCurrentBookFile(filepath);
+        onGoHome();
+      } else {
+        onGoHome();
+      }
+    } else {
+      // Back ボタン → ホームへ戻る
+      onGoHome();
+    }
+  };
+
+  startActivityForResult(std::make_unique<ConfirmationActivity>(renderer, mappedInput, tr(STR_END_OF_BOOK), "",
+                                                                tr(STR_ARCHIVE), tr(STR_DELETE), tr(STR_CANCEL)),
+                         handler);
+}
+
+void XtcReaderActivity::archiveCurrentBookFile(const std::string& filepath) {
+  if (xtc) {
+    xtc->clearCache();
+  }
+  const size_t lastSlash = filepath.find_last_of('/');
+  const std::string filename = (lastSlash == std::string::npos) ? filepath : filepath.substr(lastSlash + 1);
+  const std::string destPath = "/Archived/" + filename;
+  Storage.mkdir("/Archived");
+  if (Storage.exists(destPath.c_str())) {
+    Storage.remove(destPath.c_str());
+  }
+  if (Storage.rename(filepath.c_str(), destPath.c_str())) {
+    LOG_DBG("XRA", "Archived to: %s", destPath.c_str());
+  } else {
+    LOG_ERR("XRA", "Failed to archive: %s", filepath.c_str());
+  }
+}
+
+void XtcReaderActivity::deleteCurrentBookFile(const std::string& filepath) {
+  if (xtc) {
+    xtc->clearCache();
+  }
+  if (Storage.remove(filepath.c_str())) {
+    LOG_DBG("XRA", "Deleted: %s", filepath.c_str());
+  } else {
+    LOG_ERR("XRA", "Failed to delete: %s", filepath.c_str());
   }
 }

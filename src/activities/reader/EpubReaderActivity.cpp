@@ -360,10 +360,10 @@ void EpubReaderActivity::loop() {
     return;
   }
 
-  // At end of the book, forward button goes home and back button returns to last page
+  // At end of the book, forward button shows archive/delete prompt and back button returns to last page
   if (currentSpineIndex > 0 && currentSpineIndex >= epub->getSpineItemsCount()) {
     if (nextTriggered) {
-      onGoHome();
+      showEndOfBookConfirmation();
     } else {
       currentSpineIndex = epub->getSpineItemsCount() - 1;
       nextPageNumber = UINT16_MAX;
@@ -1224,4 +1224,64 @@ void EpubReaderActivity::restoreSavedPosition() {
     section.reset();
   }
   requestUpdate();
+}
+
+void EpubReaderActivity::showEndOfBookConfirmation() {
+  if (!epub) {
+    onGoHome();
+    return;
+  }
+  const std::string filepath = epub->getPath();
+
+  auto handler = [this, filepath](const ActivityResult& res) {
+    if (!res.isCancelled) {
+      // Right ボタン → 削除
+      deleteCurrentBookFile(filepath);
+      onGoHome();
+    } else if (auto* menu = std::get_if<MenuResult>(&res.data)) {
+      if (menu->action == ConfirmationActivity::RESULT_NEVER) {
+        // Left ボタン → アーカイブ
+        archiveCurrentBookFile(filepath);
+        onGoHome();
+      } else {
+        onGoHome();
+      }
+    } else {
+      // Back ボタン → ホームへ戻る
+      onGoHome();
+    }
+  };
+
+  startActivityForResult(std::make_unique<ConfirmationActivity>(renderer, mappedInput, tr(STR_END_OF_BOOK), "",
+                                                                tr(STR_ARCHIVE), tr(STR_DELETE), tr(STR_CANCEL)),
+                         handler);
+}
+
+void EpubReaderActivity::archiveCurrentBookFile(const std::string& filepath) {
+  if (epub) {
+    epub->clearCache();
+  }
+  const size_t lastSlash = filepath.find_last_of('/');
+  const std::string filename = (lastSlash == std::string::npos) ? filepath : filepath.substr(lastSlash + 1);
+  const std::string destPath = "/Archived/" + filename;
+  Storage.mkdir("/Archived");
+  if (Storage.exists(destPath.c_str())) {
+    Storage.remove(destPath.c_str());
+  }
+  if (Storage.rename(filepath.c_str(), destPath.c_str())) {
+    LOG_DBG("ERA", "Archived to: %s", destPath.c_str());
+  } else {
+    LOG_ERR("ERA", "Failed to archive: %s", filepath.c_str());
+  }
+}
+
+void EpubReaderActivity::deleteCurrentBookFile(const std::string& filepath) {
+  if (epub) {
+    epub->clearCache();
+  }
+  if (Storage.remove(filepath.c_str())) {
+    LOG_DBG("ERA", "Deleted: %s", filepath.c_str());
+  } else {
+    LOG_ERR("ERA", "Failed to delete: %s", filepath.c_str());
+  }
 }
