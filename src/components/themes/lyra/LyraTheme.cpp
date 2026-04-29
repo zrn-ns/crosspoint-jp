@@ -333,10 +333,17 @@ void LyraTheme::drawList(const GfxRenderer& renderer, Rect rect, int itemCount, 
 
     if (rowIcon != nullptr) {
       UIIcon icon = rowIcon(i);
-      const uint8_t* iconBitmap = iconForName(icon, iconSize);
+      // 読書状態アイコンは 24x24 のみ用意されているため、subtitle 行でも 24px で描画する
+      const bool isReadingStatusIcon =
+          (icon == UIIcon::BookUnread || icon == UIIcon::BookReading || icon == UIIcon::BookFinished);
+      const int actualIconSize = isReadingStatusIcon ? listIconSize : iconSize;
+      const uint8_t* iconBitmap = iconForName(icon, actualIconSize);
       if (iconBitmap != nullptr) {
+        const int actualIconY = (rowSubtitle != nullptr && isReadingStatusIcon)
+                                    ? itemY + (rowHeight - actualIconSize) / 2
+                                    : itemY + iconY;
         renderer.drawIcon(iconBitmap, rect.x + LyraMetrics::values.contentSidePadding + hPaddingInSelection,
-                          itemY + iconY, iconSize, iconSize);
+                          actualIconY, actualIconSize, actualIconSize);
       }
     }
 
