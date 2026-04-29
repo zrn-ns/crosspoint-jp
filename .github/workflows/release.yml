@@ -70,6 +70,9 @@ jobs:
             firmware.bin
             bootloader.bin
             partitions.bin
+          # body はヘッダーとして使われ、generate_release_notes が有効な場合は
+          # その下に GitHub が自動生成する変更点 (マージされた PR の一覧 / 新規 contributor /
+          # Full Changelog リンク) が追記される。
           body: |
             ## CrossPoint Reader JP ${{ github.ref_name }}
 
@@ -83,6 +86,7 @@ jobs:
 
             1. USB-C でデバイスをPCに接続
             2. `firmware.bin` をダウンロードし、フラッシュツールで書き込み
+          generate_release_notes: true
           prerelease: ${{ contains(github.ref, '-') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
