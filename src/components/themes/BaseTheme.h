@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+#include "ReadingStatusHelper.h"
+
 class GfxRenderer;
 struct RecentBook;
 
@@ -143,8 +145,9 @@ class BaseTheme {
   virtual void drawTabBar(const GfxRenderer& renderer, Rect rect, const std::vector<TabInfo>& tabs,
                           bool selected) const;
   virtual void drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std::vector<RecentBook>& recentBooks,
-                                   const int selectorIndex, bool& coverRendered, bool& coverBufferStored,
-                                   bool& bufferRestored, std::function<bool()> storeCoverBuffer) const;
+                                   const std::vector<ReadingStatus>& bookStatuses, const int selectorIndex,
+                                   bool& coverRendered, bool& coverBufferStored, bool& bufferRestored,
+                                   std::function<bool()> storeCoverBuffer) const;
   virtual void drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount, int selectedIndex,
                               const std::function<std::string(int index)>& buttonLabel,
                               const std::function<UIIcon(int index)>& rowIcon) const;
