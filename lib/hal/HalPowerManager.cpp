@@ -1,6 +1,5 @@
 #include "HalPowerManager.h"
 
-#include <HalIMU.h>
 #include <Logging.h>
 #include <WiFi.h>
 #include <esp_sleep.h>
@@ -77,8 +76,6 @@ void HalPowerManager::startDeepSleep(HalGPIO& gpio, bool useFullPowerOff) const 
     gpio_set_level(GPIO_SPIWP, 0);
     gpio_hold_en(GPIO_SPIWP);
   }
-  // Put IMU into standby before sleep to reduce power consumption
-  imu.standby();
   esp_sleep_config_gpio_isolate();
   gpio_deep_sleep_hold_en();
   pinMode(InputManager::POWER_BUTTON_PIN, INPUT_PULLUP);

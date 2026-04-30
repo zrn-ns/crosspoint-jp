@@ -9,7 +9,6 @@
 
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
-#include <HalIMU.h>
 #include <HalStorage.h>
 #include <HalTiltSensor.h>
 #include <I18n.h>
@@ -68,11 +67,6 @@ void XtcReaderActivity::loop() {
         std::make_unique<XtcReaderMenuActivity>(renderer, mappedInput, xtc->getTitle(), currentPage,
                                                 xtc->getPageCount(), hasChapters),
         [this](const ActivityResult& result) {
-          if (SETTINGS.tiltPageTurn && !imu.isAvailable()) {
-            imu.begin();
-          } else if (!SETTINGS.tiltPageTurn && imu.isAvailable()) {
-            imu.standby();
-          }
           if (result.isCancelled) return;
           const auto& menu = std::get<MenuResult>(result.data);
           const auto action = static_cast<XtcReaderMenuActivity::MenuAction>(menu.action);

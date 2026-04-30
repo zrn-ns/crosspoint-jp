@@ -6,7 +6,6 @@
 #include <GfxRenderer.h>
 #include <HalDisplay.h>
 #include <HalGPIO.h>
-#include <HalIMU.h>
 #include <HalPowerManager.h>
 #include <HalRTC.h>
 #include <HalStorage.h>
@@ -353,10 +352,6 @@ void setup() {
   HalSystem::checkPanic();
 
   SETTINGS.loadFromFile();
-  // Initialize IMU for tilt page turn (X3 only, skipped if setting is off or device is X4)
-  if (SETTINGS.tiltPageTurn) {
-    imu.begin();
-  }
   I18N.loadSettings();
   KOREADER_STORE.loadFromFile();
   OPDS_STORE.loadFromFile();
