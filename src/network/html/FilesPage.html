@@ -4132,6 +4132,43 @@ function ensureCoverMetaRegex(o) {
   return { o, fixed: false };
 }
 
+// 高品質ダウンサンプリング: 縮小率が 0.5 未満の場合は中間サイズを経由して段階的に縮小する。
+// drawImage の bilinear 補間は 2x を超える縮小でエイリアシング・ぼやけが発生するため、
+// 1/2 ずつ縮小していくことで実質的にミップマップ的な平滑化を得る。
+// destCtx は描画先 Canvas のコンテキスト。src は Image または Canvas。
+function drawImageHighQuality(destCtx, src, srcW, srcH, destX, destY, destW, destH) {
+  const scaleX = destW / srcW;
+  const scaleY = destH / srcH;
+  // 拡大もしくは緩やかな縮小は通常 drawImage で十分
+  if (scaleX >= 0.5 && scaleY >= 0.5) {
+    destCtx.imageSmoothingEnabled = true;
+    destCtx.imageSmoothingQuality = 'high';
+    destCtx.drawImage(src, 0, 0, srcW, srcH, destX, destY, destW, destH);
+    return;
+  }
+  // 段階縮小: 1/2 ずつ縮小しながら最終サイズの 2 倍を超えなくなるまで繰り返す
+  let curCanvas = src;
+  let curW = srcW;
+  let curH = srcH;
+  while (curW > destW * 2 && curH > destH * 2) {
+    const nextW = Math.max(destW, Math.floor(curW / 2));
+    const nextH = Math.max(destH, Math.floor(curH / 2));
+    const next = document.createElement('canvas');
+    next.width = nextW;
+    next.height = nextH;
+    const nctx = next.getContext('2d');
+    nctx.imageSmoothingEnabled = true;
+    nctx.imageSmoothingQuality = 'high';
+    nctx.drawImage(curCanvas, 0, 0, curW, curH, 0, 0, nextW, nextH);
+    curCanvas = next;
+    curW = nextW;
+    curH = nextH;
+  }
+  destCtx.imageSmoothingEnabled = true;
+  destCtx.imageSmoothingQuality = 'high';
+  destCtx.drawImage(curCanvas, 0, 0, curW, curH, destX, destY, destW, destH);
+}
+
 // Apply grayscale to canvas image data
 function applyGrayscale(ctx, width, height) {
   if (!ENABLE_GRAYSCALE) return;
@@ -4184,11 +4221,9 @@ async function processImage(data, imageState = 0, imagePath = '') {
         scaledCanvas.width = scaledW;
         scaledCanvas.height = scaledH;
         const scaledCtx = scaledCanvas.getContext('2d');
-        scaledCtx.imageSmoothingEnabled = true;
-        scaledCtx.imageSmoothingQuality = 'high';
         scaledCtx.fillStyle = '#FFF';
         scaledCtx.fillRect(0, 0, scaledW, scaledH);
-        scaledCtx.drawImage(img, 0, 0, origW, origH, 0, 0, scaledW, scaledH);
+        drawImageHighQuality(scaledCtx, img, origW, origH, 0, 0, scaledW, scaledH);
 
         // Step 2: Rotate 90° CW or CCW
         const rotW = scaledH;
@@ -4309,11 +4344,9 @@ async function processImage(data, imageState = 0, imagePath = '') {
         scaledCanvas.width = scaledW;
         scaledCanvas.height = scaledH;
         const scaledCtx = scaledCanvas.getContext('2d');
-        scaledCtx.imageSmoothingEnabled = true;
-        scaledCtx.imageSmoothingQuality = 'high';
         scaledCtx.fillStyle = '#FFF';
         scaledCtx.fillRect(0, 0, scaledW, scaledH);
-        scaledCtx.drawImage(img, 0, 0, origW, origH, 0, 0, scaledW, scaledH);
+        drawImageHighQuality(scaledCtx, img, origW, origH, 0, 0, scaledW, scaledH);
         applyGrayscale(scaledCtx, scaledW, scaledH);
 
         // Check if split needed
@@ -4430,11 +4463,9 @@ async function processImage(data, imageState = 0, imagePath = '') {
           scaledCanvas.width = newW;
           scaledCanvas.height = newH;
           const scaledCtx = scaledCanvas.getContext('2d');
-          scaledCtx.imageSmoothingEnabled = true;
-          scaledCtx.imageSmoothingQuality = 'high';
           scaledCtx.fillStyle = '#FFF';
           scaledCtx.fillRect(0, 0, newW, newH);
-          scaledCtx.drawImage(rotCanvas, 0, 0, newW, newH);
+          drawImageHighQuality(scaledCtx, rotCanvas, rotW, rotH, 0, 0, newW, newH);
           applyGrayscale(scaledCtx, newW, newH);
 
           const blob = await new Promise(res => scaledCanvas.toBlob(res, 'image/jpeg', JPEG_QUALITY / 100));
@@ -4479,11 +4510,9 @@ async function processImage(data, imageState = 0, imagePath = '') {
           c.width = newW;
           c.height = newH;
           const ctx = c.getContext('2d');
-          ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = 'high';
           ctx.fillStyle = '#FFF';
           ctx.fillRect(0, 0, newW, newH);
-          ctx.drawImage(img, 0, 0, newW, newH);
+          drawImageHighQuality(ctx, img, origW, origH, 0, 0, newW, newH);
           applyGrayscale(ctx, newW, newH);
 
           const blob = await new Promise(res => c.toBlob(res, 'image/jpeg', JPEG_QUALITY / 100));
