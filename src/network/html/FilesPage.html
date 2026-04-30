@@ -1543,6 +1543,7 @@
             <span>⚫ True-Grayscale</span>
           <span id="optimizerResolutionInfo">📏 Max 480×800px</span>
           <span>📦 90% JPEG</span>
+          <span id="sharpenStatusLabel">✨ Sharpen</span>
           <span>🔧 Fix SVG</span>
         </div>
         <!-- Advanced Settings Content -->
@@ -1577,6 +1578,19 @@
             </div>
           </div>
           -->
+          <!-- Sharpen Toggle -->
+          <div class="advanced-setting-row" id="sharpenSettingRow">
+            <div class="setting-toggle">
+              <div>
+                <div class="setting-title">✨ Sharpen</div>
+                <div class="setting-desc">Unsharp mask for crisper text and lines (recommended for e-ink)</div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="sharpenToggle" checked onchange="updateQualitySettings()">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
           <!-- Rotation Direction -->
           <div class="advanced-setting-row" id="rotationSettingRow">
             <div class="setting-title">↻ Rotation Direction</div>
@@ -1971,6 +1985,7 @@
     // Reset converter variables to defaults
     ENABLE_GRAYSCALE = true;
     JPEG_QUALITY = 90;
+    ENABLE_SHARPEN = true;
     HANDEDNESS = 'right';
     OVERLAP_PERCENT = 5;
     imageStates = {};
@@ -2069,6 +2084,8 @@
     // Reset to defaults
     document.getElementById('qualitySlider').value = 90;
     document.getElementById('qualityInput').value = 90;
+    const sharpenToggleReset = document.getElementById('sharpenToggle');
+    if (sharpenToggleReset) sharpenToggleReset.checked = true;
     setHandedness('right');
     setOverlap(5);
     // Update converter variables
@@ -2171,6 +2188,14 @@
     // Update converter variables (used by processImage and applyGrayscale)
     JPEG_QUALITY = parseInt(quality, 10);
     ENABLE_GRAYSCALE = true; // Always grayscale for e-ink
+    const sharpenToggle = document.getElementById('sharpenToggle');
+    ENABLE_SHARPEN = sharpenToggle ? sharpenToggle.checked : true;
+
+    // Reflect sharpen state in the summary chip
+    const sharpenStatusLabel = document.getElementById('sharpenStatusLabel');
+    if (sharpenStatusLabel) {
+      sharpenStatusLabel.style.display = ENABLE_SHARPEN ? '' : 'none';
+    }
   }
 
   function setHandedness(value) {
@@ -3292,6 +3317,9 @@ const DEFAULT_MAX_WIDTH = 480;
 const DEFAULT_MAX_HEIGHT = 800;
 const DEFAULT_JPEG_QUALITY = 90;
 const DEFAULT_ENABLE_GRAYSCALE = true;
+const DEFAULT_ENABLE_SHARPEN = true;
+// Sharpen 強度。0.4 は控えめに効くが、e-ink の文字輪郭を引き締める量。
+const SHARPEN_AMOUNT = 0.4;
 // Note: Overlap is now always centered distribution (min 5%)
 
 // Dynamic conversion settings (updated by UI)
@@ -3299,6 +3327,7 @@ let MAX_WIDTH = DEFAULT_MAX_WIDTH;
 let MAX_HEIGHT = DEFAULT_MAX_HEIGHT;
 let JPEG_QUALITY = DEFAULT_JPEG_QUALITY;
 let ENABLE_GRAYSCALE = DEFAULT_ENABLE_GRAYSCALE;
+let ENABLE_SHARPEN = DEFAULT_ENABLE_SHARPEN;
 let HANDEDNESS = 'right'; // 'right' = clockwise (right-handed), 'left' = counter-clockwise (left-handed)
 let OVERLAP_PERCENT = 5; // Minimum overlap percentage for splits (5%, 10%, 15%)
 
@@ -4187,6 +4216,41 @@ function applyGrayscale(ctx, width, height) {
   ctx.putImageData(imageData, 0, 0);
 }
 
+// 軽量 unsharp mask: 3x3 box blur をベースにエッジを強調する。
+// グレースケール画像を前提とし、輝度のみで処理することで R/G/B を 1 回でまとめて更新できる。
+// applyGrayscale の直後に呼ぶこと。
+function applySharpen(ctx, width, height) {
+  if (!ENABLE_SHARPEN) return;
+  if (width < 3 || height < 3) return;
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const data = imageData.data;
+  // 元の輝度を別バッファへ退避（box blur の参照用）
+  const luma = new Uint8ClampedArray(width * height);
+  for (let i = 0, j = 0; i < data.length; i += 4, j++) {
+    luma[j] = data[i];
+  }
+  const amount = SHARPEN_AMOUNT;
+  for (let y = 1; y < height - 1; y++) {
+    let rowIdx = y * width;
+    for (let x = 1; x < width - 1; x++) {
+      const idx = rowIdx + x;
+      const sum =
+        luma[idx - width - 1] + luma[idx - width] + luma[idx - width + 1] +
+        luma[idx - 1]         + luma[idx]         + luma[idx + 1] +
+        luma[idx + width - 1] + luma[idx + width] + luma[idx + width + 1];
+      const blur = sum * (1 / 9);
+      let val = luma[idx] + (luma[idx] - blur) * amount;
+      if (val < 0) val = 0; else if (val > 255) val = 255;
+      const v = val | 0;
+      const dstIdx = idx * 4;
+      data[dstIdx] = v;
+      data[dstIdx + 1] = v;
+      data[dstIdx + 2] = v;
+    }
+  }
+  ctx.putImageData(imageData, 0, 0);
+}
+
 // Process single image - returns array of {data, suffix} objects
 const IMAGE_LOAD_TIMEOUT_MS = 30000; // 30 second timeout for image loading
 async function processImage(data, imageState = 0, imagePath = '') {
@@ -4250,6 +4314,7 @@ async function processImage(data, imageState = 0, imagePath = '') {
         rotCtx.drawImage(scaledCanvas, 0, 0);
         rotCtx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform
         applyGrayscale(rotCtx, rotW, rotH);
+        applySharpen(rotCtx, rotW, rotH);
 
         // Step 3: If WIDTH > MAX_WIDTH, split vertically
         if (rotW <= MAX_WIDTH) {
@@ -4349,6 +4414,7 @@ async function processImage(data, imageState = 0, imagePath = '') {
         scaledCtx.fillRect(0, 0, scaledW, scaledH);
         drawImageHighQuality(scaledCtx, img, origW, origH, 0, 0, scaledW, scaledH);
         applyGrayscale(scaledCtx, scaledW, scaledH);
+        applySharpen(scaledCtx, scaledW, scaledH);
 
         // Check if split needed
         if (scaledW <= MAX_WIDTH) {
@@ -4448,6 +4514,7 @@ async function processImage(data, imageState = 0, imagePath = '') {
         if (fitsInScreen) {
           // Already fits after rotation - just apply grayscale
           applyGrayscale(rotCtx, rotW, rotH);
+          applySharpen(rotCtx, rotW, rotH);
           const blob = await new Promise(res => rotCanvas.toBlob(res, 'image/jpeg', JPEG_QUALITY / 100));
           const arrBuf = await blob.arrayBuffer();
           resolve({
@@ -4468,6 +4535,7 @@ async function processImage(data, imageState = 0, imagePath = '') {
           scaledCtx.fillRect(0, 0, newW, newH);
           drawImageHighQuality(scaledCtx, rotCanvas, rotW, rotH, 0, 0, newW, newH);
           applyGrayscale(scaledCtx, newW, newH);
+          applySharpen(scaledCtx, newW, newH);
 
           const blob = await new Promise(res => scaledCanvas.toBlob(res, 'image/jpeg', JPEG_QUALITY / 100));
           const arrBuf = await blob.arrayBuffer();
@@ -4494,6 +4562,7 @@ async function processImage(data, imageState = 0, imagePath = '') {
           ctx.fillRect(0, 0, origW, origH);
           ctx.drawImage(img, 0, 0);
           applyGrayscale(ctx, origW, origH);
+          applySharpen(ctx, origW, origH);
 
           const blob = await new Promise(res => c.toBlob(res, 'image/jpeg', JPEG_QUALITY / 100));
           const arrBuf = await blob.arrayBuffer();
@@ -4515,6 +4584,7 @@ async function processImage(data, imageState = 0, imagePath = '') {
           ctx.fillRect(0, 0, newW, newH);
           drawImageHighQuality(ctx, img, origW, origH, 0, 0, newW, newH);
           applyGrayscale(ctx, newW, newH);
+          applySharpen(ctx, newW, newH);
 
           const blob = await new Promise(res => c.toBlob(res, 'image/jpeg', JPEG_QUALITY / 100));
           const arrBuf = await blob.arrayBuffer();
@@ -4545,7 +4615,7 @@ async function convertEpubFile(file, progressCallback) {
   clearLog();
   showLog();
   log(`<strong>${file.name}</strong> <span class="log-detail">(${formatBytes(originalSize)})</span>`, '', 'INFO');
-  log(`Quality: ${JPEG_QUALITY}% | Overlap: ${OVERLAP_PERCENT}% | Rotation: ${HANDEDNESS === 'right' ? 'CW' : 'CCW'} | Grayscale: ${ENABLE_GRAYSCALE ? 'ON' : 'OFF'}`, '', 'INFO');
+  log(`Quality: ${JPEG_QUALITY}% | Overlap: ${OVERLAP_PERCENT}% | Rotation: ${HANDEDNESS === 'right' ? 'CW' : 'CCW'} | Grayscale: ${ENABLE_GRAYSCALE ? 'ON' : 'OFF'} | Sharpen: ${ENABLE_SHARPEN ? 'ON' : 'OFF'}`, '', 'INFO');
 
   const zip = await JSZip.loadAsync(file);
   const renamed = {};
