@@ -77,22 +77,6 @@ void Lyra3CoversTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, con
                             true);
           renderer.drawIcon(CoverIcon, tileX + hPaddingInSelection + 24, tileY + hPaddingInSelection + 24, 32, 32);
         }
-
-        // Overlay reading status icon (Reading or Finished) at the bottom-right of each cover
-        if (i < static_cast<int>(bookStatuses.size())) {
-          constexpr int iconSize = 24;
-          constexpr int iconMargin = 4;
-          const int iconX = tileX + tileWidth - hPaddingInSelection - iconSize - iconMargin;
-          const int iconY =
-              tileY + hPaddingInSelection + Lyra3CoversMetrics::values.homeCoverHeight - iconSize - iconMargin;
-          if (bookStatuses[i] == ReadingStatus::Reading) {
-            renderer.fillRect(iconX, iconY, iconSize, iconSize, false);
-            renderer.drawIcon(BookReading24Icon, iconX, iconY, iconSize, iconSize);
-          } else if (bookStatuses[i] == ReadingStatus::Finished) {
-            renderer.fillRect(iconX, iconY, iconSize, iconSize, false);
-            renderer.drawIcon(BookFinished24Icon, iconX, iconY, iconSize, iconSize);
-          }
-        }
       }
 
       coverBufferStored = storeCoverBuffer();
@@ -109,10 +93,18 @@ void Lyra3CoversTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, con
 
       auto titleLines = renderer.wrappedText(SMALL_FONT_ID, recentBooks[i].title.c_str(), maxLineWidth, 3);
 
+      constexpr int readingStatusIconSize = 24;
+      constexpr int readingStatusIconTopMargin = 4;
+      const bool hasReadingStatusIcon =
+          i < static_cast<int>(bookStatuses.size()) &&
+          (bookStatuses[i] == ReadingStatus::Reading || bookStatuses[i] == ReadingStatus::Finished);
+
       const int titleLineHeight = renderer.getLineHeight(SMALL_FONT_ID);
       const int dynamicBlockHeight = static_cast<int>(titleLines.size()) * titleLineHeight;
+      const int readingStatusBlockHeight =
+          hasReadingStatusIcon ? (readingStatusIconSize + readingStatusIconTopMargin) : 0;
       // Add a little padding below the text inside the selection box just like the top padding (5 + hPaddingSelection)
-      const int dynamicTitleBoxHeight = dynamicBlockHeight + hPaddingInSelection + 5;
+      const int dynamicTitleBoxHeight = dynamicBlockHeight + readingStatusBlockHeight + hPaddingInSelection + 5;
 
       if (bookSelected) {
         // Draw selection box
@@ -131,6 +123,13 @@ void Lyra3CoversTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, con
       for (const auto& line : titleLines) {
         renderer.drawText(SMALL_FONT_ID, tileX + hPaddingInSelection, currentY, line.c_str(), true);
         currentY += titleLineHeight;
+      }
+      if (hasReadingStatusIcon) {
+        currentY += readingStatusIconTopMargin;
+        const uint8_t* iconBitmap =
+            (bookStatuses[i] == ReadingStatus::Finished) ? BookFinished24Icon : BookReading24Icon;
+        renderer.drawIcon(iconBitmap, tileX + hPaddingInSelection, currentY, readingStatusIconSize,
+                          readingStatusIconSize);
       }
     }
   } else {

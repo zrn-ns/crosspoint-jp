@@ -507,21 +507,6 @@ void LyraTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std:
         renderer.drawIcon(CoverIcon, tileX + hPaddingInSelection + 24, tileY + hPaddingInSelection + 24, 32, 32);
       }
 
-      // Overlay reading status icon (Reading or Finished) at the bottom-right of the cover
-      if (!bookStatuses.empty()) {
-        constexpr int iconSize = 24;
-        constexpr int iconMargin = 4;
-        const int iconX = tileX + hPaddingInSelection + coverWidth - iconSize - iconMargin;
-        const int iconY = tileY + hPaddingInSelection + LyraMetrics::values.homeCoverHeight - iconSize - iconMargin;
-        if (bookStatuses[0] == ReadingStatus::Reading) {
-          renderer.fillRect(iconX, iconY, iconSize, iconSize, false);
-          renderer.drawIcon(BookReading24Icon, iconX, iconY, iconSize, iconSize);
-        } else if (bookStatuses[0] == ReadingStatus::Finished) {
-          renderer.fillRect(iconX, iconY, iconSize, iconSize, false);
-          renderer.drawIcon(BookFinished24Icon, iconX, iconY, iconSize, iconSize);
-        }
-      }
-
       coverBufferStored = storeCoverBuffer();
       coverRendered = coverBufferStored;  // Only consider it rendered if we successfully stored the buffer
     }
@@ -549,8 +534,17 @@ void LyraTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std:
     auto author = renderer.truncatedText(UI_10_FONT_ID, book.author.c_str(), textWidth);
     const int titleLineHeight = renderer.getLineHeight(UI_12_FONT_ID);
     const int titleBlockHeight = titleLineHeight * static_cast<int>(titleLines.size());
-    const int authorHeight = book.author.empty() ? 0 : (renderer.getLineHeight(UI_10_FONT_ID) * 3 / 2);
-    const int totalBlockHeight = titleBlockHeight + authorHeight;
+    const int authorLineHeight = renderer.getLineHeight(UI_10_FONT_ID);
+    const int authorHeight = book.author.empty() ? 0 : (authorLineHeight * 3 / 2);
+
+    constexpr int readingStatusIconSize = 24;
+    constexpr int readingStatusIconTopMargin = 8;
+    const bool hasReadingStatusIcon = !bookStatuses.empty() && (bookStatuses[0] == ReadingStatus::Reading ||
+                                                                bookStatuses[0] == ReadingStatus::Finished);
+    const int readingStatusBlockHeight =
+        hasReadingStatusIcon ? (readingStatusIconSize + readingStatusIconTopMargin) : 0;
+
+    const int totalBlockHeight = titleBlockHeight + authorHeight + readingStatusBlockHeight;
     int titleY = tileY + tileHeight / 2 - totalBlockHeight / 2;
     const int textX = tileX + hPaddingInSelection + coverWidth + LyraMetrics::values.verticalSpacing;
     for (const auto& line : titleLines) {
@@ -558,8 +552,14 @@ void LyraTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std:
       titleY += titleLineHeight;
     }
     if (!book.author.empty()) {
-      titleY += renderer.getLineHeight(UI_10_FONT_ID) / 2;
+      titleY += authorLineHeight / 2;
       renderer.drawText(UI_10_FONT_ID, textX, titleY, author.c_str(), true);
+      titleY += authorLineHeight;
+    }
+    if (hasReadingStatusIcon) {
+      titleY += readingStatusIconTopMargin;
+      const uint8_t* iconBitmap = (bookStatuses[0] == ReadingStatus::Finished) ? BookFinished24Icon : BookReading24Icon;
+      renderer.drawIcon(iconBitmap, textX, titleY, readingStatusIconSize, readingStatusIconSize);
     }
   } else {
     drawEmptyRecents(renderer, rect);
