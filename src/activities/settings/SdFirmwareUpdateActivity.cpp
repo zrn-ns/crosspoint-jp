@@ -254,10 +254,10 @@ void SdFirmwareUpdateActivity::render(RenderLock&&) {
     } else {
       const int listTop = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
       const int listHeight = pageHeight - listTop - metrics.buttonHintsHeight - metrics.verticalSpacing;
-      GUI.drawList(
-          renderer, Rect{metrics.contentSidePadding, listTop, pageWidth - metrics.contentSidePadding * 2, listHeight},
-          static_cast<int>(binFiles.size()), selectedIndex,
-          [this](int index) -> std::string { return binFiles[index]; });
+      GUI.drawList(renderer,
+                   Rect{metrics.contentSidePadding, listTop, pageWidth - metrics.contentSidePadding * 2, listHeight},
+                   static_cast<int>(binFiles.size()), selectedIndex,
+                   [this](int index) -> std::string { return binFiles[index]; });
       const auto labels = mappedInput.mapLabels(recoveryMode ? "" : tr(STR_BACK), tr(STR_SELECT), "", "");
       GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     }
