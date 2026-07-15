@@ -62,6 +62,14 @@ struct ThemeMetrics {
   int keyboardKeySpacing;
   bool keyboardBottomAligned;
   bool keyboardCenteredText;
+
+  int hairlineWidth;
+  int ruleWidth;
+  int selectionBorderWidth;
+  int selectionMarkerWidth;
+  bool useInvertedSelection;
+  int notchSize;
+  int screenCodeRightPad;
 };
 
 enum UIIcon {
