@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+#include "ReadingStatusHelper.h"
+
 class GfxRenderer;
 struct RecentBook;
 
@@ -48,6 +50,8 @@ struct ThemeMetrics {
   int homeCoverHeight;
   int homeCoverTileHeight;
   int homeRecentBooksCount;
+  bool homeContinueReadingInMenu;
+  int homeMenuTopOffset;
 
   int buttonHintsHeight;
   int sideButtonHintsWidth;
@@ -60,8 +64,14 @@ struct ThemeMetrics {
   int keyboardKeyWidth;
   int keyboardKeyHeight;
   int keyboardKeySpacing;
+  int keyboardBottomKeyHeight;
+  int keyboardBottomKeySpacing;
   bool keyboardBottomAligned;
   bool keyboardCenteredText;
+  int keyboardVerticalOffset;
+  int keyboardTextFieldWidthPercent;
+  int keyboardWidthPercent;
+  int keyboardKeyCornerRadius;
 
   int hairlineWidth;
   int ruleWidth;
@@ -89,6 +99,8 @@ enum UIIcon {
   BookFinished
 };
 
+enum class KeyboardKeyType { Normal, Shift, Mode, Space, Del, Ok, Disabled };
+
 // Default theme implementation (Classic Theme)
 // Additional themes can inherit from this and override methods as needed
 
@@ -112,6 +124,8 @@ constexpr ThemeMetrics values = {.batteryWidth = 15,
                                  .homeCoverHeight = 400,
                                  .homeCoverTileHeight = 400,
                                  .homeRecentBooksCount = 1,
+                                 .homeContinueReadingInMenu = false,
+                                 .homeMenuTopOffset = 10,
                                  .buttonHintsHeight = 40,
                                  .sideButtonHintsWidth = 30,
                                  .progressBarHeight = 16,
@@ -119,10 +133,16 @@ constexpr ThemeMetrics values = {.batteryWidth = 15,
                                  .statusBarHorizontalMargin = 5,
                                  .statusBarVerticalMargin = 19,
                                  .keyboardKeyWidth = 22,
-                                 .keyboardKeyHeight = 30,
-                                 .keyboardKeySpacing = 10,
-                                 .keyboardBottomAligned = false,
-                                 .keyboardCenteredText = false};
+                                 .keyboardKeyHeight = 40,
+                                 .keyboardKeySpacing = 0,
+                                 .keyboardBottomKeyHeight = 35,
+                                 .keyboardBottomKeySpacing = 5,
+                                 .keyboardBottomAligned = true,
+                                 .keyboardCenteredText = false,
+                                 .keyboardVerticalOffset = -13,
+                                 .keyboardTextFieldWidthPercent = 85,
+                                 .keyboardWidthPercent = 90,
+                                 .keyboardKeyCornerRadius = 0};
 }
 
 class BaseTheme {
@@ -151,8 +171,9 @@ class BaseTheme {
   virtual void drawTabBar(const GfxRenderer& renderer, Rect rect, const std::vector<TabInfo>& tabs,
                           bool selected) const;
   virtual void drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std::vector<RecentBook>& recentBooks,
-                                   const int selectorIndex, bool& coverRendered, bool& coverBufferStored,
-                                   bool& bufferRestored, std::function<bool()> storeCoverBuffer) const;
+                                   const std::vector<ReadingStatus>& bookStatuses, const int selectorIndex,
+                                   bool& coverRendered, bool& coverBufferStored, bool& bufferRestored,
+                                   std::function<bool()> storeCoverBuffer) const;
   virtual void drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount, int selectedIndex,
                               const std::function<std::string(int index)>& buttonLabel,
                               const std::function<UIIcon(int index)>& rowIcon) const;
@@ -162,7 +183,15 @@ class BaseTheme {
                              const int pageCount, std::string title, const int paddingBottom = 0,
                              const int textYOffset = 0, const bool rtlProgress = false) const;
   virtual void drawHelpText(const GfxRenderer& renderer, Rect rect, const char* label) const;
-  virtual void drawTextField(const GfxRenderer& renderer, Rect rect, const int textWidth) const;
-  virtual void drawKeyboardKey(const GfxRenderer& renderer, Rect rect, const char* label, const bool isSelected) const;
+  virtual void drawTextField(const GfxRenderer& renderer, Rect rect, const int textWidth, bool cursorMode = false,
+                             int contentStartX = 0, int contentWidth = 0) const;
+  virtual void drawKeyboardKey(const GfxRenderer& renderer, Rect rect, const char* label, const bool isSelected,
+                               const char* secondaryLabel = nullptr, KeyboardKeyType keyType = KeyboardKeyType::Normal,
+                               bool inactiveSelection = false) const;
   virtual bool showsFileIcons() const { return false; }
+
+  // Shared constants and helpers for battery drawing (used by all themes)
+  static constexpr int batteryPercentSpacing = 4;
+  static void drawBatteryOutline(const GfxRenderer& renderer, int x, int y, int battWidth, int rectHeight);
+  static void drawBatteryLightningBolt(const GfxRenderer& renderer, int boltX, int boltY);
 };

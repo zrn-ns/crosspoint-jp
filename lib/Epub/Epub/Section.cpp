@@ -351,3 +351,7 @@ std::optional<uint16_t> Section::getPageForAnchor(const std::string& anchor) con
   f.close();
   return std::nullopt;
 }
+
+// Paragraph-level KOSync (upstream PR #1686) is not supported in this fork.
+// The section file format here does not carry paragraph indices in its LUT.
+std::optional<uint16_t> Section::getPageForParagraphIndex(uint16_t /*pIndex*/) const { return std::nullopt; }

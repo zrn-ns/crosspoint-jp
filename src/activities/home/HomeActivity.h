@@ -4,6 +4,7 @@
 
 #include "../Activity.h"
 #include "./FileBrowserActivity.h"
+#include "ReadingStatusHelper.h"
 #include "util/ButtonNavigator.h"
 
 struct RecentBook;
@@ -20,6 +21,7 @@ class HomeActivity final : public Activity {
   bool coverBufferStored = false;  // Track if cover buffer is stored
   uint8_t* coverBuffer = nullptr;  // HomeActivity's own buffer for cover image
   std::vector<RecentBook> recentBooks;
+  std::vector<ReadingStatus> recentBookStatuses;
   void onSelectBook(const std::string& path);
   void onFileBrowserOpen();
   void onRecentsOpen();

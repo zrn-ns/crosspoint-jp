@@ -9,8 +9,8 @@
 
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
-#include <HalIMU.h>
 #include <HalStorage.h>
+#include <HalTiltSensor.h>
 #include <I18n.h>
 
 #include "CrossPointSettings.h"
@@ -67,11 +67,6 @@ void XtcReaderActivity::loop() {
         std::make_unique<XtcReaderMenuActivity>(renderer, mappedInput, xtc->getTitle(), currentPage,
                                                 xtc->getPageCount(), hasChapters),
         [this](const ActivityResult& result) {
-          if (SETTINGS.tiltPageTurn && !imu.isAvailable()) {
-            imu.begin();
-          } else if (!SETTINGS.tiltPageTurn && imu.isAvailable()) {
-            imu.standby();
-          }
           if (result.isCancelled) return;
           const auto& menu = std::get<MenuResult>(result.data);
           const auto action = static_cast<XtcReaderMenuActivity::MenuAction>(menu.action);
@@ -133,17 +128,20 @@ void XtcReaderActivity::loop() {
 
   // When long-press chapter skip is disabled, turn pages on press instead of release.
   const bool usePressForPageTurn = !SETTINGS.longPressChapterSkip;
-  const bool prevTriggered = usePressForPageTurn ? (mappedInput.wasPressed(MappedInputManager::Button::PageBack) ||
-                                                    mappedInput.wasPressed(MappedInputManager::Button::Left))
-                                                 : (mappedInput.wasReleased(MappedInputManager::Button::PageBack) ||
-                                                    mappedInput.wasReleased(MappedInputManager::Button::Left));
+  const bool tiltNext = SETTINGS.tiltPageTurn && halTiltSensor.wasTiltedForward();
+  const bool tiltPrev = SETTINGS.tiltPageTurn && halTiltSensor.wasTiltedBack();
+  const bool prevTriggered =
+      tiltPrev || (usePressForPageTurn ? (mappedInput.wasPressed(MappedInputManager::Button::PageBack) ||
+                                          mappedInput.wasPressed(MappedInputManager::Button::Left))
+                                       : (mappedInput.wasReleased(MappedInputManager::Button::PageBack) ||
+                                          mappedInput.wasReleased(MappedInputManager::Button::Left)));
   const bool powerPageTurn = SETTINGS.shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::PAGE_TURN &&
                              mappedInput.wasReleased(MappedInputManager::Button::Power);
-  const bool nextTriggered = usePressForPageTurn
-                                 ? (mappedInput.wasPressed(MappedInputManager::Button::PageForward) || powerPageTurn ||
-                                    mappedInput.wasPressed(MappedInputManager::Button::Right))
-                                 : (mappedInput.wasReleased(MappedInputManager::Button::PageForward) || powerPageTurn ||
-                                    mappedInput.wasReleased(MappedInputManager::Button::Right));
+  const bool nextTriggered =
+      tiltNext || (usePressForPageTurn ? (mappedInput.wasPressed(MappedInputManager::Button::PageForward) ||
+                                          powerPageTurn || mappedInput.wasPressed(MappedInputManager::Button::Right))
+                                       : (mappedInput.wasReleased(MappedInputManager::Button::PageForward) ||
+                                          powerPageTurn || mappedInput.wasReleased(MappedInputManager::Button::Right)));
 
   if (!prevTriggered && !nextTriggered) {
     return;
@@ -161,7 +159,8 @@ void XtcReaderActivity::loop() {
     return;
   }
 
-  const bool skipPages = SETTINGS.longPressChapterSkip && mappedInput.getHeldTime() > skipPageMs;
+  const bool fromTilt = tiltPrev || tiltNext;
+  const bool skipPages = !fromTilt && SETTINGS.longPressChapterSkip && mappedInput.getHeldTime() > skipPageMs;
   const int skipAmount = skipPages ? 10 : 1;
 
   if (prevTriggered) {

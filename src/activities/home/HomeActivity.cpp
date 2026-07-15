@@ -15,6 +15,8 @@
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "MappedInputManager.h"
+#include "OpdsServerStore.h"
+#include "ReadingStatusHelper.h"
 #include "RecentBooksStore.h"
 #include "activities/settings/AozoraActivity.h"
 #include "components/UITheme.h"
@@ -33,8 +35,10 @@ int HomeActivity::getMenuItemCount() const {
 
 void HomeActivity::loadRecentBooks(int maxBooks) {
   recentBooks.clear();
+  recentBookStatuses.clear();
   const auto& books = RECENT_BOOKS.getBooks();
   recentBooks.reserve(std::min(static_cast<int>(books.size()), maxBooks));
+  recentBookStatuses.reserve(std::min(static_cast<int>(books.size()), maxBooks));
 
   for (const RecentBook& book : books) {
     // Limit to maximum number of recent books
@@ -48,6 +52,7 @@ void HomeActivity::loadRecentBooks(int maxBooks) {
     }
 
     recentBooks.push_back(book);
+    recentBookStatuses.push_back(getReadingStatus(book.path, "/.crosspoint"));
   }
 }
 
@@ -111,8 +116,8 @@ void HomeActivity::loadRecentCovers(int coverHeight) {
 void HomeActivity::onEnter() {
   Activity::onEnter();
 
-  // Check if OPDS browser URL is configured
-  hasOpdsUrl = strlen(SETTINGS.opdsServerUrl) > 0;
+  // Check if any OPDS server is configured
+  hasOpdsUrl = !OPDS_STORE.getServers().empty();
 
   selectorIndex = 0;
 
@@ -225,8 +230,8 @@ void HomeActivity::render(RenderLock&&) {
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.homeTopPadding}, nullptr);
 
   GUI.drawRecentBookCover(renderer, Rect{0, metrics.homeTopPadding, pageWidth, metrics.homeCoverTileHeight},
-                          recentBooks, selectorIndex, coverRendered, coverBufferStored, bufferRestored,
-                          std::bind(&HomeActivity::storeCoverBuffer, this));
+                          recentBooks, recentBookStatuses, selectorIndex, coverRendered, coverBufferStored,
+                          bufferRestored, std::bind(&HomeActivity::storeCoverBuffer, this));
 
   // Build menu items dynamically
   std::vector<const char*> menuItems = {tr(STR_BROWSE_FILES), tr(STR_MENU_RECENT_BOOKS), tr(STR_FILE_TRANSFER),

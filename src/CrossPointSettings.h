@@ -6,7 +6,7 @@
 
 // Direction-specific reader settings (horizontal / vertical writing)
 struct DirectionSettings {
-  uint8_t fontFamily = 0;  // CrossPointSettings::BOOKERLY
+  uint8_t fontFamily = 0;  // CrossPointSettings::NOTOSERIF
   char sdFontFamilyName[32] = "";
   uint8_t fontSize = 1;            // CrossPointSettings::MEDIUM
   uint8_t lineSpacing = 185;       // 80-250 (%)
@@ -119,7 +119,7 @@ class CrossPointSettings {
   enum SIDE_BUTTON_LAYOUT { PREV_NEXT = 0, NEXT_PREV = 1, SIDE_BUTTON_LAYOUT_COUNT };
 
   // Font family options (built-in fonts only; SD card fonts use sdFontFamilyName)
-  enum FONT_FAMILY { BOOKERLY = 0, NOTOSANS = 1, OPENDYSLEXIC = 2, FONT_FAMILY_COUNT };
+  enum FONT_FAMILY { NOTOSERIF = 0, NOTOSANS = 1, OPENDYSLEXIC = 2, FONT_FAMILY_COUNT };
   static constexpr uint8_t BUILTIN_FONT_COUNT = FONT_FAMILY_COUNT;
   // Font size options
   enum FONT_SIZE { SMALL = 0, MEDIUM = 1, LARGE = 2, EXTRA_LARGE = 3, FONT_SIZE_COUNT };
@@ -164,7 +164,7 @@ class CrossPointSettings {
   };
 
   // Short power button press actions
-  enum SHORT_PWRBTN { IGNORE = 0, SLEEP = 1, PAGE_TURN = 2, SHORT_PWRBTN_COUNT };
+  enum SHORT_PWRBTN { IGNORE = 0, SLEEP = 1, PAGE_TURN = 2, FORCE_REFRESH = 3, SHORT_PWRBTN_COUNT };
 
   // Hide battery percentage
   enum HIDE_BATTERY_PERCENTAGE { HIDE_NEVER = 0, HIDE_READER = 1, HIDE_ALWAYS = 2, HIDE_BATTERY_PERCENTAGE_COUNT };
@@ -177,6 +177,8 @@ class CrossPointSettings {
 
   // Color mode (light/dark)
   enum COLOR_MODE { LIGHT_MODE = 0, DARK_MODE = 1 };
+
+  enum TILT_PAGE_TURN { TILT_OFF = 0, TILT_NORMAL = 1, TILT_NVERTED = 2, TILT_PAGE_TURN_COUNT };
 
   // Sleep screen settings
   uint8_t sleepScreen = DARK;
@@ -239,6 +241,8 @@ class CrossPointSettings {
   uint8_t showHiddenFiles = 0;
   // Image rendering mode in EPUB reader
   uint8_t imageRendering = IMAGES_DISPLAY;
+  // Tilt-based page turning (X3 only — requires QMI8658 IMU)
+  uint8_t tiltPageTurn = TILT_OFF;
 
   // CJK-specific settings
   // UI orientation (Portrait or Inverted only)
@@ -250,8 +254,6 @@ class CrossPointSettings {
   uint8_t colorMode = LIGHT_MODE;
   // Debug display on sleep screen (shows time info)
   uint8_t debugDisplay = 0;
-  // Tilt-based page turning using QMI8658 IMU (X3 only, 0=OFF, 1=ON)
-  uint8_t tiltPageTurn = 0;
 
   ~CrossPointSettings() = default;
 

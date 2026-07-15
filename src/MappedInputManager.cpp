@@ -1,9 +1,5 @@
 #include "MappedInputManager.h"
 
-#include <HalIMU.h>
-
-#include <cmath>
-
 #include "CrossPointSettings.h"
 
 namespace {
@@ -80,13 +76,9 @@ bool MappedInputManager::mapButton(const Button button, bool (HalGPIO::*fn)(uint
   return false;
 }
 
-bool MappedInputManager::wasPressed(const Button button) const {
-  return mapButton(button, &HalGPIO::wasPressed) || wasTiltTriggered(button);
-}
+bool MappedInputManager::wasPressed(const Button button) const { return mapButton(button, &HalGPIO::wasPressed); }
 
-bool MappedInputManager::wasReleased(const Button button) const {
-  return mapButton(button, &HalGPIO::wasReleased) || wasTiltTriggered(button);
-}
+bool MappedInputManager::wasReleased(const Button button) const { return mapButton(button, &HalGPIO::wasReleased); }
 
 bool MappedInputManager::isPressed(const Button button) const { return mapButton(button, &HalGPIO::isPressed); }
 
@@ -145,85 +137,4 @@ int MappedInputManager::getPressedFrontButton() const {
     return HalGPIO::BTN_RIGHT;
   }
   return -1;
-}
-
-namespace {
-// ロール角の閾値（ミリラジアン）。
-// デバイスの縦軸まわりのひねり角で判定し、前後の傾き（ピッチ）には依存しない。
-// HIGH ≈ 23° (0.40 rad), LOW ≈ 11.5° (0.20 rad)
-constexpr int16_t ROLL_THRESHOLD_HIGH = 400;
-constexpr int16_t ROLL_THRESHOLD_LOW = 200;
-}  // namespace
-
-void MappedInputManager::updateTilt() {
-  // Clear one-shot events from previous frame
-  tiltPageForward = false;
-  tiltPageBack = false;
-
-  if (!SETTINGS.tiltPageTurn || !imu.isAvailable()) return;
-
-  imu.update();
-
-  // ロール角を算出: atan2(横軸加速度, -Z軸加速度)
-  // 横軸 = 画面の左右方向の加速度成分。Z軸 = 画面法線方向。
-  // atan2 によりピッチ（前後の傾き）がキャンセルされ、
-  // デバイスを縦に持っても水平に持ってもロール感度が一定になる。
-  float crossAccel = 0.0f;
-  bool invertDirection = false;
-  switch (effectiveOrientation) {
-    case Orientation::Portrait:
-      crossAccel = static_cast<float>(imu.getAccelY());
-      break;
-    case Orientation::PortraitInverted:
-      crossAccel = static_cast<float>(imu.getAccelY());
-      invertDirection = true;
-      break;
-    case Orientation::LandscapeClockwise:
-      crossAccel = static_cast<float>(imu.getAccelX());
-      break;
-    case Orientation::LandscapeCounterClockwise:
-      crossAccel = static_cast<float>(imu.getAccelX());
-      invertDirection = true;
-      break;
-  }
-
-  const float rollRad = atan2f(crossAccel, static_cast<float>(-imu.getAccelZ()));
-  const int16_t rawRoll = static_cast<int16_t>(rollRad * 1000.0f);
-
-  // Low-pass filter (EMA): N=6 gives ~0.2s settling while filtering out shakes.
-  filteredRoll += (rawRoll - filteredRoll) / 6;
-
-  const int16_t absRoll = (filteredRoll > 0) ? filteredRoll : ((filteredRoll == -32768) ? 32767 : -filteredRoll);
-
-  switch (tiltState) {
-    case TiltState::IDLE:
-      if (absRoll > ROLL_THRESHOLD_HIGH) {
-        // Tilt direction follows sideButtonLayout setting:
-        // PREV_NEXT (Standard): right roll = forward, left roll = back
-        // NEXT_PREV (Reversed): right roll = back, left roll = forward
-        const bool reversedLayout = SETTINGS.sideButtonLayout == CrossPointSettings::SIDE_BUTTON_LAYOUT::NEXT_PREV;
-        bool forward = invertDirection ? (filteredRoll < 0) : (filteredRoll > 0);
-        if (reversedLayout) forward = !forward;
-        if (forward) {
-          tiltPageForward = true;
-        } else {
-          tiltPageBack = true;
-        }
-        tiltState = TiltState::COOLDOWN;
-      }
-      break;
-
-    case TiltState::COOLDOWN:
-      // ロールが十分に戻るまで次のイベントを抑制
-      if (absRoll < ROLL_THRESHOLD_LOW) {
-        tiltState = TiltState::IDLE;
-      }
-      break;
-  }
-}
-
-bool MappedInputManager::wasTiltTriggered(const Button button) const {
-  if (button == Button::PageForward) return tiltPageForward;
-  if (button == Button::PageBack) return tiltPageBack;
-  return false;
 }

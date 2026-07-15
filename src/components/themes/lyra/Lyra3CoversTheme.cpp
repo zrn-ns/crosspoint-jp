@@ -9,6 +9,8 @@
 
 #include "RecentBooksStore.h"
 #include "components/UITheme.h"
+#include "components/icons/book_finished24.h"
+#include "components/icons/book_reading24.h"
 #include "components/icons/cover.h"
 #include "fontIds.h"
 
@@ -19,8 +21,9 @@ constexpr int cornerRadius = 6;
 }  // namespace
 
 void Lyra3CoversTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std::vector<RecentBook>& recentBooks,
-                                           const int selectorIndex, bool& coverRendered, bool& coverBufferStored,
-                                           bool& bufferRestored, std::function<bool()> storeCoverBuffer) const {
+                                           const std::vector<ReadingStatus>& bookStatuses, const int selectorIndex,
+                                           bool& coverRendered, bool& coverBufferStored, bool& bufferRestored,
+                                           std::function<bool()> storeCoverBuffer) const {
   const int tileWidth = (rect.width - 2 * Lyra3CoversMetrics::values.contentSidePadding) / 3;
   const int tileY = rect.y;
   const bool hasContinueReading = !recentBooks.empty();
@@ -90,10 +93,18 @@ void Lyra3CoversTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, con
 
       auto titleLines = renderer.wrappedText(SMALL_FONT_ID, recentBooks[i].title.c_str(), maxLineWidth, 3);
 
+      constexpr int readingStatusIconSize = 24;
+      constexpr int readingStatusIconTopMargin = 4;
+      const bool hasReadingStatusIcon =
+          i < static_cast<int>(bookStatuses.size()) &&
+          (bookStatuses[i] == ReadingStatus::Reading || bookStatuses[i] == ReadingStatus::Finished);
+
       const int titleLineHeight = renderer.getLineHeight(SMALL_FONT_ID);
       const int dynamicBlockHeight = static_cast<int>(titleLines.size()) * titleLineHeight;
+      const int readingStatusBlockHeight =
+          hasReadingStatusIcon ? (readingStatusIconSize + readingStatusIconTopMargin) : 0;
       // Add a little padding below the text inside the selection box just like the top padding (5 + hPaddingSelection)
-      const int dynamicTitleBoxHeight = dynamicBlockHeight + hPaddingInSelection + 5;
+      const int dynamicTitleBoxHeight = dynamicBlockHeight + readingStatusBlockHeight + hPaddingInSelection + 5;
 
       if (bookSelected) {
         // Draw selection box
@@ -112,6 +123,13 @@ void Lyra3CoversTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, con
       for (const auto& line : titleLines) {
         renderer.drawText(SMALL_FONT_ID, tileX + hPaddingInSelection, currentY, line.c_str(), true);
         currentY += titleLineHeight;
+      }
+      if (hasReadingStatusIcon) {
+        currentY += readingStatusIconTopMargin;
+        const uint8_t* iconBitmap =
+            (bookStatuses[i] == ReadingStatus::Finished) ? BookFinished24Icon : BookReading24Icon;
+        renderer.drawIcon(iconBitmap, tileX + hPaddingInSelection, currentY, readingStatusIconSize,
+                          readingStatusIconSize);
       }
     }
   } else {

@@ -156,6 +156,7 @@ bool Epub::parseTocNcxFile() const {
     return false;
   }
   readItemContentsToStream(tocNcxItem, tempNcxFile, 1024);
+  // Explicitly close() file before reopening for reading
   tempNcxFile.close();
   if (!Storage.openFileForRead("EBP", tmpNcxPath, tempNcxFile)) {
     return false;
@@ -166,14 +167,12 @@ bool Epub::parseTocNcxFile() const {
 
   if (!ncxParser.setup()) {
     LOG_ERR("EBP", "Could not setup toc ncx parser");
-    tempNcxFile.close();
     return false;
   }
 
   const auto ncxBuffer = static_cast<uint8_t*>(malloc(1024));
   if (!ncxBuffer) {
     LOG_ERR("EBP", "Could not allocate memory for toc ncx parser");
-    tempNcxFile.close();
     return false;
   }
 
@@ -185,12 +184,12 @@ bool Epub::parseTocNcxFile() const {
     if (processedSize != readSize) {
       LOG_ERR("EBP", "Could not process all toc ncx data");
       free(ncxBuffer);
-      tempNcxFile.close();
       return false;
     }
   }
 
   free(ncxBuffer);
+  // Explicitly close() file before calling Storage.remove()
   tempNcxFile.close();
   Storage.remove(tmpNcxPath.c_str());
 
@@ -213,6 +212,7 @@ bool Epub::parseTocNavFile() const {
     return false;
   }
   readItemContentsToStream(tocNavItem, tempNavFile, 1024);
+  // Explicitly close() file before reopening for reading
   tempNavFile.close();
   if (!Storage.openFileForRead("EBP", tmpNavPath, tempNavFile)) {
     return false;
@@ -242,12 +242,12 @@ bool Epub::parseTocNavFile() const {
     if (processedSize != readSize) {
       LOG_ERR("EBP", "Could not process all toc nav data");
       free(navBuffer);
-      tempNavFile.close();
       return false;
     }
   }
 
   free(navBuffer);
+  // Explicitly close() file before calling Storage.remove()
   tempNavFile.close();
   Storage.remove(tmpNavPath.c_str());
 
@@ -305,10 +305,12 @@ void Epub::parseCssFiles() const {
     }
     if (!readItemContentsToStream(cssPath, tempCssFile, 1024)) {
       LOG_ERR("EBP", "Could not read CSS file: %s", cssPath.c_str());
+      // Explicitly close() file before calling Storage.remove()
       tempCssFile.close();
       Storage.remove(tmpCssPath.c_str());
       continue;
     }
+    // Explicitly close() file before reopening for reading
     tempCssFile.close();
 
     // Parse the CSS file
@@ -318,6 +320,7 @@ void Epub::parseCssFiles() const {
       continue;
     }
     cssParser->loadFromStream(tempCssFile);
+    // Explicitly close() file before calling Storage.remove()
     tempCssFile.close();
     Storage.remove(tmpCssPath.c_str());
   }
@@ -552,6 +555,7 @@ bool Epub::generateCoverBmp(bool cropped) const {
       return false;
     }
     readItemContentsToStream(coverImageHref, coverJpg, 1024);
+    // Explicitly close() file before reopening for reading
     coverJpg.close();
 
     if (!Storage.openFileForRead("EBP", coverJpgTempPath, coverJpg)) {
@@ -560,10 +564,10 @@ bool Epub::generateCoverBmp(bool cropped) const {
 
     FsFile coverBmp;
     if (!Storage.openFileForWrite("EBP", getCoverBmpPath(cropped), coverBmp)) {
-      coverJpg.close();
       return false;
     }
     const bool success = JpegToBmpConverter::jpegFileToBmpStream(coverJpg, coverBmp, cropped);
+    // Explicitly close() files before calling Storage.remove()
     coverJpg.close();
     coverBmp.close();
     Storage.remove(coverJpgTempPath.c_str());
@@ -585,6 +589,7 @@ bool Epub::generateCoverBmp(bool cropped) const {
       return false;
     }
     readItemContentsToStream(coverImageHref, coverPng, 1024);
+    // Explicitly close() file before reopening for reading
     coverPng.close();
 
     if (!Storage.openFileForRead("EBP", coverPngTempPath, coverPng)) {
@@ -593,10 +598,10 @@ bool Epub::generateCoverBmp(bool cropped) const {
 
     FsFile coverBmp;
     if (!Storage.openFileForWrite("EBP", getCoverBmpPath(cropped), coverBmp)) {
-      coverPng.close();
       return false;
     }
     const bool success = PngToBmpConverter::pngFileToBmpStream(coverPng, coverBmp, cropped);
+    // Explicitly close() files before calling Storage.remove()
     coverPng.close();
     coverBmp.close();
     Storage.remove(coverPngTempPath.c_str());
@@ -639,6 +644,7 @@ bool Epub::generateThumbBmp(int height) const {
       return false;
     }
     readItemContentsToStream(coverImageHref, coverJpg, 1024);
+    // Explicitly close() file before reopening for reading
     coverJpg.close();
 
     if (!Storage.openFileForRead("EBP", coverJpgTempPath, coverJpg)) {
@@ -647,7 +653,6 @@ bool Epub::generateThumbBmp(int height) const {
 
     FsFile thumbBmp;
     if (!Storage.openFileForWrite("EBP", getThumbBmpPath(height), thumbBmp)) {
-      coverJpg.close();
       return false;
     }
     // Use smaller target size for Continue Reading card (half of screen: 240x400)
@@ -656,6 +661,7 @@ bool Epub::generateThumbBmp(int height) const {
     int THUMB_TARGET_HEIGHT = height;
     const bool success = JpegToBmpConverter::jpegFileTo1BitBmpStreamWithSize(coverJpg, thumbBmp, THUMB_TARGET_WIDTH,
                                                                              THUMB_TARGET_HEIGHT);
+    // Explicitly close() files before calling Storage.remove()
     coverJpg.close();
     thumbBmp.close();
     Storage.remove(coverJpgTempPath.c_str());
@@ -675,6 +681,7 @@ bool Epub::generateThumbBmp(int height) const {
       return false;
     }
     readItemContentsToStream(coverImageHref, coverPng, 1024);
+    // Explicitly close() file before reopening for reading
     coverPng.close();
 
     if (!Storage.openFileForRead("EBP", coverPngTempPath, coverPng)) {
@@ -683,13 +690,13 @@ bool Epub::generateThumbBmp(int height) const {
 
     FsFile thumbBmp;
     if (!Storage.openFileForWrite("EBP", getThumbBmpPath(height), thumbBmp)) {
-      coverPng.close();
       return false;
     }
     int THUMB_TARGET_WIDTH = height * 0.6;
     int THUMB_TARGET_HEIGHT = height;
     const bool success =
         PngToBmpConverter::pngFileTo1BitBmpStreamWithSize(coverPng, thumbBmp, THUMB_TARGET_WIDTH, THUMB_TARGET_HEIGHT);
+    // Explicitly close() files before calling Storage.remove()
     coverPng.close();
     thumbBmp.close();
     Storage.remove(coverPngTempPath.c_str());
@@ -707,7 +714,6 @@ bool Epub::generateThumbBmp(int height) const {
   // Write an empty bmp file to avoid generation attempts in the future
   FsFile thumbBmp;
   Storage.openFileForWrite("EBP", getThumbBmpPath(height), thumbBmp);
-  thumbBmp.close();
   return false;
 }
 

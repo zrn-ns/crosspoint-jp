@@ -333,10 +333,16 @@ void LyraTheme::drawList(const GfxRenderer& renderer, Rect rect, int itemCount, 
 
     if (rowIcon != nullptr) {
       UIIcon icon = rowIcon(i);
-      const uint8_t* iconBitmap = iconForName(icon, iconSize);
+      // 読書状態アイコンは 24x24 のみ用意されているため、subtitle 行でも 24px で描画する
+      const bool isReadingStatusIcon =
+          (icon == UIIcon::BookUnread || icon == UIIcon::BookReading || icon == UIIcon::BookFinished);
+      const int actualIconSize = isReadingStatusIcon ? listIconSize : iconSize;
+      const uint8_t* iconBitmap = iconForName(icon, actualIconSize);
       if (iconBitmap != nullptr) {
+        const int actualIconY =
+            (rowSubtitle != nullptr && isReadingStatusIcon) ? itemY + (rowHeight - actualIconSize) / 2 : itemY + iconY;
         renderer.drawIcon(iconBitmap, rect.x + LyraMetrics::values.contentSidePadding + hPaddingInSelection,
-                          itemY + iconY, iconSize, iconSize);
+                          actualIconY, actualIconSize, actualIconSize);
       }
     }
 
@@ -449,8 +455,9 @@ void LyraTheme::drawSideButtonHints(const GfxRenderer& renderer, const char* top
 }
 
 void LyraTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std::vector<RecentBook>& recentBooks,
-                                    const int selectorIndex, bool& coverRendered, bool& coverBufferStored,
-                                    bool& bufferRestored, std::function<bool()> storeCoverBuffer) const {
+                                    const std::vector<ReadingStatus>& bookStatuses, const int selectorIndex,
+                                    bool& coverRendered, bool& coverBufferStored, bool& bufferRestored,
+                                    std::function<bool()> storeCoverBuffer) const {
   const int tileWidth = rect.width - 2 * LyraMetrics::values.contentSidePadding;
   const int tileHeight = rect.height;
   const int tileY = rect.y;
@@ -527,8 +534,17 @@ void LyraTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std:
     auto author = renderer.truncatedText(UI_10_FONT_ID, book.author.c_str(), textWidth);
     const int titleLineHeight = renderer.getLineHeight(UI_12_FONT_ID);
     const int titleBlockHeight = titleLineHeight * static_cast<int>(titleLines.size());
-    const int authorHeight = book.author.empty() ? 0 : (renderer.getLineHeight(UI_10_FONT_ID) * 3 / 2);
-    const int totalBlockHeight = titleBlockHeight + authorHeight;
+    const int authorLineHeight = renderer.getLineHeight(UI_10_FONT_ID);
+    const int authorHeight = book.author.empty() ? 0 : (authorLineHeight * 3 / 2);
+
+    constexpr int readingStatusIconSize = 24;
+    constexpr int readingStatusIconTopMargin = 8;
+    const bool hasReadingStatusIcon = !bookStatuses.empty() && (bookStatuses[0] == ReadingStatus::Reading ||
+                                                                bookStatuses[0] == ReadingStatus::Finished);
+    const int readingStatusBlockHeight =
+        hasReadingStatusIcon ? (readingStatusIconSize + readingStatusIconTopMargin) : 0;
+
+    const int totalBlockHeight = titleBlockHeight + authorHeight + readingStatusBlockHeight;
     int titleY = tileY + tileHeight / 2 - totalBlockHeight / 2;
     const int textX = tileX + hPaddingInSelection + coverWidth + LyraMetrics::values.verticalSpacing;
     for (const auto& line : titleLines) {
@@ -536,8 +552,14 @@ void LyraTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std:
       titleY += titleLineHeight;
     }
     if (!book.author.empty()) {
-      titleY += renderer.getLineHeight(UI_10_FONT_ID) / 2;
+      titleY += authorLineHeight / 2;
       renderer.drawText(UI_10_FONT_ID, textX, titleY, author.c_str(), true);
+      titleY += authorLineHeight;
+    }
+    if (hasReadingStatusIcon) {
+      titleY += readingStatusIconTopMargin;
+      const uint8_t* iconBitmap = (bookStatuses[0] == ReadingStatus::Finished) ? BookFinished24Icon : BookReading24Icon;
+      renderer.drawIcon(iconBitmap, textX, titleY, readingStatusIconSize, readingStatusIconSize);
     }
   } else {
     drawEmptyRecents(renderer, rect);
@@ -624,22 +646,4 @@ void LyraTheme::fillPopupProgress(const GfxRenderer& renderer, const Rect& layou
   renderer.fillRect(barX, barY, fillWidth, barHeight, false);
 
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
-}
-
-void LyraTheme::drawTextField(const GfxRenderer& renderer, Rect rect, const int textWidth) const {
-  int lineY = rect.y + rect.height + renderer.getLineHeight(UI_12_FONT_ID) + LyraMetrics::values.verticalSpacing;
-  int lineW = textWidth + hPaddingInSelection * 2;
-  renderer.drawLine(rect.x + (rect.width - lineW) / 2, lineY, rect.x + (rect.width + lineW) / 2, lineY, 3);
-}
-
-void LyraTheme::drawKeyboardKey(const GfxRenderer& renderer, Rect rect, const char* label,
-                                const bool isSelected) const {
-  if (isSelected) {
-    renderer.fillRoundedRect(rect.x, rect.y, rect.width, rect.height, cornerRadius, Color::Black);
-  }
-
-  const int textWidth = renderer.getTextWidth(UI_12_FONT_ID, label);
-  const int textX = rect.x + (rect.width - textWidth) / 2;
-  const int textY = rect.y + (rect.height - renderer.getLineHeight(UI_12_FONT_ID)) / 2;
-  renderer.drawText(UI_12_FONT_ID, textX, textY, label, !isSelected);
 }

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <HalGPIO.h>
-#include <HalIMU.h>
 
 class MappedInputManager {
  public:
@@ -17,10 +16,7 @@ class MappedInputManager {
 
   explicit MappedInputManager(HalGPIO& gpio) : gpio(gpio) {}
 
-  void update() {
-    gpio.update();
-    updateTilt();
-  }
+  void update() { gpio.update(); }
   bool wasPressed(Button button) const;
   bool wasReleased(Button button) const;
   bool isPressed(Button button) const;
@@ -31,9 +27,6 @@ class MappedInputManager {
   // Returns the raw front button index that was pressed this frame (or -1 if none).
   int getPressedFrontButton() const;
 
-  // True if any tilt event fired this frame (for sleep timer reset).
-  bool wasTiltActive() const { return tiltPageForward || tiltPageBack; }
-
   // Set the effective screen orientation (called by OrientationHelper when
   // switching activities). Button mapping uses this instead of the raw
   // SETTINGS.orientation so that UI pages in Portrait mode are not affected
@@ -43,16 +36,6 @@ class MappedInputManager {
  private:
   HalGPIO& gpio;
   Orientation effectiveOrientation = Orientation::Portrait;
-
-  // Tilt page turn state machine
-  enum class TiltState : uint8_t { IDLE, COOLDOWN };
-  TiltState tiltState = TiltState::IDLE;
-  bool tiltPageForward = false;  // One-shot event: tilt triggered PageForward
-  bool tiltPageBack = false;     // One-shot event: tilt triggered PageBack
-  int16_t filteredRoll = 0;      // Low-pass filtered roll angle (milliradians)
-
-  void updateTilt();
-  bool wasTiltTriggered(Button button) const;
 
   bool mapButton(Button button, bool (HalGPIO::*fn)(uint8_t) const) const;
 };

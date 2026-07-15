@@ -328,18 +328,18 @@ int CrossPointSettings::getReaderFontId(bool isVertical) const {
 int CrossPointSettings::getBuiltInReaderFontId(bool isVertical) const {
   const auto& ds = getDirectionSettings(isVertical);
   switch (ds.fontFamily) {
-    case BOOKERLY:
+    case NOTOSERIF:
     default:
       switch (ds.fontSize) {
         case SMALL:
-          return BOOKERLY_12_FONT_ID;
+          return NOTOSERIF_12_FONT_ID;
         case MEDIUM:
         default:
-          return BOOKERLY_14_FONT_ID;
+          return NOTOSERIF_14_FONT_ID;
         case LARGE:
-          return BOOKERLY_16_FONT_ID;
+          return NOTOSERIF_16_FONT_ID;
         case EXTRA_LARGE:
-          return BOOKERLY_18_FONT_ID;
+          return NOTOSERIF_18_FONT_ID;
       }
     case NOTOSANS:
       switch (ds.fontSize) {
@@ -396,18 +396,18 @@ int CrossPointSettings::getHeadingFontId(const int headingLevel, bool isVertical
 
   // Built-in font: resolve with heading size
   switch (ds.fontFamily) {
-    case BOOKERLY:
+    case NOTOSERIF:
     default:
       switch (headingSize) {
         case SMALL:
-          return BOOKERLY_12_FONT_ID;
+          return NOTOSERIF_12_FONT_ID;
         case MEDIUM:
         default:
-          return BOOKERLY_14_FONT_ID;
+          return NOTOSERIF_14_FONT_ID;
         case LARGE:
-          return BOOKERLY_16_FONT_ID;
+          return NOTOSERIF_16_FONT_ID;
         case EXTRA_LARGE:
-          return BOOKERLY_18_FONT_ID;
+          return NOTOSERIF_18_FONT_ID;
       }
     case NOTOSANS:
       switch (headingSize) {
@@ -456,9 +456,9 @@ int CrossPointSettings::getTableFontId(bool isVertical) const {
   // Built-in font: use SMALL (smallest available)
   if (ds.fontSize == SMALL) return 0;  // already at smallest size
   switch (ds.fontFamily) {
-    case BOOKERLY:
+    case NOTOSERIF:
     default:
-      return BOOKERLY_12_FONT_ID;
+      return NOTOSERIF_12_FONT_ID;
     case NOTOSANS:
       return NOTOSANS_12_FONT_ID;
     case OPENDYSLEXIC:

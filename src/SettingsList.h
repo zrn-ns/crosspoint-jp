@@ -1,5 +1,6 @@
 #pragma once
 
+#include <HalTiltSensor.h>
 #include <I18n.h>
 #include <SdCardFontRegistry.h>
 
@@ -16,7 +17,7 @@
 // are appended after the built-in fonts. Otherwise only built-in fonts are listed.
 inline SettingInfo buildFontFamilySetting(const SdCardFontRegistry* registry) {
   // Built-in font labels (StrId)
-  std::vector<StrId> enumValues = {StrId::STR_BOOKERLY, StrId::STR_NOTO_SANS, StrId::STR_OPEN_DYSLEXIC};
+  std::vector<StrId> enumValues = {StrId::STR_NOTO_SERIF, StrId::STR_NOTO_SANS, StrId::STR_OPEN_DYSLEXIC};
   // Runtime string labels for SD card fonts
   std::vector<std::string> enumStringValues;
 
@@ -37,7 +38,7 @@ inline SettingInfo buildFontFamilySetting(const SdCardFontRegistry* registry) {
   // with all options when SD fonts are present.
   std::vector<std::string> allStringValues;
   if (sdFontCount > 0) {
-    allStringValues.push_back(I18N.get(StrId::STR_BOOKERLY));
+    allStringValues.push_back(I18N.get(StrId::STR_NOTO_SERIF));
     allStringValues.push_back(I18N.get(StrId::STR_NOTO_SANS));
     allStringValues.push_back(I18N.get(StrId::STR_OPEN_DYSLEXIC));
     allStringValues.insert(allStringValues.end(), enumStringValues.begin(), enumStringValues.end());
@@ -95,7 +96,7 @@ inline SettingInfo buildFontFamilySetting(const SdCardFontRegistry* registry) {
 // ACTION-type entries and entries without a key are device-only.
 // Pass registry to include SD card fonts in the font family setting.
 inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* registry = nullptr) {
-  return {
+  std::vector<SettingInfo> v = {
       // --- Display ---
       SettingInfo::Enum(StrId::STR_SLEEP_SCREEN, &CrossPointSettings::sleepScreen,
                         {StrId::STR_DARK, StrId::STR_LIGHT, StrId::STR_CUSTOM, StrId::STR_COVER, StrId::STR_NONE_OPT,
@@ -220,4 +221,16 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
       SettingInfo::Toggle(StrId::STR_BATTERY, &CrossPointSettings::statusBarBattery, "statusBarBattery",
                           StrId::STR_CUSTOMISE_STATUS_BAR),
   };
+  // X3 only — show tilt page turn setting when the QMI8658 IMU is present.
+  if (halTiltSensor.isAvailable()) {
+    for (auto it = v.begin(); it != v.end(); ++it) {
+      if (it->nameId == StrId::STR_SHORT_PWR_BTN) {
+        v.insert(it + 1, SettingInfo::Enum(StrId::STR_TILT_PAGE_TURN, &CrossPointSettings::tiltPageTurn,
+                                           {StrId::STR_STATE_OFF, StrId::STR_NORMAL, StrId::STR_INVERTED},
+                                           "tiltPageTurn", StrId::STR_CAT_CONTROLS));
+        break;
+      }
+    }
+  }
+  return v;
 }

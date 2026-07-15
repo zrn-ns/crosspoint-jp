@@ -1,6 +1,5 @@
 #include "HalPowerManager.h"
 
-#include <HalIMU.h>
 #include <Logging.h>
 #include <WiFi.h>
 #include <esp_sleep.h>
@@ -77,8 +76,6 @@ void HalPowerManager::startDeepSleep(HalGPIO& gpio, bool useFullPowerOff) const 
     gpio_set_level(GPIO_SPIWP, 0);
     gpio_hold_en(GPIO_SPIWP);
   }
-  // Put IMU into standby before sleep to reduce power consumption
-  imu.standby();
   esp_sleep_config_gpio_isolate();
   gpio_deep_sleep_hold_en();
   pinMode(InputManager::POWER_BUTTON_PIN, INPUT_PULLUP);
@@ -115,8 +112,14 @@ uint16_t HalPowerManager::getBatteryPercentage() const {
     return _batteryCachedPercent;
   }
   static const BatteryMonitor battery = BatteryMonitor(BAT_GPIO0);
-  _batteryCachedPercent = battery.readPercentage();
-  return _batteryCachedPercent;
+
+  // smooth the battery %.
+  if (_batteryCachedPercent == 0) {
+    _batteryCachedPercent = 10 * battery.readPercentage();
+  } else {
+    _batteryCachedPercent = (_batteryCachedPercent * 9 + battery.readPercentage() * 10) / 10;
+  }
+  return _batteryCachedPercent / 10;
 }
 
 HalPowerManager::Lock::Lock() {
