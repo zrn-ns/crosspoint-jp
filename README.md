@@ -39,6 +39,7 @@ Xteink X3/X4 向けの日本語EPUB閲覧に特化したフォーク。
 ### その他
 
 - **読書進捗アイコン** — ファイル一覧・最近読んだ本リストで、未読/読書中/読了をアイコンで識別可能（95%以上読了で自動判定）
+- **SDカードからのファーム更新** — SD直下に `.bin` を置いて設定メニューから選択、または起動時のリカバリーモード（電源+左側面上ボタン）で直接起動
 - Xteink X3 ハードウェアサポート（4階調グレースケール対応）
 - DS3231 RTCチップによる時刻保持（RTC搭載機のみ）
 - WiFi接続時のNTP時刻自動同期
@@ -65,6 +66,25 @@ Xteink X3/X4 向けの日本語EPUB閲覧に特化したフォーク。
 2. `firmware.bin`, `bootloader.bin`, `partitions.bin` をダウンロード
 3. Xteink をUSB-Cでパソコンに接続
 4. esptool.py または https://xteink.dve.al/ から書き込み
+
+## ファームウェア更新に困ったら
+
+**v0.1.9 未満のバージョン** をお使いの場合、既知の不具合により以下の症状で更新ができない可能性があります：
+
+- PC (macOS / Windows / Linux) で USB接続してもデバイスが認識されず、`pio` や esptool でフラッシュできない
+- Web Flasher でもシリアルポート選択画面にデバイスが出てこない
+
+### 原因
+
+X3の充電状態判定が USB Serial の初期化条件になっていたため、バッテリー100%充電時に USB CDC が構成されないバグ（v0.1.9で修正済み）。詳細は [PR #69](https://github.com/zrn-ns/crosspoint-jp/pull/69) を参照。
+
+### リカバリー手順
+
+1. **[OTA Xteink Unlocker](https://crosspointreader.com/unlocker)** にアクセスし、指示に従って **Hatch Firmware** をデバイスへフラッシュする（Wi-Fi OTA 経由）
+2. Hatch Firmware 起動後、SDカード直下に本フォークの `firmware.bin` を配置
+3. Hatch Firmware の SDファーム更新機能から `firmware.bin` を選択して書き込み
+
+書き込み完了後は v0.1.9 の SDカードファーム更新機能が使えるようになるので、以降のアップデートは容易です。
 
 ## フォントのインストール
 
