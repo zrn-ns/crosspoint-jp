@@ -32,6 +32,7 @@
 #include "SdCardFontSystem.h"
 #include "activities/Activity.h"
 #include "activities/ActivityManager.h"
+#include "activities/settings/SdFirmwareUpdateActivity.h"
 #ifdef GRAYSCALE_TEST_MODE
 #include "activities/util/GrayscaleTestActivity.h"
 #endif
@@ -392,6 +393,27 @@ void setup() {
       break;
   }
 
+  // Recovery firmware mode: 起動時に電源+左側面上ボタンの同時押しで
+  // SD カード経由のファーム更新画面へ直行する。USB フラッシュがロック
+  // された端末（特に X3）で他 FW へ戻すための救済経路。
+  //
+  // ボタン位置: X3 は BTN_UP が物理的に上側面上、X4 は BTN_DOWN が
+  // 物理的に上側面上（MappedInputManager.cpp:14-23 参照）。
+  bool recoveryFirmwareMode = false;
+  if (wakeupReason == HalGPIO::WakeupReason::PowerButton) {
+    // isPressed() needs ~half a second to settle after boot.
+    const unsigned long settleStart = millis();
+    while (millis() - settleStart < 500) {
+      gpio.update();
+      delay(10);
+    }
+    const uint8_t recoveryButton = gpio.deviceIsX3() ? HalGPIO::BTN_UP : HalGPIO::BTN_DOWN;
+    if (gpio.isPressed(recoveryButton)) {
+      recoveryFirmwareMode = true;
+      LOG_INF("MAIN", "Recovery firmware mode (side-upper + POWER held at boot)");
+    }
+  }
+
   // First serial output only here to avoid timing inconsistencies for power button press duration verification
   LOG_DBG("MAIN", "Starting CrossPoint version " CROSSPOINT_VERSION);
 
@@ -442,7 +464,11 @@ void setup() {
 
   RECENT_BOOKS.loadFromFile();
 
-  if (HalSystem::isRebootFromPanic()) {
+  if (recoveryFirmwareMode) {
+    // Skip normal home/reader routing: jump straight into the SD firmware picker.
+    activityManager.replaceActivity(
+        std::make_unique<SdFirmwareUpdateActivity>(renderer, mappedInputManager, /*recoveryMode=*/true));
+  } else if (HalSystem::isRebootFromPanic()) {
     // If we rebooted from a panic, go to crash report screen to show the panic info
     activityManager.goToCrashReport();
   } else if (APP_STATE.openEpubPath.empty() || !APP_STATE.lastSleepFromReader ||
