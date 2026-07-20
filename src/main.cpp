@@ -319,13 +319,19 @@ void setup() {
   halTiltSensor.begin();
 
 #ifdef ENABLE_SERIAL_LOG
-  if (gpio.isUsbConnected()) {
-    Serial.begin(115200);
-    const unsigned long start = millis();
-    while (!Serial && (millis() - start) < 500) {
-      delay(10);
-    }
-  }
+  // Serial 初期化は無条件で行う。
+  //
+  // 過去の実装では gpio.isUsbConnected() で判定していたが、X3 では BQ27220 の
+  // 電流レジスタ(充電中=電流>0)を見て USB 接続を推測しているため、バッテリー
+  // 100% で充電電流が流れない状態だと USB 接続時でも Serial が有効化されず
+  // フラッシュや監視ができないという副作用があった (crosspoint-reader/#2467)。
+  //
+  // 250ms の delay は USB Serial/JTAG ペリフェラルの電源投入とホスト側の
+  // enumeration 完了を待つためのもの。cold boot で races を防ぐ。
+  // (upstream crosspoint-reader/develop より)
+  delay(250);
+  Serial.begin(115200);
+  logSerial.setTxTimeoutMs(1);  // Load-bearing: これがないと未接続時に write でブロック
 #endif
 
   LOG_INF("MAIN", "Hardware detect: %s", gpio.deviceIsX3() ? "X3" : "X4");
