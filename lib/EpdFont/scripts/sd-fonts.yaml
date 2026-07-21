@@ -108,11 +108,49 @@ families:
     intervals: latin-ext,cyrillic
     sizes: [12, 14, 16, 18]
     styles:
+<<<<<<< HEAD
       regular:    {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/bitter/Bitter%5Bwght%5D.ttf", variable: {wght: 400}}
       bold:       {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/bitter/Bitter%5Bwght%5D.ttf", variable: {wght: 700}}
       italic:     {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/bitter/Bitter-Italic%5Bwght%5D.ttf", variable: {wght: 400}}
       bolditalic: {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/bitter/Bitter-Italic%5Bwght%5D.ttf", variable: {wght: 700}}
 
+=======
+      regular:    {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/bitter/Bitter%5Bwght%5D.ttf", variable: {wght: 500}}
+      bold:       {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/bitter/Bitter%5Bwght%5D.ttf", variable: {wght: 700}}
+      italic:     {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/bitter/Bitter-Italic%5Bwght%5D.ttf", variable: {wght: 500}}
+      bolditalic: {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/bitter/Bitter-Italic%5Bwght%5D.ttf", variable: {wght: 700}}
+
+  - name: Domitian
+    description: "A humanist serif for literary reading (Latin, Greek, Cyrillic)"
+    intervals: latin-ext,greek,cyrillic
+    sizes: [12, 14, 16, 18]
+    styles:
+      regular:    {url: "https://mirrors.ctan.org/fonts/domitian/opentype/Domitian-Roman.otf"}
+      bold:       {url: "https://mirrors.ctan.org/fonts/domitian/opentype/Domitian-Bold.otf"}
+      italic:     {url: "https://mirrors.ctan.org/fonts/domitian/opentype/Domitian-Italic.otf"}
+      bolditalic: {url: "https://mirrors.ctan.org/fonts/domitian/opentype/Domitian-BoldItalic.otf"}
+
+  - name: LibreBaskerville
+    description: "A serif reimplementing the classic Baskerville (Latin)"
+    intervals: latin-ext
+    sizes: [12, 14, 16, 18]
+    styles:
+      regular:    {url: "https://raw.githubusercontent.com/impallari/Libre-Baskerville/master/fonts/ttf/LibreBaskerville-Regular.ttf"}
+      bold:       {url: "https://raw.githubusercontent.com/impallari/Libre-Baskerville/master/fonts/ttf/LibreBaskerville-Bold.ttf"}
+      italic:     {url: "https://raw.githubusercontent.com/impallari/Libre-Baskerville/master/fonts/ttf/LibreBaskerville-Italic.ttf"}
+      bolditalic: {url: "https://raw.githubusercontent.com/impallari/Libre-Baskerville/master/fonts/ttf/LibreBaskerville-BoldItalic.ttf"}
+
+  - name: Vollkorn
+    description: "A serif for bread and butter use by Friedrich Althausen (Latin, Greek, Cyrillic)"
+    intervals: latin-ext,greek,cyrillic
+    sizes: [12, 14, 16, 18]
+    styles:
+      regular:    {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/vollkorn/Vollkorn%5Bwght%5D.ttf", variable: {wght: 400}}
+      bold:       {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/vollkorn/Vollkorn%5Bwght%5D.ttf", variable: {wght: 700}}
+      italic:     {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/vollkorn/Vollkorn-Italic%5Bwght%5D.ttf", variable: {wght: 400}}
+      bolditalic: {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/vollkorn/Vollkorn-Italic%5Bwght%5D.ttf", variable: {wght: 700}}
+
+>>>>>>> upstream/master
   # ── Sans-serif ─────────────────────────────────────────────────────────
 
   - name: NotoSansExtended
@@ -187,9 +225,27 @@ families:
       italic:     {url: "https://raw.githubusercontent.com/adobe-fonts/source-code-pro/release/TTF/SourceCodePro-It.ttf"}
       bolditalic: {url: "https://raw.githubusercontent.com/adobe-fonts/source-code-pro/release/TTF/SourceCodePro-BoldIt.ttf"}
 
+<<<<<<< HEAD
   # ── Accessibility ──────────────────────────────────────────────────────
 
   - name: AtkinsonHyperlegible
+=======
+  # ── Dyslexia ───────────────────────────────────────────────────────────────
+
+  - name: OpenDyslexic
+    description: "Dyslexia-friendly font (Latin)"
+    intervals: latin-ext
+    sizes: [8, 10, 12, 14]
+    styles:
+      regular:    {path: "builtinFonts/source/OpenDyslexic/OpenDyslexic-Regular.otf"}
+      bold:       {path: "builtinFonts/source/OpenDyslexic/OpenDyslexic-Bold.otf"}
+      italic:     {path: "builtinFonts/source/OpenDyslexic/OpenDyslexic-Italic.otf"}
+      bolditalic: {path: "builtinFonts/source/OpenDyslexic/OpenDyslexic-BoldItalic.otf"}
+
+  # ── Accessibility ──────────────────────────────────────────────────────
+
+  - name: AtkinsonHyperlegibleNext
+>>>>>>> upstream/master
     description: "Accessibility font for low vision (Latin)"
     intervals: latin-ext
     sizes: [12, 14, 16, 18]
@@ -199,6 +255,7 @@ families:
       italic:     {url: "https://raw.githubusercontent.com/googlefonts/atkinson-hyperlegible-next/main/fonts/ttf/AtkinsonHyperlegibleNext-Italic.ttf"}
       bolditalic: {url: "https://raw.githubusercontent.com/googlefonts/atkinson-hyperlegible-next/main/fonts/ttf/AtkinsonHyperlegibleNext-BoldItalic.ttf"}
 
+<<<<<<< HEAD
   # ── Japanese ─────────────────────────────────────────────────────────
 
   - name: NotoSansJp
@@ -273,3 +330,15 @@ families:
     sizes: [12, 14, 16, 18]
     styles:
       regular: {url: "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanstifinagh/NotoSansTifinagh-Regular.ttf"}
+=======
+  - name: LexicaUltralegible
+    description: "Accessibility font for low vision / dyslexia (Latin)"
+    intervals: latin-ext
+    sizes: [12, 14, 16, 18]
+    styles:
+      regular:    {url: "https://raw.githubusercontent.com/jacobxperez/lexica-ultralegible/main/fonts/ttf/LexicaUltralegible-Regular.ttf"}
+      bold:       {url: "https://raw.githubusercontent.com/jacobxperez/lexica-ultralegible/main/fonts/ttf/LexicaUltralegible-Bold.ttf"}
+      italic:     {url: "https://raw.githubusercontent.com/jacobxperez/lexica-ultralegible/main/fonts/ttf/LexicaUltralegible-Italic.ttf"}
+      bolditalic: {url: "https://raw.githubusercontent.com/jacobxperez/lexica-ultralegible/main/fonts/ttf/LexicaUltralegible-BoldItalic.ttf"}
+
+>>>>>>> upstream/master

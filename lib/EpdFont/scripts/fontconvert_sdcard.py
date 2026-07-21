@@ -22,15 +22,28 @@ Usage:
 
 """
 
+<<<<<<< HEAD
 import freetype
 import struct
 import sys
 import os
+=======
+from __future__ import annotations
+
+import struct
+import sys
+import os
+import re
+>>>>>>> upstream/master
 import math
 import argparse
 from collections import namedtuple
 
+<<<<<<< HEAD
 from fontTools.ttLib import TTFont
+=======
+from cpfont_version import CPFONT_VERSION
+>>>>>>> upstream/master
 
 # --- Unicode interval presets ---
 
@@ -38,9 +51,17 @@ INTERVAL_PRESETS = {
     "ascii":       [(0x0020, 0x007E)],
     "latin1":      [(0x0080, 0x00FF)],
     "latin-ext":   [(0x0020, 0x007E), (0x0080, 0x00FF), (0x0100, 0x024F),
+<<<<<<< HEAD
                     (0x1E00, 0x1EFF), (0x2000, 0x206F)],
     "greek":       [(0x0370, 0x03FF), (0x1F00, 0x1FFF)],
     "cyrillic":    [(0x0400, 0x04FF), (0x0500, 0x052F)],
+=======
+                    (0x02B0, 0x02FF), (0x1E00, 0x1EFF), (0x2000, 0x206F),
+                    (0xFB00, 0xFB06)],
+    "greek":       [(0x0370, 0x03FF), (0x1F00, 0x1FFF)],
+    "cyrillic":    [(0x0400, 0x04FF), (0x0500, 0x052F)],
+    "hebrew":      [(0x0590, 0x05FF), (0xFB1D, 0xFB4F)],
+>>>>>>> upstream/master
     "georgian":    [(0x10A0, 0x10FF), (0x2D00, 0x2D2F)],
     "armenian":    [(0x0530, 0x058F)],
     "ethiopic":    [(0x1200, 0x137F), (0x1380, 0x139F), (0x2D80, 0x2DDF)],
@@ -48,8 +69,29 @@ INTERVAL_PRESETS = {
     "punctuation": [(0x2000, 0x206F)],
     "cjk":         [(0x3000, 0x303F), (0x3040, 0x309F), (0x30A0, 0x30FF),
                     (0x4E00, 0x9FFF), (0xF900, 0xFAFF), (0xFF00, 0xFFEF)],
+<<<<<<< HEAD
     "cherokee":    [(0x13A0, 0x13FF), (0xAB70, 0xABBF)],
     "tifinagh":    [(0x2D30, 0x2D7F)],
+=======
+    "hangul":      [(0xAC00, 0xD7AF), (0x1100, 0x11FF), (0x3130, 0x318F)],
+    "cherokee":    [(0x13A0, 0x13FF), (0xAB70, 0xABBF)],
+    "tifinagh":    [(0x2D30, 0x2D7F)],
+    # Symbol blocks commonly seen in scifi/popsci/literary fiction.
+
+    "symbols":     [(0x2070, 0x209F), (0x20A0, 0x20CF), (0x2150, 0x218F),
+                    (0x2190, 0x21FF), (0x2200, 0x22FF), (0x2500, 0x257F),
+                    (0x25A0, 0x25FF), (0x2600, 0x26FF), (0x2700, 0x27BF)],
+    # Composite preset for English-language literary fiction including scifi/popsci.
+    # Greek for physics terms, math operators, geometric shapes, uncommon
+    # dialogue punctuation, CJK quote marks, miscellaneous symbols (♪♫♬), dingbats.
+    "reading":     [(0x0020, 0x024F), (0x02B0, 0x02FF), (0x0300, 0x036F), (0x0370, 0x03FF),
+                    (0x0400, 0x04FF), (0x1E00, 0x1EFF), (0x2000, 0x206F),
+                    (0x2070, 0x209F), (0x20A0, 0x20CF), (0x2150, 0x218F),
+                    (0x2190, 0x21FF), (0x2200, 0x22FF), (0x2500, 0x257F),
+                    (0x25A0, 0x25FF), (0x2600, 0x26FF), (0x2700, 0x27BF),
+                    (0x2900, 0x29FF), (0x2E00, 0x2E7F), (0x3000, 0x303F),
+                    (0xFB00, 0xFB06)],
+>>>>>>> upstream/master
     # Matches the built-in font intervals from fontconvert.py exactly
     "builtin":     [(0x0000, 0x007F), (0x0080, 0x00FF), (0x0100, 0x017F),
                     (0x01A0, 0x01A1), (0x01AF, 0x01B0), (0x01C4, 0x021F),
@@ -59,17 +101,50 @@ INTERVAL_PRESETS = {
                     (0xFB00, 0xFB06)],
 }
 
+<<<<<<< HEAD
+=======
+# Regex for parsing unnamed hex range intervals: (0xSTART-0xEND)
+_HEX_RANGE_PATTERN = re.compile(r'^\(0x([0-9a-fA-F]+)-0x([0-9a-fA-F]+)\)$')
+
+def parse_hex_range(s: str) -> tuple[int, int] | None:
+    match = _HEX_RANGE_PATTERN.fullmatch(s)
+    if not match:
+        return None
+
+    start_hex, end_hex = match.groups()
+    start, end = int(start_hex, 16), int(end_hex, 16)
+
+    # Validating Unicode range bounds.
+    if start > end or end > 0x10FFFF:
+        return None
+    return start, end
+
+>>>>>>> upstream/master
 
 def resolve_intervals(preset_str):
     """Resolve comma-separated preset names into a merged, sorted, deduplicated interval list."""
     all_intervals = []
     for name in preset_str.split(","):
         name = name.strip().lower()
+<<<<<<< HEAD
         if name not in INTERVAL_PRESETS:
             print(f"Error: unknown interval preset '{name}'", file=sys.stderr)
             print(f"Available presets: {', '.join(sorted(INTERVAL_PRESETS.keys()))}", file=sys.stderr)
             sys.exit(1)
         all_intervals.extend(INTERVAL_PRESETS[name])
+=======
+        unnamed_interval = parse_hex_range(name)
+        if name not in INTERVAL_PRESETS and unnamed_interval is None:
+            print(f"Error: unknown interval preset '{name}'", file=sys.stderr)
+            print(f"Available presets: {', '.join(sorted(INTERVAL_PRESETS.keys()))}", file=sys.stderr)
+            print("You can also specify unnamed hex ranges like (0x2100-0x214F)", file=sys.stderr)
+            sys.exit(1)
+
+        if unnamed_interval is not None:
+            all_intervals.append(unnamed_interval)
+        else:
+            all_intervals.extend(INTERVAL_PRESETS[name])
+>>>>>>> upstream/master
 
     # Always add replacement character
     all_intervals.append((0xFFFD, 0xFFFD))
@@ -99,7 +174,10 @@ StyleRasterData = namedtuple("StyleRasterData", [
     "kern_left_classes", "kern_right_classes", "kern_matrix",
     "kern_left_class_count", "kern_right_class_count",
     "ligature_pairs",
+<<<<<<< HEAD
     "vert_glyphs",             # [(codepoint, GlyphProps, packed_bytes), ...] sorted by codepoint
+=======
+>>>>>>> upstream/master
 ])
 
 
@@ -214,6 +292,11 @@ def extract_kerning_fonttools(font_path, codepoints, ppem):
     codepoints.  Values are scaled from font design units to integer
     pixels at ppem.
     """
+<<<<<<< HEAD
+=======
+    from fontTools.ttLib import TTFont
+
+>>>>>>> upstream/master
     font = TTFont(font_path)
     units_per_em = font['head'].unitsPerEm
     cmap = font.getBestCmap() or {}
@@ -251,11 +334,37 @@ def extract_kerning_fonttools(font_path, codepoints, ppem):
             lookup = gpos.LookupList.Lookup[li]
             for st in lookup.SubTable:
                 actual = st
+<<<<<<< HEAD
                 # Unwrap Extension (lookup type 9) wrappers
                 if lookup.LookupType == 9 and hasattr(st, 'ExtSubTable'):
                     actual = st.ExtSubTable
                 if hasattr(actual, 'Format'):
                     _extract_pairpos_subtable(actual, glyph_to_cp, raw_kern)
+=======
+                # Unwrap Extension (lookup type 9) wrappers. After unwrapping,
+                # `lookup.LookupType` is still 9, so we must look at the
+                # *effective* type carried on the extension subtable to know
+                # whether `actual` is a PairPos table.
+                if lookup.LookupType == 9 and hasattr(st, 'ExtSubTable'):
+                    actual = st.ExtSubTable
+                effective_type = getattr(st, 'ExtensionLookupType', lookup.LookupType)
+                if hasattr(actual, 'Format'):
+                    # _extract_pairpos_subtable assumes a Type-2 (PairPos)
+                    # subtable. Other lookup types reachable through the kern
+                    # feature (cursive attachment, mark-to-mark, contextual,
+                    # etc.) have a different shape and crash inside the
+                    # extractor. Skip them with a debug note rather than
+                    # aborting the whole build. Modern fonts often ship kern
+                    # via Extension-wrapped PairPos, so checking the effective
+                    # type instead of the outer type is what makes those
+                    # lookups actually reach the extractor.
+                    if effective_type == 2:
+                        _extract_pairpos_subtable(actual, glyph_to_cp, raw_kern)
+                    else:
+                        print(f"  Debug: skipping unsupported GPOS kern lookupType="
+                              f"{effective_type} (outer={lookup.LookupType}, Format={actual.Format})",
+                              file=sys.stderr)
+>>>>>>> upstream/master
 
     font.close()
 
@@ -346,6 +455,11 @@ def extract_ligatures_fonttools(font_path, codepoints):
     Returns list of (packed_pair, ligature_codepoint) for the given codepoints.
     Multi-character ligatures are decomposed into chained pairs.
     """
+<<<<<<< HEAD
+=======
+    from fontTools.ttLib import TTFont
+
+>>>>>>> upstream/master
     font = TTFont(font_path)
     cmap = font.getBestCmap() or {}
 
@@ -410,11 +524,28 @@ def extract_ligatures_fonttools(font_path, codepoints):
     font.close()
 
     # Filter: only keep ligatures where all input and output codepoints are
+<<<<<<< HEAD
     # in our generated glyph set
     codepoints_set = set(codepoints)
     filtered = {}
     for seq, lig_cp in raw_ligatures.items():
         if lig_cp not in codepoints_set:
+=======
+    # in our generated glyph set, and all codepoints fit in 16 bits.
+    #
+    # The on-disk format packs each component as a uint16 (the 3+ chained
+    # path packs `intermediate_cp << 16 | last_cp`, where `intermediate_cp`
+    # is the lig_cp of the prefix). Dropping any seq with an SMP cp here —
+    # plus any lig_cp > 0xFFFF — means every cp that reaches `packed = … <<
+    # 16 | …` below is already 16-bit safe, including the chained path
+    # (intermediate_cp = filtered[prefix] is filtered too).
+    codepoints_set = set(codepoints)
+    filtered = {}
+    for seq, lig_cp in raw_ligatures.items():
+        if lig_cp not in codepoints_set or lig_cp > 0xFFFF:
+            continue
+        if any(cp > 0xFFFF for cp in seq):
+>>>>>>> upstream/master
             continue
         if all(cp in codepoints_set for cp in seq):
             filtered[seq] = lig_cp
@@ -447,6 +578,7 @@ def extract_ligatures_fonttools(font_path, codepoints):
     return pairs
 
 
+<<<<<<< HEAD
 def extract_vert_mappings(font_path):
     """Extract codepoint -> substitute glyph name from OpenType 'vert' feature."""
     try:
@@ -482,10 +614,30 @@ def extract_vert_mappings(font_path):
 
 def rasterize_font_style(fontfile, size, intervals, style_id=0, force_autohint=False):
     """Rasterize all glyphs for one font style. Returns StyleRasterData."""
+=======
+def rasterize_font_style(fontfile, size, intervals, style_id=0, force_autohint=False,
+                         fallback_fontfile=None):
+    """Rasterize all glyphs for one font style. Returns StyleRasterData."""
+    import freetype
+
+>>>>>>> upstream/master
     style_names = {0: "regular", 1: "bold", 2: "italic", 3: "bolditalic"}
     style_label = style_names.get(style_id, str(style_id))
 
     face = freetype.Face(fontfile)
+<<<<<<< HEAD
+=======
+    # Set font size at 150 DPI (matching fontconvert.py) BEFORE any glyph load.
+    # load_glyph() with FT_LOAD_RENDER renders at the active size, so calling
+    # it before set_char_size() would waste work at the default size and risk
+    # Invalid_Size_Handle on some fonts.
+    face.set_char_size(size << 6, size << 6, 150, 150)
+    fallback_face = None
+    if fallback_fontfile:
+        fallback_face = freetype.Face(fallback_fontfile)
+        fallback_face.set_char_size(size << 6, size << 6, 150, 150)
+
+>>>>>>> upstream/master
     load_flags = freetype.FT_LOAD_RENDER
     if force_autohint:
         load_flags |= freetype.FT_LOAD_FORCE_AUTOHINT
@@ -495,6 +647,7 @@ def rasterize_font_style(fontfile, size, intervals, style_id=0, force_autohint=F
         if glyph_index > 0:
             face.load_glyph(glyph_index, load_flags)
             return face
+<<<<<<< HEAD
         return None
 
     # Validate intervals: keep original interval boundaries intact, inserting
@@ -524,6 +677,36 @@ def rasterize_font_style(fontfile, size, intervals, style_id=0, force_autohint=F
 
     # Set font size at 150 DPI (matching fontconvert.py)
     face.set_char_size(size << 6, size << 6, 150, 150)
+=======
+        if fallback_face:
+            fallback_glyph_index = fallback_face.get_char_index(code_point)
+            if fallback_glyph_index > 0:
+                fallback_face.load_glyph(fallback_glyph_index, load_flags)
+                return fallback_face
+        return None
+
+    # Validate intervals: remove codepoints not present in the font.
+    # Only check glyph existence via get_char_index — do NOT call
+    # load_glyph here, as that triggers FT_LOAD_RENDER at the target
+    # DPI and doubles total rasterization time for no benefit.
+    print(f"  [{style_label}] Validating intervals against font...", file=sys.stderr)
+    validated_intervals = []
+    for i_start, i_end in intervals:
+        start = i_start
+        for code_point in range(i_start, i_end + 1):
+            has_primary = face.get_char_index(code_point) != 0
+            has_fallback = fallback_face and fallback_face.get_char_index(code_point) != 0
+            if not has_primary and not has_fallback:
+                if start < code_point:
+                    validated_intervals.append((start, code_point - 1))
+                start = code_point + 1
+        if start <= i_end:
+            validated_intervals.append((start, i_end))
+
+    intervals = validated_intervals
+    total_glyphs = sum(end - start + 1 for start, end in intervals)
+    print(f"  [{style_label}] Validated: {len(intervals)} intervals, {total_glyphs} glyphs", file=sys.stderr)
+>>>>>>> upstream/master
 
     # Rasterize all glyphs
     total_bitmap_size = 0
@@ -539,6 +722,7 @@ def rasterize_font_style(fontfile, size, intervals, style_id=0, force_autohint=F
 
             bitmap = f.glyph.bitmap
 
+<<<<<<< HEAD
             # Build 4-bit greyscale bitmap (same logic as fontconvert.py)
             pixels4g = []
             px = 0
@@ -551,6 +735,35 @@ def rasterize_font_style(fontfile, size, intervals, style_id=0, force_autohint=F
                     pixels4g.append(px)
                     px = 0
                 if x == bitmap.width - 1 and bitmap.width % 2 > 0:
+=======
+            # Build 4-bit greyscale bitmap (same logic as fontconvert.py).
+            #
+            # FreeType returns the buffer with bitmap.pitch as the row stride
+            # in bytes, which can be negative when the bitmap is stored
+            # bottom-up. Iterating bitmap.buffer linearly assumes
+            # pitch == width and a top-down layout — that holds in the common
+            # case but breaks on padded or flipped bitmaps and corrupts the
+            # output. Walk by (row, col) using the real pitch instead.
+            #
+            # Cache bitmap.buffer in a local — ctypes struct field access
+            # creates a new Python wrapper object each time, so re-evaluating
+            # it per pixel is catastrophically slow.
+            pixels4g = []
+            px = 0
+            buf = bitmap.buffer
+            abs_pitch = abs(bitmap.pitch)
+            for y in range(bitmap.rows):
+                row_offset = y * abs_pitch if bitmap.pitch >= 0 else (bitmap.rows - 1 - y) * abs_pitch
+                for x in range(bitmap.width):
+                    v = buf[row_offset + x]
+                    if x % 2 == 0:
+                        px = (v >> 4)
+                    else:
+                        px = px | (v & 0xF0)
+                        pixels4g.append(px)
+                        px = 0
+                if bitmap.width % 2 > 0:
+>>>>>>> upstream/master
                     pixels4g.append(px)
                     px = 0
 
@@ -575,7 +788,16 @@ def rasterize_font_style(fontfile, size, intervals, style_id=0, force_autohint=F
                         pixels2b.append(px)
                         px = 0
             if (bitmap.width * bitmap.rows) % 4 != 0:
+<<<<<<< HEAD
                 px = px << (4 - (bitmap.width * bitmap.rows) % 4) * 2
+=======
+                # Outer parens are for clarity: in Python `*` binds tighter
+                # than `<<`, so the original `px << (4 - … % 4) * 2` already
+                # evaluates as `px << ((4 - … % 4) * 2)`. Match the explicit
+                # bracketing here so the shift width is obvious at a glance,
+                # mirroring the inner-loop style in fontconvert.py.
+                px = px << ((4 - (bitmap.width * bitmap.rows) % 4) * 2)
+>>>>>>> upstream/master
                 pixels2b.append(px)
 
             packed = bytes(pixels2b)
@@ -607,6 +829,13 @@ def rasterize_font_style(fontfile, size, intervals, style_id=0, force_autohint=F
     all_cps = set(g.code_point for g, _ in all_glyphs)
 
     kern_map = extract_kerning_fonttools(fontfile, all_cps, ppem)
+<<<<<<< HEAD
+=======
+    # SMP codepoints (> U+FFFF) cannot be stored in the uint16 kern codepoint
+    # field; drop them before class derivation to avoid a downstream
+    # struct.error when packing the binary kern tables.
+    kern_map = {(lcp, rcp): v for (lcp, rcp), v in kern_map.items() if lcp <= 0xFFFF and rcp <= 0xFFFF}
+>>>>>>> upstream/master
     print(f"  [{style_label}] Kerning: {len(kern_map)} pairs extracted", file=sys.stderr)
 
     (kern_left_classes, kern_right_classes, kern_matrix,
@@ -618,6 +847,12 @@ def rasterize_font_style(fontfile, size, intervals, style_id=0, force_autohint=F
         print(f"  [{style_label}] Kerning classes: {kern_left_class_count} left, {kern_right_class_count} right, "
               f"{matrix_size + entries_size} bytes", file=sys.stderr)
 
+<<<<<<< HEAD
+=======
+    # SMP codepoints in ligature inputs / outputs are filtered inside
+    # extract_ligatures_fonttools (see the codepoints_set filter), so every
+    # entry returned here is already 16-bit safe.
+>>>>>>> upstream/master
     ligature_pairs = extract_ligatures_fonttools(fontfile, all_cps)
     if len(ligature_pairs) > 255:
         print(f"  [{style_label}] WARNING: {len(ligature_pairs)} ligature pairs exceeds uint8_t max (255), truncating",
@@ -625,6 +860,7 @@ def rasterize_font_style(fontfile, size, intervals, style_id=0, force_autohint=F
         ligature_pairs = ligature_pairs[:255]
     print(f"  [{style_label}] Ligatures: {len(ligature_pairs)} pairs", file=sys.stderr)
 
+<<<<<<< HEAD
     # --- Extract vertical glyph substitutions (OpenType 'vert' feature) ---
     vert_mappings = extract_vert_mappings(fontfile)
     vert_glyphs = []  # [(codepoint, GlyphProps, packed_bytes), ...]
@@ -734,6 +970,8 @@ def rasterize_font_style(fontfile, size, intervals, style_id=0, force_autohint=F
 
         print(f"  [{style_label}] vert feature: {len(vert_glyphs)} glyphs rendered", file=sys.stderr)
 
+=======
+>>>>>>> upstream/master
     return StyleRasterData(
         style_id=style_id,
         intervals=intervals,
@@ -748,7 +986,10 @@ def rasterize_font_style(fontfile, size, intervals, style_id=0, force_autohint=F
         kern_left_class_count=kern_left_class_count,
         kern_right_class_count=kern_right_class_count,
         ligature_pairs=ligature_pairs,
+<<<<<<< HEAD
         vert_glyphs=vert_glyphs,
+=======
+>>>>>>> upstream/master
     )
 
 
@@ -761,7 +1002,11 @@ assert struct.calcsize(GLYPH_STRUCT_FORMAT) == 16
 
 def pack_style_sections(sd):
     """Pack one StyleRasterData into binary section bytearrays.
+<<<<<<< HEAD
     Returns (intervals_data, glyphs_data, kern_left, kern_right, kern_matrix, ligatures, bitmaps, vert_section)."""
+=======
+    Returns (intervals_data, glyphs_data, kern_left, kern_right, kern_matrix, ligatures, bitmaps)."""
+>>>>>>> upstream/master
     intervals_data = bytearray()
     offset = 0
     for i_start, i_end in sd.intervals:
@@ -796,6 +1041,7 @@ def pack_style_sections(sd):
         bitmap_data += packed
     assert len(bitmap_data) == sd.total_bitmap_size
 
+<<<<<<< HEAD
     # Vert section: uint16_t count + (uint32_t codepoint + EpdGlyph) * count + bitmaps
     vert_section = bytearray()
     if sd.vert_glyphs:
@@ -811,6 +1057,10 @@ def pack_style_sections(sd):
 
     return (intervals_data, glyphs_data, kern_left_data, kern_right_data,
             kern_matrix_data, ligature_data, bitmap_data, vert_section)
+=======
+    return (intervals_data, glyphs_data, kern_left_data, kern_right_data,
+            kern_matrix_data, ligature_data, bitmap_data)
+>>>>>>> upstream/master
 
 
 def style_sections_total_size(sections):
@@ -821,6 +1071,7 @@ def style_sections_total_size(sections):
 # --- File writers ---
 
 def generate_cpfont_multistyle(style_fonts, size, intervals, output_path,
+<<<<<<< HEAD
                                force_autohint=False):
     """Generate a multi-style v5 .cpfont file with optional vert data.
 
@@ -831,10 +1082,23 @@ def generate_cpfont_multistyle(style_fonts, size, intervals, output_path,
     HEADER_SIZE = 32
     STYLE_TOC_ENTRY_SIZE = 32
     flags = 1  # bit0: 2-bit greyscale
+=======
+                               force_autohint=False, fallback_style_fonts=None):
+    """Generate a multi-style v4 .cpfont file.
+
+    style_fonts: dict of {style_id: fontfile_path} e.g. {0: "Regular.ttf", 2: "Italic.ttf"}
+    fallback_style_fonts: optional dict of {style_id: fallback_fontfile_path}
+    """
+    MAGIC = b"CPFONT\x00\x00"
+    HEADER_SIZE = 32
+    STYLE_TOC_ENTRY_SIZE = 32
+    flags = 1  # always 2-bit greyscale
+>>>>>>> upstream/master
     style_count = len(style_fonts)
 
     # Rasterize each style
     raster_data = {}  # style_id -> StyleRasterData
+<<<<<<< HEAD
     for style_id in sorted(style_fonts.keys()):
         fontfile = style_fonts[style_id]
         print(f"  Rasterizing style {style_id}...", file=sys.stderr)
@@ -846,6 +1110,17 @@ def generate_cpfont_multistyle(style_fonts, size, intervals, output_path,
     any_vert = any(sd.vert_glyphs for sd in raster_data.values())
     if any_vert:
         flags |= 0x02  # bit1: vert data present
+=======
+    fallback_style_fonts = fallback_style_fonts or {}
+    for style_id in sorted(style_fonts.keys()):
+        fontfile = style_fonts[style_id]
+        fallback_fontfile = fallback_style_fonts.get(style_id)
+        print(f"  Rasterizing style {style_id}...", file=sys.stderr)
+        raster_data[style_id] = rasterize_font_style(
+            fontfile, size, intervals, style_id=style_id,
+            force_autohint=force_autohint,
+            fallback_fontfile=fallback_fontfile)
+>>>>>>> upstream/master
 
     # Pack binary sections for each style
     packed_sections = {}  # style_id -> tuple of section bytearrays
@@ -853,6 +1128,7 @@ def generate_cpfont_multistyle(style_fonts, size, intervals, output_path,
         packed_sections[style_id] = pack_style_sections(sd)
 
     # Calculate data offsets (after header + TOC)
+<<<<<<< HEAD
     # Main sections are indices 0-6 (intervals..bitmaps), vert section is index 7
     data_start = HEADER_SIZE + style_count * STYLE_TOC_ENTRY_SIZE
     current_offset = data_start
@@ -881,6 +1157,26 @@ def generate_cpfont_multistyle(style_fonts, size, intervals, output_path,
     #   advanceY(1) + ascender(2) + descender(2) + kernL(2) + kernR(2) +
     #   kernLCls(1) + kernRCls(1) + ligCount(1) + dataOffset(4) + vertSectionOffset(4) = 32
     STYLE_TOC_FORMAT = "<B3xIIBhhHHBBBII"
+=======
+    data_start = HEADER_SIZE + style_count * STYLE_TOC_ENTRY_SIZE
+    current_offset = data_start
+
+    style_offsets = {}  # style_id -> absolute file offset
+    for style_id in sorted(packed_sections.keys()):
+        style_offsets[style_id] = current_offset
+        current_offset += style_sections_total_size(packed_sections[style_id])
+
+    # Build global header
+    # V4 header: magic(8) + version(2) + flags(2) + styleCount(1) + reserved(19) = 32
+    header = struct.pack("<8sHHB19s", MAGIC, CPFONT_VERSION, flags, style_count, bytes(19))
+    assert len(header) == HEADER_SIZE
+
+    # Build style TOC entries
+    # Each entry: styleId(1) + pad(3) + intervalCount(4) + glyphCount(4) +
+    #   advanceY(1) + ascender(2) + descender(2) + kernL(2) + kernR(2) +
+    #   kernLCls(1) + kernRCls(1) + ligCount(1) + dataOffset(4) + reserved(4) = 32
+    STYLE_TOC_FORMAT = "<B3xIIBhhHHBBBI4x"
+>>>>>>> upstream/master
     assert struct.calcsize(STYLE_TOC_FORMAT) == STYLE_TOC_ENTRY_SIZE
 
     toc_data = bytearray()
@@ -899,8 +1195,12 @@ def generate_cpfont_multistyle(style_fonts, size, intervals, output_path,
                                 len(sd.kern_left_classes), len(sd.kern_right_classes),
                                 sd.kern_left_class_count, sd.kern_right_class_count,
                                 len(sd.ligature_pairs),
+<<<<<<< HEAD
                                 style_offsets[style_id],
                                 vert_section_offsets[style_id])
+=======
+                                style_offsets[style_id])
+>>>>>>> upstream/master
 
     # Write output
     os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else ".", exist_ok=True)
@@ -914,8 +1214,12 @@ def generate_cpfont_multistyle(style_fonts, size, intervals, output_path,
         total_file_size = f.tell()
 
     # Print summary
+<<<<<<< HEAD
     vert_label = ", vert" if any_vert else ""
     print(f"  Output: {output_path} (v5, {style_count} styles{vert_label})", file=sys.stderr)
+=======
+    print(f"  Output: {output_path} (v4, {style_count} styles)", file=sys.stderr)
+>>>>>>> upstream/master
     print(f"    Header+TOC: {HEADER_SIZE + len(toc_data)} bytes", file=sys.stderr)
     for style_id in sorted(raster_data.keys()):
         sd = raster_data[style_id]
@@ -923,9 +1227,14 @@ def generate_cpfont_multistyle(style_fonts, size, intervals, output_path,
         style_names = {0: "regular", 1: "bold", 2: "italic", 3: "bolditalic"}
         sname = style_names.get(style_id, str(style_id))
         ssize = style_sections_total_size(secs)
+<<<<<<< HEAD
         vert_info = f", {len(sd.vert_glyphs)} vert" if sd.vert_glyphs else ""
         print(f"    {sname}: {len(sd.all_glyphs)} glyphs, {len(sd.intervals)} intervals, "
               f"{ssize} bytes{vert_info}", file=sys.stderr)
+=======
+        print(f"    {sname}: {len(sd.all_glyphs)} glyphs, {len(sd.intervals)} intervals, "
+              f"{ssize} bytes", file=sys.stderr)
+>>>>>>> upstream/master
     print(f"    Total: {total_file_size} bytes ({total_file_size / 1024 / 1024:.2f} MB)", file=sys.stderr)
     return total_file_size
 
@@ -969,10 +1278,21 @@ def main():
                         help="Font file for italic style.")
     parser.add_argument("--bolditalic", dest="font_bolditalic",
                         help="Font file for bold-italic style.")
+<<<<<<< HEAD
     parser.add_argument("--codepoints-file", dest="codepoints_file",
                         help="Whitelist file of allowed codepoints (hex, one per line). "
                              "When specified, only codepoints present in both the intervals "
                              "and this file are included in the output.")
+=======
+    parser.add_argument("--fallback-regular", dest="fallback_regular",
+                        help="Fallback font file for regular style.")
+    parser.add_argument("--fallback-bold", dest="fallback_bold",
+                        help="Fallback font file for bold style.")
+    parser.add_argument("--fallback-italic", dest="fallback_italic",
+                        help="Fallback font file for italic style.")
+    parser.add_argument("--fallback-bolditalic", dest="fallback_bolditalic",
+                        help="Fallback font file for bold-italic style.")
+>>>>>>> upstream/master
 
     args = parser.parse_args()
 
@@ -994,6 +1314,19 @@ def main():
     if args.font_bolditalic:
         style_fonts[3] = args.font_bolditalic
 
+<<<<<<< HEAD
+=======
+    fallback_style_fonts = {}
+    if args.fallback_regular:
+        fallback_style_fonts[0] = args.fallback_regular
+    if args.fallback_bold:
+        fallback_style_fonts[1] = args.fallback_bold
+    if args.fallback_italic:
+        fallback_style_fonts[2] = args.fallback_italic
+    if args.fallback_bolditalic:
+        fallback_style_fonts[3] = args.fallback_bolditalic
+
+>>>>>>> upstream/master
     is_multistyle = len(style_fonts) > 0
     fontfile = args.fontfile
 
@@ -1005,6 +1338,7 @@ def main():
 
     intervals = resolve_intervals(args.intervals)
 
+<<<<<<< HEAD
     # Apply codepoints whitelist filter if specified
     if args.codepoints_file:
         allowed = set()
@@ -1049,6 +1383,8 @@ def main():
         print(f"  Codepoints filter: {before} -> {after} codepoints, {len(filtered)} intervals ({len(allowed)} in whitelist)", file=sys.stderr)
         intervals = filtered
 
+=======
+>>>>>>> upstream/master
     # Determine sizes
     if args.sizes:
         sizes = [int(s.strip()) for s in args.sizes.split(",")]
@@ -1105,7 +1441,12 @@ def main():
         print(f"Generating {output_path} (size {sz}, {len(style_fonts)} style(s), v4)...", file=sys.stderr)
         total_size += generate_cpfont_multistyle(
             style_fonts, sz, intervals, output_path,
+<<<<<<< HEAD
             force_autohint=args.force_autohint)
+=======
+            force_autohint=args.force_autohint,
+            fallback_style_fonts=fallback_style_fonts)
+>>>>>>> upstream/master
     print(f"\nTotal: {len(sizes)} files, {total_size / 1024 / 1024:.2f} MB", file=sys.stderr)
 
 

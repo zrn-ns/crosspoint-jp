@@ -17,12 +17,31 @@ Usage:
 
     # Generate only specific families
     python3 build-sd-fonts.py --only Literata,IBMPlexMono
+<<<<<<< HEAD
 """
 
 import argparse
 import shutil
 import subprocess
 import sys
+=======
+
+    # Stream child process output for debugging
+    python3 build-sd-fonts.py --verbose
+
+    # Override the per-family timeout (default: 600s)
+    python3 build-sd-fonts.py --timeout 1200
+"""
+
+import argparse
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+>>>>>>> upstream/master
 import urllib.request
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
@@ -36,6 +55,10 @@ DEFAULT_CONFIG = SCRIPT_DIR / "sd-fonts.yaml"
 DEFAULT_OUTPUT = SCRIPT_DIR / "output"
 DOWNLOAD_DIR = SCRIPT_DIR / "downloaded_fonts"
 INSTANCE_DIR = SCRIPT_DIR / "instanced_fonts"
+<<<<<<< HEAD
+=======
+DEFAULT_FALLBACK_FONT = EPDFONTS_DIR / "builtinFonts/source/NotoSans/NotoSans-Regular.ttf"
+>>>>>>> upstream/master
 
 
 def download_font(url: str, dest: Path) -> Path:
@@ -77,10 +100,43 @@ def extract_static_instance(source_path: Path, axes: dict, family_name: str, sty
         old.unlink()
 
     print(f"  Extracting static instance: {family_name}/{style_name} ({axis_key})")
+<<<<<<< HEAD
     font = TTFont(str(source_path))
     instantiateVariableFont(font, axes)
     font.save(str(cached))
     font.close()
+=======
+    # Atomic write: save to a temp file first, then rename. A crash or save()
+    # exception would otherwise leave a corrupt `cached` file that future runs
+    # would happily reuse via the `cached.exists()` check above.
+    tmp_fd, tmp_name = tempfile.mkstemp(suffix=".ttf", dir=cached.parent)
+    os.close(tmp_fd)
+    tmp_path = Path(tmp_name)
+    # Keep separate handles for the source variable font and the static
+    # instance: instantiateVariableFont with default inplace=False returns a
+    # *new* TTFont, so rebinding `font` would otherwise strand the source's
+    # file handle open until GC runs.
+    #
+    # updateFontNames=True   — rewrite the name table so the saved font
+    #                          reports its weight/style accurately rather
+    #                          than retaining the variable-font names.
+    # optimize=False         — skip the gvar interpolation optimisation;
+    #                          fully pinning every axis drops gvar anyway,
+    #                          so the work would be wasted.
+    source_font = TTFont(str(source_path))
+    try:
+        font = instantiateVariableFont(source_font, axes, updateFontNames=True, optimize=False)
+        try:
+            font.save(str(tmp_path))
+        finally:
+            font.close()
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
+    finally:
+        source_font.close()
+    tmp_path.replace(cached)
+>>>>>>> upstream/master
 
     return cached
 
@@ -113,7 +169,20 @@ def resolve_font_path(style_spec: dict, family_name: str, style_name: str) -> Pa
     return resolved
 
 
+<<<<<<< HEAD
 def build_family(family: dict, output_base: Path) -> tuple[str, bool, str]:
+=======
+def _stream_pipe(pipe, prefix: str, dest: list[str]):
+    """Read lines from a pipe, print with prefix, and accumulate into dest."""
+    for line in pipe:
+        dest.append(line)
+        print(f"  [{prefix}] {line}", end="", flush=True)
+
+
+def build_family(
+    family: dict, output_base: Path, verbose: bool = False, timeout: int = 600
+) -> tuple[str, bool, str]:
+>>>>>>> upstream/master
     """Build a single font family. Returns (name, success, message)."""
     name = family["name"]
     output_dir = output_base / name
@@ -141,12 +210,20 @@ def build_family(family: dict, output_base: Path) -> tuple[str, bool, str]:
         # Multi-style mode
         for style_name, font_path in resolved_styles.items():
             cmd.extend([f"--{style_name}", str(font_path)])
+<<<<<<< HEAD
+=======
+            cmd.extend([f"--fallback-{style_name}", str(DEFAULT_FALLBACK_FONT)])
+>>>>>>> upstream/master
     else:
         # Single-style mode
         style_name = next(iter(resolved_styles))
         font_path = resolved_styles[style_name]
         cmd.append(str(font_path))
         cmd.extend(["--style", style_name])
+<<<<<<< HEAD
+=======
+        cmd.extend([f"--fallback-{style_name}", str(DEFAULT_FALLBACK_FONT)])
+>>>>>>> upstream/master
 
     cmd.extend(["--intervals", intervals])
     cmd.extend(["--sizes", sizes])
@@ -156,6 +233,7 @@ def build_family(family: dict, output_base: Path) -> tuple[str, bool, str]:
     if family.get("force_autohint", False):
         cmd.append("--force-autohint")
 
+<<<<<<< HEAD
     if "codepoints_file" in family:
         cp_file = SCRIPT_DIR / family["codepoints_file"]
         cmd.extend(["--codepoints-file", str(cp_file)])
@@ -173,12 +251,65 @@ def build_family(family: dict, output_base: Path) -> tuple[str, bool, str]:
         return name, True, ""
     except subprocess.TimeoutExpired:
         return name, False, "Timed out after 600s"
+=======
+    # Run fontconvert_sdcard.py
+    start = time.monotonic()
+    try:
+        if verbose:
+            proc = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            )
+            stdout_lines: list[str] = []
+            stderr_lines: list[str] = []
+            t_out = threading.Thread(
+                target=_stream_pipe, args=(proc.stdout, name, stdout_lines)
+            )
+            t_err = threading.Thread(
+                target=_stream_pipe, args=(proc.stderr, f"{name}/err", stderr_lines)
+            )
+            t_out.start()
+            t_err.start()
+            try:
+                proc.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+                elapsed = time.monotonic() - start
+                return name, False, f"Timed out after {elapsed:.0f}s"
+            finally:
+                t_out.join()
+                t_err.join()
+
+            if proc.returncode != 0:
+                err = "".join(stderr_lines).strip()
+                return name, False, err or f"Exit code {proc.returncode}"
+            return name, True, ""
+        else:
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=timeout,
+            )
+            if result.returncode != 0:
+                return name, False, result.stderr.strip() or f"Exit code {result.returncode}"
+            return name, True, ""
+    except subprocess.TimeoutExpired as e:
+        elapsed = time.monotonic() - start
+        tail = ""
+        captured = getattr(e, "stderr", None) or getattr(e, "stdout", None)
+        if captured:
+            lines = captured.strip().splitlines()
+            tail = "\n    Last output:\n" + "\n".join(f"    | {l}" for l in lines[-20:])
+        return name, False, f"Timed out after {elapsed:.0f}s{tail}"
+>>>>>>> upstream/master
     except Exception as e:
         return name, False, str(e)
 
 
 def generate_manifest(
+<<<<<<< HEAD
     families_config: list[dict], output_base: Path, base_url: str, manifest_path: Path
+=======
+    config_path: Path, output_base: Path, base_url: str, manifest_path: Path
+>>>>>>> upstream/master
 ):
     """Generate fonts.json manifest from config + built output.
 
@@ -186,7 +317,10 @@ def generate_manifest(
     descriptions come from the YAML config via --descriptions-from.
     """
     manifest_script = SCRIPT_DIR.parent.parent.parent / "scripts" / "generate-font-manifest.py"
+<<<<<<< HEAD
     config_path = SCRIPT_DIR / "sd-fonts.yaml"
+=======
+>>>>>>> upstream/master
 
     if not base_url.endswith("/"):
         base_url += "/"
@@ -229,6 +363,17 @@ def main():
         help="Max parallel jobs (default: number of families)"
     )
     parser.add_argument("--clean", action="store_true", help="Clean output directory before building")
+<<<<<<< HEAD
+=======
+    parser.add_argument(
+        "--verbose", "-v", action="store_true",
+        help="Stream child process output in real time (useful for debugging timeouts)"
+    )
+    parser.add_argument(
+        "--timeout", type=int, default=600,
+        help="Per-family timeout in seconds (default: 600)"
+    )
+>>>>>>> upstream/master
     args = parser.parse_args()
 
     if args.manifest and not args.base_url:
@@ -248,6 +393,18 @@ def main():
         print("ERROR: No families defined in config", file=sys.stderr)
         sys.exit(1)
 
+<<<<<<< HEAD
+=======
+    if not DEFAULT_FALLBACK_FONT.exists() or not DEFAULT_FALLBACK_FONT.is_file():
+        print(
+            "ERROR: Missing default fallback font: "
+            f"{DEFAULT_FALLBACK_FONT}\n"
+            "This font is required for fallback glyphs in SD font builds.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+>>>>>>> upstream/master
     # Filter if --only specified
     if args.only:
         only_names = set(args.only.split(","))
@@ -280,12 +437,22 @@ def main():
 
     # Build phase (parallel)
     max_workers = args.jobs or len(families)
+<<<<<<< HEAD
     print(f"\n=== Building {len(families)} families ({max_workers} parallel jobs) ===\n")
+=======
+    verbose = args.verbose
+    timeout = args.timeout
+    print(f"\n=== Building {len(families)} families ({max_workers} parallel jobs, timeout {timeout}s) ===\n")
+>>>>>>> upstream/master
 
     failed = []
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         futures = {
+<<<<<<< HEAD
             executor.submit(build_family, family, output_base): family["name"]
+=======
+            executor.submit(build_family, family, output_base, verbose, timeout): family["name"]
+>>>>>>> upstream/master
             for family in families
         }
         for future in as_completed(futures):
@@ -301,7 +468,11 @@ def main():
                 failed.append(name)
 
     # Summary
+<<<<<<< HEAD
     print(f"\n=== Summary ===\n")
+=======
+    print("\n=== Summary ===\n")
+>>>>>>> upstream/master
     total_files = len(list(output_base.rglob("*.cpfont")))
     total_size = sum(f.stat().st_size for f in output_base.rglob("*.cpfont"))
     print(f"Total: {total_files} .cpfont files ({total_size / 1024 / 1024:.1f} MB)")
@@ -312,7 +483,11 @@ def main():
     # Manifest
     if args.manifest:
         manifest_path = Path(args.manifest_output) if args.manifest_output else output_base / "fonts.json"
+<<<<<<< HEAD
         generate_manifest(families, output_base, args.base_url, manifest_path)
+=======
+        generate_manifest(config_path, output_base, args.base_url, manifest_path)
+>>>>>>> upstream/master
 
     if failed:
         sys.exit(1)

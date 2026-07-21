@@ -16,13 +16,28 @@ The input directory may be flat (all .cpfont files in one dir) or nested
 convention <FamilyName>_<size>.cpfont.
 """
 
+<<<<<<< HEAD
+=======
+from __future__ import annotations
+
+>>>>>>> upstream/master
 import argparse
 import json
 import os
 import struct
 import sys
+<<<<<<< HEAD
 from pathlib import Path
 
+=======
+import zlib
+from pathlib import Path
+
+# Import canonical version constants from the shared file in lib/EpdFont/scripts/
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib" / "EpdFont" / "scripts"))
+from cpfont_version import CPFONT_VERSION, FONTS_MANIFEST_VERSION
+
+>>>>>>> upstream/master
 # --- .cpfont binary format constants ---
 # Global header: 8s magic, H version, H flags, B styleCount, 19x reserved
 GLOBAL_HEADER_FORMAT = "<8sHHB19x"
@@ -34,7 +49,10 @@ STYLE_TOC_ENTRY_SIZE = 32
 STYLE_TOC_ENTRY_FORMAT = "<B31x"
 
 CPFONT_MAGIC = b"CPFONT\x00\x00"
+<<<<<<< HEAD
 CPFONT_VERSION = 4
+=======
+>>>>>>> upstream/master
 
 STYLE_NAMES = {0: "regular", 1: "bold", 2: "italic", 3: "bolditalic"}
 
@@ -112,6 +130,18 @@ def parse_filename(filename: str) -> tuple[str, str] | None:
     return family, size_str
 
 
+<<<<<<< HEAD
+=======
+def compute_crc32(filepath: Path) -> int:
+    """Compute CRC32 of a file, matching esp_rom_crc32_le(0xFFFFFFFF, ...) ^ 0xFFFFFFFF."""
+    crc = 0
+    with open(filepath, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            crc = zlib.crc32(chunk, crc)
+    return crc & 0xFFFFFFFF
+
+
+>>>>>>> upstream/master
 def scan_cpfont_files(input_dir: Path) -> dict[str, list[Path]]:
     """Scan input directory for .cpfont files, grouped by family name.
 
@@ -161,6 +191,10 @@ def build_manifest(
                 {
                     "name": filepath.name,
                     "size": filepath.stat().st_size,
+<<<<<<< HEAD
+=======
+                    "crc32": compute_crc32(filepath),
+>>>>>>> upstream/master
                 }
             )
 
@@ -174,7 +208,11 @@ def build_manifest(
         )
 
     return {
+<<<<<<< HEAD
         "version": 1,
+=======
+        "version": FONTS_MANIFEST_VERSION,
+>>>>>>> upstream/master
         "baseUrl": base_url,
         "families": manifest_families,
     }
