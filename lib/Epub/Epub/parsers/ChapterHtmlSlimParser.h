@@ -110,6 +110,7 @@ class ChapterHtmlSlimParser {
   void updateEffectiveInlineStyle();
   void startNewTextBlock(const BlockStyle& blockStyle);
   void flushPartWordBuffer();
+  void flushCurrentBlockMidPage();
   void makePages();
   void flushTableAsGrid();
   // XML callbacks

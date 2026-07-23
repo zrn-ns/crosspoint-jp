@@ -26,6 +26,12 @@ constexpr size_t PARSE_BUFFER_SIZE = 1024;
 // to prevent abort() from failed allocations (no C++ exceptions on ESP32).
 constexpr size_t MIN_FREE_HEAP_FOR_PARSING = 20 * 1024;  // 20KB
 
+// words vector の capacity 上限に近付いたら中間 flush する閾値。
+// ParsedText::addWord() は 512 要素で reserve するため、その手前で flush する必要がある。
+// 超えると _M_realloc_append が発生し、1024 要素分の連続領域（~32KB）を要求してヒープ不足で abort する。
+// 青空文庫のように <p> を持たない超長段落の EPUB で顕在化する（Issue #72）。
+constexpr size_t MID_BLOCK_FLUSH_WORDS = 400;
+
 const char* BLOCK_TAGS[] = {"p", "li", "div", "br", "blockquote"};
 constexpr int NUM_BLOCK_TAGS = sizeof(BLOCK_TAGS) / sizeof(BLOCK_TAGS[0]);
 
@@ -964,6 +970,12 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
         self->currentTextBlock->addWord(cjkWord, EpdFontFamily::REGULAR);
       }
       i += charLen;
+      // 中間flush: 1 回の characterData 呼び出しで CJK 単語が大量追加される場合、
+      // characterData 末尾の flush 判定では間に合わず words vector の realloc で abort する。
+      // 青空文庫のような <p> なし超長段落 EPUB で顕在化する（Issue #72）。
+      if (self->currentTextBlock->size() >= MID_BLOCK_FLUSH_WORDS) {
+        self->flushCurrentBlockMidPage();
+      }
       continue;
     }
 
@@ -980,31 +992,32 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
     i += charLen;
   }
 
-  // Flush buffered words to free memory. The standard threshold is 750 words, but when free heap
-  // is low we flush earlier to prevent abort() from vector reallocation failure (operator new
-  // cannot return nullptr without std::nothrow, and C++ exceptions are disabled on ESP32).
+  // 末尾判定: ヒープ低下時に早期flush。
+  // 通常flush（MID_BLOCK_FLUSH_WORDS 到達）はループ内で判定済みなのでここでは不要。
   const size_t wordCount = self->currentTextBlock->size();
-  const bool normalFlush = wordCount > 750;
   const bool earlyFlush = wordCount > 100 && ESP.getFreeHeap() < MIN_FREE_HEAP_FOR_PARSING * 2;
-  if (normalFlush || earlyFlush) {
+  if (earlyFlush) {
     LOG_DBG("EHP", "Text block too long, splitting into multiple pages");
-    if (self->verticalMode) {
-      // Mid-block flush: keep the trailing partial column so that newly accumulated
-      // text continues into the same column on the next call. Without this, the partial
-      // last column would be emitted prematurely, creating visually short columns at
-      // ruby tag / chunk boundaries (Issue #51).
-      self->currentTextBlock->layoutVerticalColumns(
-          self->renderer, self->fontId, self->viewportHeight,
-          [self](const std::shared_ptr<TextBlock>& textBlock) { self->addLineToPage(textBlock); }, false);
-    } else {
-      const int horizontalInset = self->currentTextBlock->getBlockStyle().totalHorizontalInset();
-      const uint16_t effectiveWidth = (horizontalInset < self->viewportWidth)
-                                          ? static_cast<uint16_t>(self->viewportWidth - horizontalInset)
-                                          : self->viewportWidth;
-      self->currentTextBlock->layoutAndExtractLines(
-          self->renderer, self->fontId, effectiveWidth,
-          [self](const std::shared_ptr<TextBlock>& textBlock) { self->addLineToPage(textBlock); }, false);
-    }
+    self->flushCurrentBlockMidPage();
+  }
+}
+
+// Mid-block flush: 現在の text block を layout に流し込み、消費済み単語を erase する。
+// characterData のループ内でも呼ばれるため、境界での partial column を残す (includeLast=false)。
+void ChapterHtmlSlimParser::flushCurrentBlockMidPage() {
+  if (!currentTextBlock || currentTextBlock->isEmpty()) return;
+
+  if (verticalMode) {
+    currentTextBlock->layoutVerticalColumns(
+        renderer, fontId, viewportHeight,
+        [this](const std::shared_ptr<TextBlock>& textBlock) { addLineToPage(textBlock); }, false);
+  } else {
+    const int horizontalInset = currentTextBlock->getBlockStyle().totalHorizontalInset();
+    const uint16_t effectiveWidth =
+        (horizontalInset < viewportWidth) ? static_cast<uint16_t>(viewportWidth - horizontalInset) : viewportWidth;
+    currentTextBlock->layoutAndExtractLines(
+        renderer, fontId, effectiveWidth,
+        [this](const std::shared_ptr<TextBlock>& textBlock) { addLineToPage(textBlock); }, false);
   }
 }
 
