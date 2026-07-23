@@ -745,17 +745,40 @@ void GfxRenderer::drawArc(const int maxRadius, const int cx, const int cy, const
                           const int lineWidth, const bool state) const {
   const int stroke = std::min(lineWidth, maxRadius);
   const int innerRadius = std::max(maxRadius - stroke, 0);
-  const int outerRadiusSq = maxRadius * maxRadius;
+  const int outerRadius = maxRadius;
+
+  if (outerRadius <= 0) {
+    return;
+  }
+
+  const int outerRadiusSq = outerRadius * outerRadius;
   const int innerRadiusSq = innerRadius * innerRadius;
-  for (int dy = 0; dy <= maxRadius; ++dy) {
-    for (int dx = 0; dx <= maxRadius; ++dx) {
-      const int distSq = dx * dx + dy * dy;
-      if (distSq > outerRadiusSq || distSq < innerRadiusSq) {
-        continue;
-      }
-      const int px = cx + xDir * dx;
-      const int py = cy + yDir * dy;
-      drawPixel(px, py, state);
+
+  int xOuter = outerRadius;
+  int xInner = innerRadius;
+
+  for (int dy = 0; dy <= outerRadius; ++dy) {
+    while (xOuter > 0 && (xOuter * xOuter + dy * dy) > outerRadiusSq) {
+      --xOuter;
+    }
+    // Keep the smallest x that still lies outside/at the inner radius,
+    // i.e. (x^2 + y^2) >= innerRadiusSq.
+    while (xInner > 0 && ((xInner - 1) * (xInner - 1) + dy * dy) >= innerRadiusSq) {
+      --xInner;
+    }
+
+    if (xOuter < xInner) {
+      continue;
+    }
+
+    const int x0 = cx + xDir * xInner;
+    const int x1 = cx + xDir * xOuter;
+    const int left = std::min(x0, x1);
+    const int width = std::abs(x1 - x0) + 1;
+    const int py = cy + yDir * dy;
+
+    if (width > 0) {
+      fillRect(left, py, width, 1, state);
     }
   }
 };
@@ -874,15 +897,39 @@ void GfxRenderer::fillRectDither(const int x, const int y, const int width, cons
 
 template <Color color>
 void GfxRenderer::fillArc(const int maxRadius, const int cx, const int cy, const int xDir, const int yDir) const {
+  if (maxRadius <= 0) return;
+
+  if constexpr (color == Color::Clear) {
+    return;
+  }
+
   const int radiusSq = maxRadius * maxRadius;
+
+  // Avoid sqrt by scanning from outer radius inward while y grows.
+  int x = maxRadius;
   for (int dy = 0; dy <= maxRadius; ++dy) {
-    for (int dx = 0; dx <= maxRadius; ++dx) {
-      const int distSq = dx * dx + dy * dy;
-      const int px = cx + xDir * dx;
-      const int py = cy + yDir * dy;
-      if (distSq <= radiusSq) {
-        drawPixelDither<color>(px, py);
-      }
+    while (x > 0 && (x * x + dy * dy) > radiusSq) {
+      --x;
+    }
+    if (x < 0) break;
+
+    const int py = cy + yDir * dy;
+    if (py < 0 || py >= getScreenHeight()) continue;
+
+    int x0 = cx;
+    int x1 = cx + xDir * x;
+    if (x0 > x1) std::swap(x0, x1);
+    const int width = x1 - x0 + 1;
+
+    if (width <= 0) continue;
+
+    if constexpr (color == Color::Black) {
+      fillRect(x0, py, width, 1, true);
+    } else if constexpr (color == Color::White) {
+      fillRect(x0, py, width, 1, false);
+    } else {
+      // LightGray / DarkGray: use existing dithered fill path.
+      fillRectDither(x0, py, width, 1, color);
     }
   }
 }
@@ -1426,6 +1473,89 @@ int GfxRenderer::getScreenHeight() const {
       return panelHeight;
   }
   return panelWidth;
+}
+
+// Translate a logical rect through rotateCoordinates and take the bounding
+// box of its four corners on the physical panel. Output coords are inclusive
+// and clamped. Returns false if the rect ends up fully off-panel.
+static bool logicalRectToPhysicalBounds(GfxRenderer::Orientation orientation, int lx, int ly, int lw, int lh,
+                                        uint16_t panelWidth, uint16_t panelHeight, int* outX0, int* outY0, int* outX1,
+                                        int* outY1) {
+  if (lw <= 0 || lh <= 0) return false;
+  int minX = INT32_MAX;
+  int minY = INT32_MAX;
+  int maxX = INT32_MIN;
+  int maxY = INT32_MIN;
+  const int corners[4][2] = {{lx, ly}, {lx + lw - 1, ly}, {lx, ly + lh - 1}, {lx + lw - 1, ly + lh - 1}};
+  for (auto& c : corners) {
+    int phyX;
+    int phyY;
+    rotateCoordinates(orientation, c[0], c[1], &phyX, &phyY, panelWidth, panelHeight);
+    if (phyX < minX) minX = phyX;
+    if (phyY < minY) minY = phyY;
+    if (phyX > maxX) maxX = phyX;
+    if (phyY > maxY) maxY = phyY;
+  }
+  if (minX < 0) minX = 0;
+  if (minY < 0) minY = 0;
+  if (maxX >= panelWidth) maxX = panelWidth - 1;
+  if (maxY >= panelHeight) maxY = panelHeight - 1;
+  if (minX > maxX || minY > maxY) return false;
+  *outX0 = minX;
+  *outY0 = minY;
+  *outX1 = maxX;
+  *outY1 = maxY;
+  return true;
+}
+
+size_t GfxRenderer::getRegionByteSize(int lx, int ly, int lw, int lh) const {
+  int x0, y0, x1, y1;
+  if (!logicalRectToPhysicalBounds(orientation, lx, ly, lw, lh, panelWidth, panelHeight, &x0, &y0, &x1, &y1)) {
+    return 0;
+  }
+  // x bounds are in pixels; widen to byte boundaries on either side so per-row
+  // memcpy stays byte-aligned even when the logical rect doesn't.
+  const int byteX0 = x0 / 8;
+  const int byteX1 = x1 / 8;
+  const int bytesPerRow = byteX1 - byteX0 + 1;
+  const int rowCount = y1 - y0 + 1;
+  return static_cast<size_t>(bytesPerRow) * static_cast<size_t>(rowCount);
+}
+
+bool GfxRenderer::copyRegionToBuffer(int lx, int ly, int lw, int lh, uint8_t* buf, size_t bufSize) const {
+  int x0, y0, x1, y1;
+  if (!logicalRectToPhysicalBounds(orientation, lx, ly, lw, lh, panelWidth, panelHeight, &x0, &y0, &x1, &y1)) {
+    return false;
+  }
+  const int byteX0 = x0 / 8;
+  const int byteX1 = x1 / 8;
+  const int bytesPerRow = byteX1 - byteX0 + 1;
+  const int rowCount = y1 - y0 + 1;
+  const size_t needed = static_cast<size_t>(bytesPerRow) * static_cast<size_t>(rowCount);
+  if (bufSize < needed || !frameBuffer || !buf) return false;
+  for (int row = 0; row < rowCount; row++) {
+    const uint8_t* src = frameBuffer + (y0 + row) * panelWidthBytes + byteX0;
+    memcpy(buf + row * bytesPerRow, src, bytesPerRow);
+  }
+  return true;
+}
+
+bool GfxRenderer::copyBufferToRegion(int lx, int ly, int lw, int lh, const uint8_t* buf, size_t bufSize) const {
+  int x0, y0, x1, y1;
+  if (!logicalRectToPhysicalBounds(orientation, lx, ly, lw, lh, panelWidth, panelHeight, &x0, &y0, &x1, &y1)) {
+    return false;
+  }
+  const int byteX0 = x0 / 8;
+  const int byteX1 = x1 / 8;
+  const int bytesPerRow = byteX1 - byteX0 + 1;
+  const int rowCount = y1 - y0 + 1;
+  const size_t needed = static_cast<size_t>(bytesPerRow) * static_cast<size_t>(rowCount);
+  if (bufSize < needed || !frameBuffer || !buf) return false;
+  for (int row = 0; row < rowCount; row++) {
+    uint8_t* dst = frameBuffer + (y0 + row) * panelWidthBytes + byteX0;
+    memcpy(dst, buf + row * bytesPerRow, bytesPerRow);
+  }
+  return true;
 }
 
 int GfxRenderer::getSpaceWidth(const int fontId, const EpdFontFamily::Style style) const {
