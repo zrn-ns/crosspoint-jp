@@ -109,14 +109,17 @@ void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle,
                          const bool attachToPrevious) {
   if (word.empty()) return;
 
-  // Pre-allocate to match the 750-word flush threshold in characterData().
+  // Pre-allocate に合わせて容量を確保する。ChapterHtmlSlimParser の中間 flush 閾値
+  // (MID_BLOCK_FLUSH_WORDS = 400) より十分大きく、かつ realloc が起きない値にする。
+  // 過大に取ると初期割当時のヒープ圧迫（sizeof(std::string) * N ≈ 32*N bytes）と
+  // フラグメンテーションのリスクが上がるため、512 程度が最適。
   // Without reserve(), std::vector doubles capacity on each reallocation (e.g. 512→1024),
   // requiring both old and new arrays in memory simultaneously. On a fragmented 380KB heap
   // this contiguous allocation can fail and call abort() (no C++ exceptions on ESP32).
   if (words.capacity() == 0) {
-    words.reserve(800);
-    wordStyles.reserve(800);
-    wordContinues.reserve(800);
+    words.reserve(512);
+    wordStyles.reserve(512);
+    wordContinues.reserve(512);
     // rubyTexts は遅延初期化（setRubyForWordAt時にのみ割り当て）— RAM節約
   }
 
@@ -134,7 +137,7 @@ void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle,
                          const bool attachToPrevious) {
   addWord(std::move(word), fontStyle, underline, attachToPrevious);
   if (wordVerticalBehaviors.capacity() == 0) {
-    wordVerticalBehaviors.reserve(800);
+    wordVerticalBehaviors.reserve(512);
   }
   wordVerticalBehaviors.push_back(vBehavior);
 }
