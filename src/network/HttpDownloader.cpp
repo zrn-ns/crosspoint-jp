@@ -54,6 +54,77 @@ class FileWriteStream final : public Stream {
 };
 }  // namespace
 
+bool HttpDownloader::fetchUrl(const std::string& url, const DataCallback& onData, const std::string& username,
+                              const std::string& password) {
+  // Streaming variant: identical connection setup to the std::string overload,
+  // but pushes body chunks into onData instead of buffering them. Used by the
+  // OTA release-check path where TLS session heap + full-body buffer would OOM.
+  std::unique_ptr<NetworkClient> client;
+  if (UrlUtils::isHttpsUrl(url)) {
+    auto* secureClient = new NetworkClientSecure();
+    secureClient->setInsecure();
+    secureClient->setHandshakeTimeout(20);
+    client.reset(secureClient);
+  } else {
+    client.reset(new NetworkClient());
+  }
+  HTTPClient http;
+
+  http.begin(*client, url.c_str());
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  http.addHeader("User-Agent", "CrossPoint-ESP32-" CROSSPOINT_VERSION);
+
+  if (!username.empty() && !password.empty()) {
+    std::string credentials = username + ":" + password;
+    String encoded = base64::encode(credentials.c_str());
+    http.addHeader("Authorization", "Basic " + encoded);
+  }
+
+  LOG_DBG("HTTP", "FetchStream: %s (heap=%d)", url.c_str(), ESP.getFreeHeap());
+  const int httpCode = http.GET();
+  lastHttpCode = httpCode;
+
+  if (httpCode != HTTP_CODE_OK) {
+    LOG_ERR("HTTP", "FetchStream failed: %d", httpCode);
+    http.end();
+    return false;
+  }
+
+  NetworkClient* stream = http.getStreamPtr();
+  uint8_t buf[512];
+  size_t total = 0;
+  bool aborted = false;
+  while (stream->available() || stream->connected()) {
+    int avail = stream->available();
+    if (avail <= 0) {
+      delay(1);
+      continue;
+    }
+    int toRead = (avail < static_cast<int>(sizeof(buf))) ? avail : static_cast<int>(sizeof(buf));
+    int bytesRead = stream->readBytes(buf, toRead);
+    if (bytesRead <= 0) break;
+    if (onData && !onData(buf, static_cast<size_t>(bytesRead))) {
+      aborted = true;
+      break;
+    }
+    total += bytesRead;
+  }
+  http.end();
+
+  if (aborted) {
+    LOG_DBG("HTTP", "FetchStream aborted by callback after %zu bytes", total);
+    return false;
+  }
+  if (total == 0) {
+    LOG_ERR("HTTP", "FetchStream: empty body");
+    lastHttpCode = -901;
+    return false;
+  }
+
+  LOG_DBG("HTTP", "FetchStream success: %zu bytes", total);
+  return true;
+}
+
 bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent, const std::string& username,
                               const std::string& password) {
   // Use NetworkClientSecure for HTTPS, regular NetworkClient for HTTP
