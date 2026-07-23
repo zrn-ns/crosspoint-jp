@@ -1,0 +1,14 @@
+{
+  "name": "CrossPoint JP (Stable)",
+  "version": "v0.1.9",
+  "builds": [
+    {
+      "chipFamily": "ESP32-C3",
+      "parts": [
+        { "path": "stable/bootloader.bin", "offset": 0 },
+        { "path": "stable/partitions.bin", "offset": 32768 },
+        { "path": "stable/firmware.bin", "offset": 65536 }
+      ]
+    }
+  ]
+}

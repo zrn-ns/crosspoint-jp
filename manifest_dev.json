@@ -1,0 +1,14 @@
+{
+  "name": "CrossPoint JP (Dev)",
+  "version": "dev-20260723-215336",
+  "builds": [
+    {
+      "chipFamily": "ESP32-C3",
+      "parts": [
+        { "path": "dev/bootloader.bin", "offset": 0 },
+        { "path": "dev/partitions.bin", "offset": 32768 },
+        { "path": "dev/firmware.bin", "offset": 65536 }
+      ]
+    }
+  ]
+}
