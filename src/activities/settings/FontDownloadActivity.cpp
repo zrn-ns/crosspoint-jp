@@ -208,6 +208,13 @@ bool FontDownloadActivity::fetchAndParseManifest() {
 
 // --- Download ---
 
+FontDownloadActivity::ManifestFamily* FontDownloadActivity::selectedFamily() {
+  if (families_.empty() || isDownloadAllSelected()) return nullptr;
+  const int index = familyIndexFromList(selectedIndex_);
+  if (index < 0 || index >= static_cast<int>(families_.size())) return nullptr;
+  return &families_[index];
+}
+
 void FontDownloadActivity::downloadAll() {
   for (size_t i = 0; i < families_.size(); i++) {
     if (families_[i].installed && !families_[i].hasUpdate) continue;
@@ -217,8 +224,32 @@ void FontDownloadActivity::downloadAll() {
 
   {
     RenderLock lock(*this);
+    completeMessage_ = StrId::STR_FONT_INSTALLED;
     state_ = COMPLETE;
   }
+}
+
+void FontDownloadActivity::deleteFamily(ManifestFamily& family) {
+  // Deletion is a directory unlink on the SD card — fast enough to run inline
+  // without a progress screen, unlike the download path.
+  const FontInstaller::Error err = fontInstaller_.deleteFamily(family.name);
+  if (err != FontInstaller::Error::OK) {
+    LOG_ERR("FONT", "Delete failed: %s (err=%d)", family.name, static_cast<int>(err));
+    RenderLock lock(*this);
+    state_ = ERROR;
+    errorMessage_ = std::string(tr(STR_FONT_DELETE_FAILED)) + ": " + family.name;
+    errorDetail_.clear();
+    return;
+  }
+
+  fontInstaller_.refreshRegistry();
+  LOG_DBG("FONT", "Deleted font family: %s", family.name);
+
+  RenderLock lock(*this);
+  family.installed = false;
+  family.hasUpdate = false;
+  completeMessage_ = StrId::STR_DELETE_COMPLETE;
+  state_ = COMPLETE;
 }
 
 size_t FontDownloadActivity::totalUninstalledSize() const {
@@ -349,9 +380,11 @@ void FontDownloadActivity::downloadFamily(ManifestFamily& family) {
 
   fontInstaller_.refreshRegistry();
   family.installed = true;
+  family.hasUpdate = false;
 
   {
     RenderLock lock(*this);
+    completeMessage_ = StrId::STR_FONT_INSTALLED;
     state_ = COMPLETE;
   }
 }
@@ -379,16 +412,42 @@ void FontDownloadActivity::loop() {
       }
     });
 
+    // Every state transition below needs an explicit requestUpdate(): RenderLock
+    // only guards the render task, it does not schedule a frame. Without it the
+    // stale screen stays up and the next press looks like the first one being
+    // swallowed — the confirmation screen never appeared, so the user had to
+    // press Confirm twice to start a download.
     if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
       if (!families_.empty()) {
-        RenderLock lock(*this);
-        state_ = CONFIRM_DOWNLOAD;
+        {
+          RenderLock lock(*this);
+          state_ = CONFIRM_DOWNLOAD;
+        }
+        requestUpdate();
       }
     }
   } else if (state_ == CONFIRM_DOWNLOAD) {
     if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
-      RenderLock lock(*this);
-      state_ = FAMILY_LIST;
+      {
+        RenderLock lock(*this);
+        state_ = FAMILY_LIST;
+      }
+      requestUpdate();
+      return;
+    }
+
+    // Left opens the delete confirmation, but only for a family that is actually
+    // on the SD card. "Download all" and not-yet-installed families have nothing
+    // to remove, so the hint is hidden and the button ignored there.
+    if (mappedInput.wasPressed(MappedInputManager::Button::Left)) {
+      const ManifestFamily* family = selectedFamily();
+      if (family != nullptr && family->installed) {
+        {
+          RenderLock lock(*this);
+          state_ = CONFIRM_DELETE;
+        }
+        requestUpdate();
+      }
       return;
     }
 
@@ -400,17 +459,34 @@ void FontDownloadActivity::loop() {
       }
       requestUpdate();
     }
-  } else if (state_ == COMPLETE) {
-    if (mappedInput.wasPressed(MappedInputManager::Button::Back) ||
-        mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
-      RenderLock lock(*this);
-      state_ = FAMILY_LIST;
+  } else if (state_ == CONFIRM_DELETE) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+      {
+        RenderLock lock(*this);
+        state_ = CONFIRM_DOWNLOAD;
+      }
+      requestUpdate();
+      return;
     }
-  } else if (state_ == ERROR) {
+
+    if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
+      ManifestFamily* family = selectedFamily();
+      if (family != nullptr) {
+        deleteFamily(*family);
+      } else {
+        RenderLock lock(*this);
+        state_ = FAMILY_LIST;
+      }
+      requestUpdate();
+    }
+  } else if (state_ == COMPLETE || state_ == ERROR) {
     if (mappedInput.wasPressed(MappedInputManager::Button::Back) ||
         mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
-      RenderLock lock(*this);
-      state_ = FAMILY_LIST;
+      {
+        RenderLock lock(*this);
+        state_ = FAMILY_LIST;
+      }
+      requestUpdate();
     }
   }
 }
@@ -496,6 +572,8 @@ void FontDownloadActivity::render(RenderLock&&) {
       y += lineHeight + metrics.verticalSpacing;
       renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, y,
                         (std::string(tr(STR_SIZE_LABEL)) + formatSize(totalUninstalledSize())).c_str());
+      const auto labels = mappedInput.mapLabels(tr(STR_CANCEL), tr(STR_CONFIRM), "", "");
+      GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     } else {
       const auto& family = families_[familyIndexFromList(selectedIndex_)];
       std::string confirmText = (family.installed ? std::string(tr(STR_REDOWNLOAD)) : std::string(tr(STR_DOWNLOAD))) +
@@ -507,9 +585,31 @@ void FontDownloadActivity::render(RenderLock&&) {
       y += lineHeight + metrics.verticalSpacing;
       renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, y,
                         (std::string(tr(STR_SIZE_LABEL)) + formatSize(family.totalSize)).c_str());
+
+      // Delete lives on this screen rather than the list: the list's Left/Right
+      // are taken by navigation, and reaching it already required selecting the
+      // family, so a stray press cannot start deleting something.
+      const auto labels =
+          mappedInput.mapLabels(tr(STR_CANCEL), tr(STR_CONFIRM), family.installed ? tr(STR_DELETE) : "", "");
+      GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    }
+  } else if (state_ == CONFIRM_DELETE) {
+    int y = contentTop;
+    const ManifestFamily* family = selectedFamily();
+    const char* familyName = family != nullptr ? family->name : "";
+
+    renderer.drawCenteredText(UI_10_FONT_ID, y, (std::string(tr(STR_DELETE)) + " " + familyName + "?").c_str(), true,
+                              EpdFontFamily::BOLD);
+    y += lineHeight + metrics.verticalSpacing;
+    if (family != nullptr) {
+      renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, y,
+                        (std::string(tr(STR_FILES_LABEL)) + std::to_string(family->fileCount)).c_str());
+      y += lineHeight + metrics.verticalSpacing;
+      renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, y,
+                        (std::string(tr(STR_SIZE_LABEL)) + formatSize(family->totalSize)).c_str());
     }
 
-    const auto labels = mappedInput.mapLabels(tr(STR_CANCEL), tr(STR_CONFIRM), "", "");
+    const auto labels = mappedInput.mapLabels(tr(STR_CANCEL), tr(STR_DELETE_CONFIRM), "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else if (state_ == DOWNLOADING) {
     const auto& family = families_[downloadingFamilyIndex_];
@@ -533,7 +633,7 @@ void FontDownloadActivity::render(RenderLock&&) {
     renderer.drawCenteredText(UI_10_FONT_ID, percentY,
                               (std::to_string(static_cast<int>(progress * 100)) + "%").c_str());
   } else if (state_ == COMPLETE) {
-    renderer.drawCenteredText(UI_10_FONT_ID, centerY, tr(STR_FONT_INSTALLED), true, EpdFontFamily::BOLD);
+    renderer.drawCenteredText(UI_10_FONT_ID, centerY, I18N.get(completeMessage_), true, EpdFontFamily::BOLD);
     const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else if (state_ == ERROR) {
