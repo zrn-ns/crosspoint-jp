@@ -1,5 +1,7 @@
 #pragma once
 
+#include <I18n.h>
+
 #include <string>
 #include <vector>
 
@@ -34,6 +36,7 @@ class FontDownloadActivity : public Activity {
     LOADING_MANIFEST,
     FAMILY_LIST,
     CONFIRM_DOWNLOAD,
+    CONFIRM_DELETE,
     DOWNLOADING,
     COMPLETE,
     ERROR,
@@ -80,6 +83,8 @@ class FontDownloadActivity : public Activity {
   size_t fileProgress_ = 0;
   size_t fileTotal_ = 0;
   int downloadingFamilyIndex_ = 0;
+  // Message shown on the COMPLETE screen: install and delete both land there.
+  StrId completeMessage_ = StrId::STR_FONT_INSTALLED;
   std::string errorMessage_;
   // Second error line: err/http/heap diagnostics. Kept separate from
   // errorMessage_ so the failing file name stays readable on its own line.
@@ -89,6 +94,9 @@ class FontDownloadActivity : public Activity {
   bool fetchAndParseManifest();
   void downloadFamily(ManifestFamily& family);
   void downloadAll();
+  void deleteFamily(ManifestFamily& family);
+  // The selected list row, or nullptr for "Download all" / an empty manifest.
+  ManifestFamily* selectedFamily();
   bool isDownloadAllSelected() const { return selectedIndex_ == 0 && !families_.empty(); }
   int familyIndexFromList(int listIndex) const { return listIndex - 1; }
   int listItemCount() const { return families_.empty() ? 0 : static_cast<int>(families_.size()) + 1; }
