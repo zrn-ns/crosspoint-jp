@@ -379,16 +379,27 @@ void FontDownloadActivity::loop() {
       }
     });
 
+    // Every state transition below needs an explicit requestUpdate(): RenderLock
+    // only guards the render task, it does not schedule a frame. Without it the
+    // stale screen stays up and the next press looks like the first one being
+    // swallowed — the confirmation screen never appeared, so the user had to
+    // press Confirm twice to start a download.
     if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
       if (!families_.empty()) {
-        RenderLock lock(*this);
-        state_ = CONFIRM_DOWNLOAD;
+        {
+          RenderLock lock(*this);
+          state_ = CONFIRM_DOWNLOAD;
+        }
+        requestUpdate();
       }
     }
   } else if (state_ == CONFIRM_DOWNLOAD) {
     if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
-      RenderLock lock(*this);
-      state_ = FAMILY_LIST;
+      {
+        RenderLock lock(*this);
+        state_ = FAMILY_LIST;
+      }
+      requestUpdate();
       return;
     }
 
@@ -400,17 +411,14 @@ void FontDownloadActivity::loop() {
       }
       requestUpdate();
     }
-  } else if (state_ == COMPLETE) {
+  } else if (state_ == COMPLETE || state_ == ERROR) {
     if (mappedInput.wasPressed(MappedInputManager::Button::Back) ||
         mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
-      RenderLock lock(*this);
-      state_ = FAMILY_LIST;
-    }
-  } else if (state_ == ERROR) {
-    if (mappedInput.wasPressed(MappedInputManager::Button::Back) ||
-        mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
-      RenderLock lock(*this);
-      state_ = FAMILY_LIST;
+      {
+        RenderLock lock(*this);
+        state_ = FAMILY_LIST;
+      }
+      requestUpdate();
     }
   }
 }
