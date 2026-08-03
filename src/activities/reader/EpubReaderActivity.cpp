@@ -375,9 +375,13 @@ void EpubReaderActivity::loop() {
     return;
   }
 
-  // At end of the book, forward button goes home and back button returns to last page
+  // At end of the book, forward button goes home and back button returns to last page.
+  // In vertical RTL the physical buttons are swapped for page turns (see pageTurn
+  // below), so resolve "forward" the same way here — otherwise the book closes on
+  // the button that should return to the last page.
   if (currentSpineIndex > 0 && currentSpineIndex >= epub->getSpineItemsCount()) {
-    if (nextTriggered) {
+    const bool forwardTriggered = verticalMode ? prevTriggered : nextTriggered;
+    if (forwardTriggered) {
       onGoHome();
     } else {
       currentSpineIndex = epub->getSpineItemsCount() - 1;
@@ -760,17 +764,10 @@ void EpubReaderActivity::render(RenderLock&& lock) {
     currentSpineIndex = epub->getSpineItemsCount();
   }
 
-  // Show end of book screen
-  if (currentSpineIndex == epub->getSpineItemsCount()) {
-    saveProgress(currentSpineIndex, 0, 0, true);
-    renderer.clearScreen();
-    renderer.drawCenteredText(UI_12_FONT_ID, 300, tr(STR_END_OF_BOOK), true, EpdFontFamily::BOLD);
-    renderer.displayBuffer();
-    automaticPageTurnActive = false;
-    return;
-  }
-
-  // Resolve effective writing mode before viewport calculation (needed for direction-specific settings)
+  // Resolve effective writing mode before viewport calculation (needed for direction-specific settings).
+  // Resolved before the end-of-book screen: handleInput() mirrors the button
+  // direction off verticalMode there, and resuming a book that was saved at the
+  // end returns early below, so the flag would otherwise still hold its default.
   if (!section) {
     if (SETTINGS.writingMode == CrossPointSettings::WM_VERTICAL) {
       verticalMode = true;
@@ -782,6 +779,16 @@ void EpubReaderActivity::render(RenderLock&& lock) {
                      (epub->getLanguage() == "ja" || epub->getLanguage() == "jpn" || epub->getLanguage() == "zh" ||
                       epub->getLanguage() == "zho");
     }
+  }
+
+  // Show end of book screen
+  if (currentSpineIndex == epub->getSpineItemsCount()) {
+    saveProgress(currentSpineIndex, 0, 0, true);
+    renderer.clearScreen();
+    renderer.drawCenteredText(UI_12_FONT_ID, 300, tr(STR_END_OF_BOOK), true, EpdFontFamily::BOLD);
+    renderer.displayBuffer();
+    automaticPageTurnActive = false;
+    return;
   }
 
   const auto& ds = SETTINGS.getDirectionSettings(verticalMode);
