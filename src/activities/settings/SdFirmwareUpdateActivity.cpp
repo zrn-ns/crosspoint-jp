@@ -196,16 +196,23 @@ void SdFirmwareUpdateActivity::loop() {
       return;
     }
 
-    if (mappedInput.wasPressed(MappedInputManager::Button::Up)) {
-      selectedIndex = (selectedIndex - 1 + static_cast<int>(binFiles.size())) % static_cast<int>(binFiles.size());
+    // ButtonNavigator so the front Left/Right buttons move the selection too.
+    // Side Up/Down alone left the picker without a navigation guide: button
+    // hints only exist for the four front buttons (GfxRenderer::drawButtonHints),
+    // so there was nowhere to label the side buttons.
+    // Press-based, not release-based as most list screens use: recovery mode is
+    // entered holding a side button at boot, and a release handler would consume
+    // that release as a navigation step.
+    const int totalItems = static_cast<int>(binFiles.size());
+    buttonNavigator.onPreviousPress([this, totalItems] {
+      selectedIndex = ButtonNavigator::previousIndex(selectedIndex, totalItems);
       requestUpdate();
-      return;
-    }
-    if (mappedInput.wasPressed(MappedInputManager::Button::Down)) {
-      selectedIndex = (selectedIndex + 1) % static_cast<int>(binFiles.size());
+    });
+    buttonNavigator.onNextPress([this, totalItems] {
+      selectedIndex = ButtonNavigator::nextIndex(selectedIndex, totalItems);
       requestUpdate();
-      return;
-    }
+    });
+
     if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
       onFileSelected(selectedIndex);
       return;
@@ -258,7 +265,9 @@ void SdFirmwareUpdateActivity::render(RenderLock&&) {
                    Rect{metrics.contentSidePadding, listTop, pageWidth - metrics.contentSidePadding * 2, listHeight},
                    static_cast<int>(binFiles.size()), selectedIndex,
                    [this](int index) -> std::string { return binFiles[index]; });
-      const auto labels = mappedInput.mapLabels(recoveryMode ? "" : tr(STR_BACK), tr(STR_SELECT), "", "");
+      const auto labels =
+          mappedInput.mapLabels(recoveryMode ? "" : tr(STR_BACK), tr(STR_SELECT),
+                                binFiles.size() > 1 ? tr(STR_DIR_UP) : "", binFiles.size() > 1 ? tr(STR_DIR_DOWN) : "");
       GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     }
   } else if (state == State::VALIDATING) {

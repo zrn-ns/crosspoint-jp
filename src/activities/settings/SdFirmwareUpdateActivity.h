@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "activities/Activity.h"
+#include "util/ButtonNavigator.h"
 
 /**
  * SD-card based firmware update activity.
@@ -46,6 +47,7 @@ class SdFirmwareUpdateActivity : public Activity {
   // Inline picker state
   std::vector<std::string> binFiles;
   int selectedIndex = 0;
+  ButtonNavigator buttonNavigator;
 
   std::string firmwarePath;
   size_t firmwareSize = 0;
