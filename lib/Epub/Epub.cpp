@@ -346,8 +346,10 @@ bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss) {
   // Try to load existing cache first
   if (bookMetadataCache->load()) {
     if (!skipLoadingCss) {
-      // Rebuild CSS cache when missing or when cache version changed (loadFromCache removes stale file)
-      if (!cssParser->hasCache() || !cssParser->loadFromCache()) {
+      // Rebuild CSS cache when missing or when cache version changed (validateCache removes stale file).
+      // validateCache() only checks the header; rules are loaded into RAM per
+      // section during section building, not held for the whole session.
+      if (!cssParser->validateCache()) {
         LOG_DBG("EBP", "CSS rules cache missing or stale, attempting to parse CSS files");
         cssParser->deleteCache();
 

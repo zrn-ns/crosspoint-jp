@@ -8,6 +8,8 @@
 #include <cctype>
 #include <string_view>
 
+#include "CssSelectorUsage.h"
+
 namespace {
 
 // Stack-allocated string buffer to avoid heap reallocations during parsing
@@ -761,7 +763,31 @@ bool CssParser::saveToCache() const {
   return true;
 }
 
-bool CssParser::loadFromCache() {
+bool CssParser::validateCache() const {
+  if (cachePath.empty()) {
+    return false;
+  }
+
+  FsFile file;
+  if (!Storage.openFileForRead("CSS", cachePath + rulesCache, file)) {
+    return false;
+  }
+
+  uint8_t version = 0;
+  if (file.read(&version, 1) != 1 || version != CssParser::CSS_CACHE_VERSION) {
+    LOG_DBG("CSS", "Cache version mismatch (got %u, expected %u), removing stale cache for rebuild", version,
+            CssParser::CSS_CACHE_VERSION);
+    // Explicitly close() file before calling Storage.remove()
+    file.close();
+    Storage.remove((cachePath + rulesCache).c_str());
+    return false;
+  }
+
+  file.close();
+  return true;
+}
+
+bool CssParser::loadFromCache(const CssSelectorUsage* usage) {
   if (cachePath.empty()) {
     return false;
   }
@@ -918,9 +944,16 @@ bool CssParser::loadFromCache() {
     style.defined.imageWidth = (definedBits & 1 << 14) != 0;
     style.defined.display = (definedBits & 1 << 15) != 0;
 
+    // Skip rules that can never match the scanned document; the style
+    // payload has already been consumed from the stream at this point.
+    if (usage != nullptr && !usage->matches(selector)) {
+      continue;
+    }
+
     rulesBySelector_[selector] = style;
   }
 
-  LOG_DBG("CSS", "Loaded %u rules from cache", ruleCount);
+  LOG_DBG("CSS", "Loaded %zu of %u cached rules%s", rulesBySelector_.size(), ruleCount,
+          usage != nullptr ? " (usage-filtered)" : "");
   return true;
 }
