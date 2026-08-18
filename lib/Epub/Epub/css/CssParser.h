@@ -9,6 +9,8 @@
 
 #include "CssStyle.h"
 
+class CssSelectorUsage;
+
 /**
  * Lightweight CSS parser for EPUB stylesheets
  *
@@ -31,7 +33,7 @@
 class CssParser {
  public:
   // Bump when CSS cache format or rules change; section caches are invalidated when this changes
-  static constexpr uint8_t CSS_CACHE_VERSION = 4;
+  static constexpr uint8_t CSS_CACHE_VERSION = 5;
 
   explicit CssParser(std::string cachePath) : cachePath(std::move(cachePath)) {}
   ~CssParser() = default;
@@ -99,9 +101,19 @@ class CssParser {
   /**
    * Load CSS rules from a cache file.
    * Clears any existing rules before loading.
+   * @param usage Optional filter: only rules whose selector can match the
+   *        scanned document are kept in RAM. Pass nullptr to load all rules.
    * @return true if cache was loaded successfully
    */
-  bool loadFromCache();
+  bool loadFromCache(const CssSelectorUsage* usage = nullptr);
+
+  /**
+   * Check that the cache file exists and matches CSS_CACHE_VERSION without
+   * materializing any rules in RAM. Removes a stale cache file (version
+   * mismatch) just like loadFromCache().
+   * @return true if a usable cache file is present
+   */
+  bool validateCache() const;
 
  private:
   // Storage: maps normalized selector -> style properties

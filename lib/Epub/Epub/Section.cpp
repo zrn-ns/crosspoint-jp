@@ -6,6 +6,7 @@
 #include <Serialization.h>
 
 #include "Epub/css/CssParser.h"
+#include "Epub/css/CssSelectorUsage.h"
 #include "Page.h"
 #include "SectionBuildPerf.h"
 #include "hyphenation/Hyphenator.h"
@@ -232,7 +233,14 @@ bool Section::createSectionFile(const int fontId, const float lineCompression, c
   if (embeddedStyle) {
     cssParser = epub->getCssParser();
     if (cssParser) {
-      if (!cssParser->loadFromCache()) {
+      // Load only the cached rules this chapter can actually reference.
+      // Generic publisher stylesheets (e.g. the EBPAJ template) register
+      // hundreds of rules of which a chapter uses a handful; loading them all
+      // costs tens of KB of heap right when section building needs it most
+      // (issue #105). If the scan fails, fall back to loading everything.
+      CssSelectorUsage usage;
+      const bool scanned = usage.scanHtmlFile(tmpHtmlPath);
+      if (!cssParser->loadFromCache(scanned ? &usage : nullptr)) {
         LOG_ERR("SCT", "Failed to load CSS from cache");
       }
     }
