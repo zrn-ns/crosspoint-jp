@@ -399,6 +399,7 @@ void CssParser::processRuleBlockWithStyle(const std::string& selectorGroup, cons
   // Refuse new registrations when heap is nearly exhausted; inserting into
   // rulesBySelector_ would abort() on allocation failure (-fno-exceptions).
   if (ESP.getFreeHeap() < MIN_FREE_HEAP_DURING_CSS_PARSE) {
+    LOG_DBG("CSS", "Low heap (%u bytes), dropping CSS rule registration", ESP.getFreeHeap());
     return;
   }
 
@@ -590,11 +591,13 @@ bool CssParser::loadFromStream(FsFile& source) {
   char buffer[READ_BUFFER_SIZE];
   while (source.available()) {
     // Periodic heap check to avoid abort() from a failed allocation while
-    // registering rules (issue #103). Rules collected so far are kept.
+    // registering rules (issue #103). Rules collected so far are kept in RAM,
+    // but we return false so the caller knows the parse is incomplete and
+    // must not persist a truncated rule set to the cache.
     if (ESP.getFreeHeap() < MIN_FREE_HEAP_DURING_CSS_PARSE) {
       LOG_ERR("CSS", "Low heap during CSS parse (%u bytes), stopping early with %zu rules", ESP.getFreeHeap(),
               rulesBySelector_.size());
-      return true;
+      return false;
     }
 
     int bytesRead = source.read(buffer, sizeof(buffer));
