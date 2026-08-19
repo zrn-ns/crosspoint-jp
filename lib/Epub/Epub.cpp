@@ -274,7 +274,10 @@ void Epub::parseCssFiles() const {
     return;
   }
 
-  // No cache yet - parse CSS files
+  // No cache yet - parse CSS files.
+  // Heap-related truncation is transient: if it happens, skip saving the
+  // cache so a later session with more free heap rebuilds it completely.
+  bool cssComplete = true;
   for (const auto& cssPath : cssFiles) {
     LOG_DBG("EBP", "Parsing CSS file: %s", cssPath.c_str());
 
@@ -283,6 +286,7 @@ void Epub::parseCssFiles() const {
     if (freeHeap < MIN_HEAP_FOR_CSS_PARSING) {
       LOG_ERR("EBP", "Insufficient heap for CSS parsing (%u bytes free, need %zu), skipping: %s", freeHeap,
               MIN_HEAP_FOR_CSS_PARSING, cssPath.c_str());
+      cssComplete = false;
       continue;
     }
 
@@ -319,14 +323,20 @@ void Epub::parseCssFiles() const {
       Storage.remove(tmpCssPath.c_str());
       continue;
     }
-    cssParser->loadFromStream(tempCssFile);
+    if (!cssParser->loadFromStream(tempCssFile)) {
+      cssComplete = false;
+    }
     // Explicitly close() file before calling Storage.remove()
     tempCssFile.close();
     Storage.remove(tmpCssPath.c_str());
   }
 
-  // Save to cache for next time
-  if (!cssParser->saveToCache()) {
+  // Save to cache for next time. A rule set truncated by low heap must not be
+  // persisted: hasCache() would then skip rebuilds forever, making the
+  // styling loss permanent (issue #103).
+  if (!cssComplete) {
+    LOG_ERR("EBP", "CSS parsing incomplete (low heap), not saving cache so it can be rebuilt later");
+  } else if (!cssParser->saveToCache()) {
     LOG_ERR("EBP", "Failed to save CSS rules to cache");
   }
   cssParser->clear();

@@ -46,7 +46,10 @@ class CssParser {
    * Load and parse CSS from a file stream.
    * Can be called multiple times to accumulate rules from multiple stylesheets.
    * @param source Open file handle to read from
-   * @return true if parsing completed (even if no rules found)
+   * @return true if parsing completed (even if no rules found). Returns false
+   *         if the stream was invalid or parsing stopped early due to low
+   *         heap; rules collected so far remain loaded, but the result must
+   *         not be persisted via saveToCache().
    */
   bool loadFromStream(FsFile& source);
 
