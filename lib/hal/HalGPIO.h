@@ -51,6 +51,7 @@ class HalGPIO {
 
  private:
   DeviceType _deviceType = DeviceType::X4;
+  bool _x3DisplayIsUc8279 = false;
 
  public:
   HalGPIO() = default;
@@ -58,6 +59,20 @@ class HalGPIO {
   // Inline device type helpers for cleaner downstream checks
   inline bool deviceIsX3() const { return _deviceType == DeviceType::X3; }
   inline bool deviceIsX4() const { return _deviceType == DeviceType::X4; }
+
+  // True when the X3's panel controller was fingerprinted as the UC8279d
+  // sibling (newer production units). Always false on X4. Decided in begin()
+  // by a bit-banged bus probe on the EPD pins (before SPI claims them), with
+  // an NVS cache and a manual override (see NVS keys epd_det / epd_ovr).
+  inline bool x3DisplayIsUc8279() const { return _x3DisplayIsUc8279; }
+
+  // Rescue hatch for a misdetected panel controller (Issue #109): toggles the
+  // EPD override in NVS. If no override is active, forces UC8253 (and drops
+  // the in-RAM UC8279 flag immediately, so a display init that follows in
+  // this same boot already uses the UC8253 driver). If the force-UC8253
+  // override is already active, clears it back to auto and drops the cache so
+  // the next boot re-probes. Wired to POWER + side-lower held at boot.
+  void toggleX3DisplayControllerOverride();
 
   // Start button GPIO and setup SPI for screen and SD card
   void begin();

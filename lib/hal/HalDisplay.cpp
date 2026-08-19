@@ -14,6 +14,9 @@ void HalDisplay::begin() {
   // Set X3-specific panel mode before initializing.
   if (gpio.deviceIsX3()) {
     einkDisplay.setDisplayX3();
+    if (gpio.x3DisplayIsUc8279()) {
+      einkDisplay.setDisplayX3Uc8279();
+    }
   }
 
   einkDisplay.begin();
@@ -67,6 +70,8 @@ void HalDisplay::refreshDisplay(HalDisplay::RefreshMode mode, bool turnOffScreen
 }
 
 void HalDisplay::deepSleep() { einkDisplay.deepSleep(); }
+
+void HalDisplay::setDarkBackgroundHint(bool darkBackground) { einkDisplay.setBackgroundHint(darkBackground); }
 
 uint8_t* HalDisplay::getFrameBuffer() const { return einkDisplay.getFrameBuffer(); }
 

@@ -412,6 +412,15 @@ void setup() {
       recoveryFirmwareMode = true;
       LOG_INF("MAIN", "Recovery firmware mode (side-upper + POWER held at boot)");
     }
+
+    // EPD コントローラ誤検出からの救済 (Issue #109): X3 で電源+側面下ボタンの
+    // 同時押しで UC8253 強制オーバーライドをトグルする。UC8253 機が UC8279 と
+    // 誤判定されると画面が映らず設定 UI に到達できないため、ボタンのみで
+    // 復旧できる経路を用意する。表示初期化 (setupDisplayAndFonts) より前に
+    // 実行されるので、このブートから即座に効く。
+    if (gpio.deviceIsX3() && gpio.isPressed(HalGPIO::BTN_DOWN)) {
+      gpio.toggleX3DisplayControllerOverride();
+    }
   }
 
   // First serial output only here to avoid timing inconsistencies for power button press duration verification

@@ -137,7 +137,12 @@ class GfxRenderer {
   void setFadingFix(const bool enabled) { fadingFix = enabled; }
 
   // Dark mode control
-  void setDarkMode(bool darkMode) { this->darkMode = darkMode; }
+  void setDarkMode(bool darkMode) {
+    this->darkMode = darkMode;
+    // Keep the panel driver's dark-background hint in sync (consumed by the
+    // UC8279 differential fast path; a no-op on other controllers).
+    display.setDarkBackgroundHint(darkMode);
+  }
   bool isDarkMode() const { return darkMode; }
   // When true, images are inverted along with text in dark mode.
   // When false (default), image rendering skips dark mode inversion.

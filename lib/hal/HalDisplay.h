@@ -39,6 +39,10 @@ class HalDisplay {
   // Power management
   void deepSleep();
 
+  // Forward the dark-background hint to the panel driver (consumed by the
+  // UC8279 differential fast path; a no-op elsewhere).
+  void setDarkBackgroundHint(bool darkBackground);
+
   // Access to frame buffer
   uint8_t* getFrameBuffer() const;
 
