@@ -51,7 +51,10 @@ class HalGPIO {
 
  private:
   DeviceType _deviceType = DeviceType::X4;
-  bool _x3DisplayIsUc8279 = false;
+  // NVS hw_calib/screenType, captured in begin() for the diagnostics replay
+  // (info only — the panel-controller decision comes from the live bus probe).
+  bool _oemScreenTypeSet = false;
+  uint8_t _oemScreenType = 0;
 
  public:
   HalGPIO() = default;
@@ -59,21 +62,6 @@ class HalGPIO {
   // Inline device type helpers for cleaner downstream checks
   inline bool deviceIsX3() const { return _deviceType == DeviceType::X3; }
   inline bool deviceIsX4() const { return _deviceType == DeviceType::X4; }
-
-  // True when the X3's panel controller was fingerprinted as the UC8279d
-  // sibling (newer production units). Always false on X4. Decided in begin()
-  // by a bit-banged bus probe on the EPD pins (before SPI claims them), with
-  // an NVS cache and a manual override (see NVS keys epd_det / epd_ovr).
-  inline bool x3DisplayIsUc8279() const { return _x3DisplayIsUc8279; }
-
-  // Rescue hatch for a misdetected panel controller (Issue #109): cycles the
-  // EPD override in NVS through auto -> force UC8253 -> force UC8279 -> auto.
-  // Forced states update the in-RAM flag immediately (display init follows in
-  // the same boot); auto takes effect on the next boot (cache is dropped so
-  // it re-probes). Wired to POWER + side-lower long-held at boot. Returns the
-  // state that is now active, for on-screen feedback.
-  enum class EpdOverride : uint8_t { Auto = 0, ForceUc8253 = 1, ForceUc8279 = 2 };
-  EpdOverride toggleX3DisplayControllerOverride();
 
   // Replay the panel-controller detection diagnostics (probe VER/FLG bytes,
   // MTP dump, decision source) to the log. Call after Serial.begin() — the
