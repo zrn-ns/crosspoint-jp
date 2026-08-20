@@ -8,7 +8,7 @@ At a high level, it is firmware that uses an activity-driven application archite
 
 ```mermaid
 graph TD
-    A[Hardware: ESP32-C3 + SD + E-ink + Buttons] --> B[open-x4-sdk HAL]
+    A[Hardware: ESP32-C3 + SD + E-ink + Buttons] --> B[freeink-sdk HAL]
     B --> C[src/main.cpp runtime loop]
     C --> D[Activities layer]
     C --> E[State and settings]
@@ -181,7 +181,7 @@ When editing related source assets, regenerate via normal build steps/scripts.
 - `src/components/`: theming and shared UI components
 - `lib/Epub/`: EPUB parser, layout, CSS handling, and hyphenation
 - `lib/`: supporting libraries (fonts, text, filesystem helpers, etc.)
-- `open-x4-sdk/`: hardware SDK submodule (display, input, storage, battery)
+- `freeink-sdk/`: hardware SDK submodule (display, input, storage, battery, board profiles)
 - `docs/`: user and technical documentation
 
 ## Embedded constraints that shape design
