@@ -204,6 +204,25 @@ HalGPIO::DeviceType detectDeviceTypeWithFingerprint() {
 constexpr char NVS_KEY_EPD_OVERRIDE[] = "epd_ovr";  // 0=auto, 1=uc8253, 2=uc8279
 constexpr char NVS_KEY_EPD_CACHED[] = "epd_det";    // 0=unknown, 1=uc8253, 2=uc8279
 
+constexpr size_t EPD_MTP_DUMP_LEN = 48;
+
+// Snapshot of the last controller decision, kept so main() can replay the
+// diagnostics AFTER Serial.begin() — the probe itself runs in gpio.begin(),
+// before serial is up, so anything logged there never reaches the monitor.
+struct ProbeDiag {
+  enum class Source : uint8_t { None = 0, Override, Cached, Probe };
+  Source source = Source::None;
+  bool uc8279 = false;
+  uint8_t verdict = 0;  // X3EpdProbe::Verdict when source == Probe
+  uint8_t ver[5] = {0};
+  uint8_t flg = 0;
+  uint8_t mtp[EPD_MTP_DUMP_LEN] = {0};
+  bool mtpValid = false;
+  bool oemScreenTypeSet = false;
+  uint8_t oemScreenType = 0;
+};
+ProbeDiag g_epdProbeDiag;
+
 namespace X3EpdProbe {
 
 // UC81xx read-capable registers (UC8179 / UC8279d datasheets, identical
@@ -212,9 +231,9 @@ constexpr uint8_t UC81XX_CMD_VER = 0x70;   // reserved 0x00, CHIP_VER, LUT_VER[2
 constexpr uint8_t UC81XX_CMD_FLG = 0x71;   // status; BUSY_N (D0) = 1 when idle
 constexpr uint8_t UC81XX_CMD_RMTP = 0xA2;  // bulk MTP read: 1 dummy byte, then MTP[0..n]
 
-constexpr size_t MTP_DUMP_LEN = 48;
+constexpr size_t MTP_DUMP_LEN = EPD_MTP_DUMP_LEN;
 
-inline void clockDelay() { delayMicroseconds(1); }  // ~500 kHz, timing-safe
+inline void clockDelay() { delayMicroseconds(1); }  // <= ~500 kHz (upper bound), timing-safe
 
 void writeByte(uint8_t b) {
   for (uint8_t i = 0; i < 8; i++) {
@@ -249,8 +268,11 @@ void cmdRead(uint8_t cmd, uint8_t* out, uint8_t len) {
   digitalWrite(EPD_CS, LOW);
   clockDelay();
   writeByte(cmd);
-  digitalWrite(EPD_DC, HIGH);
+  // Release SDA BEFORE raising DC (deliberate swap vs the freeink reference,
+  // which raises DC first): once DC is high the controller may start driving
+  // the line, and pinMode() is slow enough to leave a contention window.
   pinMode(EPD_MOSI, INPUT_PULLUP);
+  digitalWrite(EPD_DC, HIGH);
   clockDelay();
   for (uint8_t i = 0; i < len; i++) {
     out[i] = readByte();
@@ -283,15 +305,6 @@ bool matchUc81xx(const uint8_t ver[5], uint8_t flg) {
 }
 
 bool runProbePass(uint8_t ver[5], uint8_t* flg, uint8_t rstLowMs) {
-  // The deep-sleep path isolates RTC-capable GPIOs (0-5 on the C3, which
-  // includes EPD_DC=4 and EPD_RST=5) and enables per-pin holds that survive
-  // the wake reset. Release them, or every digitalWrite below silently
-  // bounces off the retained latch and the probe reads garbage. CS (21) is
-  // outside the RTC range but the call is free.
-  gpio_hold_dis(static_cast<gpio_num_t>(EPD_RST));
-  gpio_hold_dis(static_cast<gpio_num_t>(EPD_DC));
-  gpio_hold_dis(static_cast<gpio_num_t>(EPD_CS));
-
   pinMode(EPD_CS, OUTPUT);
   digitalWrite(EPD_CS, HIGH);
   pinMode(EPD_SCLK, OUTPUT);
@@ -323,13 +336,17 @@ bool runProbePass(uint8_t ver[5], uint8_t* flg, uint8_t rstLowMs) {
 }
 
 void releasePins() {
-  // Leave everything released. RST_N has an internal pull-up, so INPUT keeps
-  // the controller out of reset.
+  // Leave the data pins released; EInkDisplay::begin() reconfigures them.
   pinMode(EPD_SCLK, INPUT);
   pinMode(EPD_MOSI, INPUT);
   pinMode(EPD_CS, INPUT_PULLUP);  // don't leave the panel selected
   pinMode(EPD_DC, INPUT);
-  pinMode(EPD_RST, INPUT);
+  // Keep RST actively driven HIGH (deliberate divergence from the freeink
+  // reference, which floats it): EInkDisplay::begin() may be seconds away
+  // (SD init, font scan, button settle), and a floating reset input burns
+  // current in the input buffer and relies on an assumed internal pull-up.
+  pinMode(EPD_RST, OUTPUT);
+  digitalWrite(EPD_RST, HIGH);
 }
 
 enum class Verdict : uint8_t { Uc8253Assumed, Uc8279Confirmed, Inconclusive };
@@ -360,12 +377,12 @@ Verdict probeController() {
   // returns a dummy byte then MTP[0..n]. On a confirmed part it's
   // diagnostics; on the fallback path below it is the discriminator itself.
   // A part without RMTP (UC8253) floats the line and reads uniform garbage.
-  uint8_t mtp[MTP_DUMP_LEN] = {0};
+  uint8_t* mtp = g_epdProbeDiag.mtp;
   bool mtpValid = false;
   if (confirmed || flgDriven) {
     uint8_t raw[MTP_DUMP_LEN + 1] = {0};
     cmdRead(UC81XX_CMD_RMTP, raw, sizeof(raw));
-    memcpy(mtp, raw + 1, sizeof(mtp));
+    memcpy(mtp, raw + 1, MTP_DUMP_LEN);
     mtpValid = true;
   }
 
@@ -387,20 +404,27 @@ Verdict probeController() {
     verdict = Verdict::Uc8253Assumed;
   }
 
-  const uint8_t* ver = (pass1 && pass2) ? ver2 : ver1;
-  LOG_INF("XTDET", "bus probe VER=%02X %02X %02X %02X %02X FLG=%02X -> %s", ver[0], ver[1], ver[2], ver[3], ver[4],
-          flg1,
-          verdict == Verdict::Uc8279Confirmed ? "UltraChip"
-          : verdict == Verdict::Uc8253Assumed ? "default controller"
-                                              : "inconclusive (default)");
-  if (mtpValid) {
-    char mtpHex[MTP_DUMP_LEN * 3 + 1];
-    for (size_t i = 0; i < MTP_DUMP_LEN; i++) {
-      snprintf(&mtpHex[i * 3], 4, " %02X", mtp[i]);
-    }
-    LOG_INF("XTDET", "MTP[0x000..0x02F]:%s", mtpHex);
-  }
+  // Persist the raw probe evidence for the post-Serial.begin() replay (the
+  // probe runs before serial is up, so anything logged here only reaches the
+  // RTC ring buffer). Keeping the hex formatting out of this frame also keeps
+  // its stack usage within the 256-byte local-variable guideline.
+  memcpy(g_epdProbeDiag.ver, (pass1 && pass2) ? ver2 : ver1, 5);
+  g_epdProbeDiag.flg = flg1;
+  g_epdProbeDiag.mtpValid = mtpValid;
+  g_epdProbeDiag.verdict = static_cast<uint8_t>(verdict);
+  LOG_INF("XTDET", "bus probe verdict=%u", static_cast<unsigned>(verdict));
   return verdict;
+}
+
+const char* verdictName(uint8_t v) {
+  switch (static_cast<Verdict>(v)) {
+    case Verdict::Uc8279Confirmed:
+      return "UltraChip";
+    case Verdict::Uc8253Assumed:
+      return "default controller";
+    default:
+      return "inconclusive (default)";
+  }
 }
 
 }  // namespace X3EpdProbe
@@ -408,37 +432,38 @@ Verdict probeController() {
 bool detectX3DisplayIsUc8279() {
   const NvsDeviceValue overrideValue = readNvsDeviceValue(NVS_KEY_EPD_OVERRIDE, NvsDeviceValue::Unknown);
   if (overrideValue != NvsDeviceValue::Unknown) {
-    LOG_INF("XTDET", "EPD controller override active: %s", overrideValue == NvsDeviceValue::X3 ? "UC8279" : "UC8253");
-    return overrideValue == NvsDeviceValue::X3;
+    g_epdProbeDiag.source = ProbeDiag::Source::Override;
+    g_epdProbeDiag.uc8279 = overrideValue == NvsDeviceValue::X3;
+    return g_epdProbeDiag.uc8279;
   }
 
   const NvsDeviceValue cachedValue = readNvsDeviceValue(NVS_KEY_EPD_CACHED, NvsDeviceValue::Unknown);
   if (cachedValue != NvsDeviceValue::Unknown) {
-    LOG_INF("XTDET", "Using cached EPD controller: %s", cachedValue == NvsDeviceValue::X3 ? "UC8279" : "UC8253");
-    return cachedValue == NvsDeviceValue::X3;
+    g_epdProbeDiag.source = ProbeDiag::Source::Cached;
+    g_epdProbeDiag.uc8279 = cachedValue == NvsDeviceValue::X3;
+    return g_epdProbeDiag.uc8279;
   }
 
   // The OEM records the panel controller in NVS hw_calib/screenType, but a
-  // full-flash from another unit can overwrite it — log it for diagnostics,
-  // never decide on it. The live bus probe is the ground truth.
+  // full-flash from another unit can overwrite it — capture it for
+  // diagnostics, never decide on it. The live bus probe is the ground truth.
   {
     Preferences prefs;
     if (prefs.begin("hw_calib", true)) {
       if (prefs.isKey("screenType")) {
-        LOG_INF("XTDET", "NVS hw_calib/screenType=%u [info only]", prefs.getUChar("screenType", 0));
-      } else {
-        LOG_INF("XTDET", "NVS hw_calib/screenType: not set [info only]");
+        g_epdProbeDiag.oemScreenTypeSet = true;
+        g_epdProbeDiag.oemScreenType = prefs.getUChar("screenType", 0);
       }
       prefs.end();
-    } else {
-      LOG_INF("XTDET", "NVS hw_calib/screenType: not set [info only]");
     }
   }
 
+  g_epdProbeDiag.source = ProbeDiag::Source::Probe;
   const X3EpdProbe::Verdict verdict = X3EpdProbe::probeController();
   if (verdict == X3EpdProbe::Verdict::Uc8279Confirmed) {
     LOG_INF("XTDET", "promoted UC8253 -> UC8279");
     writeNvsDeviceValue(NVS_KEY_EPD_CACHED, NvsDeviceValue::X3);
+    g_epdProbeDiag.uc8279 = true;
     return true;
   }
   if (verdict == X3EpdProbe::Verdict::Uc8253Assumed) {
@@ -456,6 +481,16 @@ bool detectX3DisplayIsUc8279() {
 void HalGPIO::begin() {
   inputMgr.begin();
 
+  // The deep-sleep path (esp_sleep_config_gpio_isolate + gpio_deep_sleep_hold_en)
+  // may leave per-pin holds on the EPD pins; whether they survive the wake
+  // reset on the C3 is disputed (the IDF note says digital pads reset, the
+  // freeink bench found the RST hold sticking), so release them here
+  // unconditionally — the calls are free and this keeps every boot identical
+  // regardless of whether the probe below runs or hits its NVS cache.
+  gpio_hold_dis(static_cast<gpio_num_t>(EPD_RST));
+  gpio_hold_dis(static_cast<gpio_num_t>(EPD_DC));
+  gpio_hold_dis(static_cast<gpio_num_t>(EPD_CS));
+
   // Device fingerprint is I2C-only, so it can run before SPI comes up. The
   // panel-controller probe bit-bangs the EPD pins, so it MUST run before
   // SPI.begin() attaches them to the SPI matrix.
@@ -470,19 +505,69 @@ void HalGPIO::begin() {
   }
 }
 
-void HalGPIO::toggleX3DisplayControllerOverride() {
+HalGPIO::EpdOverride HalGPIO::toggleX3DisplayControllerOverride() {
+  // Three-state cycle: auto -> force UC8253 -> force UC8279 -> auto. Both
+  // forced states must be reachable by buttons alone: a UC8253 unit
+  // misdetected as UC8279 needs force-UC8253, and a UC8279 unit whose probe
+  // stays Inconclusive (e.g. an FLG variant the matcher rejects) needs
+  // force-UC8279 — neither can navigate a settings UI with a dead screen.
+  // The forced states take effect in-RAM immediately (display init runs
+  // after this); returning to auto only takes effect next boot, because SPI
+  // already owns the EPD pins and re-probing now is unsafe.
   const NvsDeviceValue current = readNvsDeviceValue(NVS_KEY_EPD_OVERRIDE, NvsDeviceValue::Unknown);
-  if (current == NvsDeviceValue::X4) {
-    // Force-UC8253 already active: back to auto, drop the cache so the next
-    // boot re-probes. The in-RAM flag stays false for this boot (SPI already
-    // owns the EPD pins, re-probing now is unsafe).
-    writeNvsDeviceValue(NVS_KEY_EPD_OVERRIDE, NvsDeviceValue::Unknown);
-    writeNvsDeviceValue(NVS_KEY_EPD_CACHED, NvsDeviceValue::Unknown);
-    LOG_INF("XTDET", "EPD override cleared -> auto-detect on next boot");
-  } else {
+  if (current == NvsDeviceValue::Unknown) {
     writeNvsDeviceValue(NVS_KEY_EPD_OVERRIDE, NvsDeviceValue::X4);
     _x3DisplayIsUc8279 = false;
-    LOG_INF("XTDET", "EPD override set -> force UC8253");
+    LOG_INF("XTDET", "EPD override -> force UC8253");
+    return EpdOverride::ForceUc8253;
+  }
+  if (current == NvsDeviceValue::X4) {
+    writeNvsDeviceValue(NVS_KEY_EPD_OVERRIDE, NvsDeviceValue::X3);
+    _x3DisplayIsUc8279 = true;
+    LOG_INF("XTDET", "EPD override -> force UC8279");
+    return EpdOverride::ForceUc8279;
+  }
+  // Force-UC8279 active: back to auto, drop the cache so the next boot
+  // re-probes from scratch.
+  writeNvsDeviceValue(NVS_KEY_EPD_OVERRIDE, NvsDeviceValue::Unknown);
+  writeNvsDeviceValue(NVS_KEY_EPD_CACHED, NvsDeviceValue::Unknown);
+  LOG_INF("XTDET", "EPD override cleared -> auto-detect on next boot");
+  return EpdOverride::Auto;
+}
+
+void HalGPIO::logX3DisplayProbeDiag() const {
+  // Replays the panel-controller decision for the serial monitor; the
+  // decision itself was made in begin(), before Serial.begin().
+  if (!deviceIsX3() || g_epdProbeDiag.source == ProbeDiag::Source::None) {
+    return;
+  }
+  switch (g_epdProbeDiag.source) {
+    case ProbeDiag::Source::Override:
+      LOG_INF("XTDET", "EPD controller override active: %s", g_epdProbeDiag.uc8279 ? "UC8279" : "UC8253");
+      return;
+    case ProbeDiag::Source::Cached:
+      LOG_INF("XTDET", "Using cached EPD controller: %s", g_epdProbeDiag.uc8279 ? "UC8279" : "UC8253");
+      return;
+    default:
+      break;
+  }
+  if (g_epdProbeDiag.oemScreenTypeSet) {
+    LOG_INF("XTDET", "NVS hw_calib/screenType=%u [info only]", g_epdProbeDiag.oemScreenType);
+  } else {
+    LOG_INF("XTDET", "NVS hw_calib/screenType: not set [info only]");
+  }
+  const uint8_t* ver = g_epdProbeDiag.ver;
+  LOG_INF("XTDET", "bus probe VER=%02X %02X %02X %02X %02X FLG=%02X -> %s", ver[0], ver[1], ver[2], ver[3], ver[4],
+          g_epdProbeDiag.flg, X3EpdProbe::verdictName(g_epdProbeDiag.verdict));
+  if (g_epdProbeDiag.mtpValid) {
+    char mtpHex[EPD_MTP_DUMP_LEN * 3 + 1];
+    for (size_t i = 0; i < EPD_MTP_DUMP_LEN; i++) {
+      snprintf(&mtpHex[i * 3], 4, " %02X", g_epdProbeDiag.mtp[i]);
+    }
+    LOG_INF("XTDET", "MTP[0x000..0x02F]:%s", mtpHex);
+  }
+  if (g_epdProbeDiag.uc8279) {
+    LOG_INF("XTDET", "promoted UC8253 -> UC8279");
   }
 }
 

@@ -303,6 +303,46 @@ static void resetSpiPins() {
   }
 }
 
+// EPDコントローラ・オーバーライドのトグルコンボ判定 (Issue #109)。
+// X3で電源+側面下ボタンを1.5秒以上長押しした場合のみ発火する。側面下は
+// 読書中の「次ページ」ボタンで電源投入時に触れている可能性が高いため、
+// 誤爆防止に長押しを必須とする。settleMs > 0 の場合は isPressed() が安定
+// するまで先に update() をポンプする（既に整定済みの呼び出し元は 0 を渡す）。
+// 発火した場合、トグル後の状態を表すメッセージを *msgOut に書いて true を返す。
+static bool checkEpdOverrideCombo(uint16_t settleMs, const char** msgOut) {
+  if (!gpio.deviceIsX3()) {
+    return false;
+  }
+  const unsigned long settleStart = millis();
+  while (millis() - settleStart < settleMs) {
+    gpio.update();
+    delay(10);
+  }
+  if (!gpio.isPressed(HalGPIO::BTN_DOWN)) {
+    return false;
+  }
+  const unsigned long holdStart = millis();
+  while (gpio.isPressed(HalGPIO::BTN_DOWN)) {
+    if (millis() - holdStart >= 1500) {
+      switch (gpio.toggleX3DisplayControllerOverride()) {
+        case HalGPIO::EpdOverride::ForceUc8253:
+          *msgOut = "EPD override: UC8253 forced";
+          break;
+        case HalGPIO::EpdOverride::ForceUc8279:
+          *msgOut = "EPD override: UC8279 forced";
+          break;
+        default:
+          *msgOut = "EPD override: auto (re-probe on next boot)";
+          break;
+      }
+      return true;
+    }
+    gpio.update();
+    delay(10);
+  }
+  return false;
+}
+
 void setup() {
   t1 = millis();
 
@@ -335,6 +375,9 @@ void setup() {
 #endif
 
   LOG_INF("MAIN", "Hardware detect: %s", gpio.deviceIsX3() ? "X3" : "X4");
+  // パネルコントローラ判別の診断リプレイ: 判別自体は gpio.begin() (Serial
+  // 初期化前) で走るため、ここで VER/FLG/MTP ダンプをシリアルに再出力する。
+  gpio.logX3DisplayProbeDiag();
 
   // SD Card Initialization
   // We need 6 open files concurrently when parsing a new chapter
@@ -351,8 +394,16 @@ void setup() {
   esp_task_wdt_deinit();
   if (!sdOk) {
     LOG_ERR("MAIN", "SD card initialization failed");
+    // SD不良とEPDコントローラ誤検出が重なった端末でも救済できるよう、この
+    // 早期returnパスでもオーバーライドコンボを判定する（通常パスの判定には
+    // 到達しないため）。ここはまだ整定していないので500msポンプする。
+    const char* epdOverrideMsg = nullptr;
+    if (gpio.getWakeupReason() == HalGPIO::WakeupReason::PowerButton) {
+      checkEpdOverrideCombo(500, &epdOverrideMsg);
+    }
     setupDisplayAndFonts();
-    activityManager.goToFullScreenMessage("SD card error", EpdFontFamily::BOLD);
+    activityManager.goToFullScreenMessage(epdOverrideMsg != nullptr ? epdOverrideMsg : "SD card error",
+                                          EpdFontFamily::BOLD);
     return;
   }
 
@@ -400,6 +451,7 @@ void setup() {
   // ボタン位置: X3 は BTN_UP が物理的に上側面上、X4 は BTN_DOWN が
   // 物理的に上側面上（MappedInputManager.cpp:14-23 参照）。
   bool recoveryFirmwareMode = false;
+  const char* epdOverrideMsg = nullptr;
   if (wakeupReason == HalGPIO::WakeupReason::PowerButton) {
     // isPressed() needs ~half a second to settle after boot.
     const unsigned long settleStart = millis();
@@ -414,19 +466,24 @@ void setup() {
     }
 
     // EPD コントローラ誤検出からの救済 (Issue #109): X3 で電源+側面下ボタンの
-    // 同時押しで UC8253 強制オーバーライドをトグルする。UC8253 機が UC8279 と
-    // 誤判定されると画面が映らず設定 UI に到達できないため、ボタンのみで
-    // 復旧できる経路を用意する。表示初期化 (setupDisplayAndFonts) より前に
-    // 実行されるので、このブートから即座に効く。
-    if (gpio.deviceIsX3() && gpio.isPressed(HalGPIO::BTN_DOWN)) {
-      gpio.toggleX3DisplayControllerOverride();
-    }
+    // 長押しでオーバーライドをトグルする（auto → UC8253強制 → UC8279強制 →
+    // auto）。誤検出されると画面が映らず設定 UI に到達できないため、ボタン
+    // のみで復旧できる経路を用意する。表示初期化 (setupDisplayAndFonts) より
+    // 前に実行されるので、強制状態はこのブートから即座に効く。
+    checkEpdOverrideCombo(0, &epdOverrideMsg);
   }
 
   // First serial output only here to avoid timing inconsistencies for power button press duration verification
   LOG_DBG("MAIN", "Starting CrossPoint version " CROSSPOINT_VERSION);
 
   setupDisplayAndFonts();
+
+  // EPD オーバーライドをトグルした場合は結果を画面に表示して止める（誤爆でも
+  // 気づけるようにするため）。電源ボタンで再起動すると通常起動に戻る。
+  if (epdOverrideMsg != nullptr) {
+    activityManager.goToFullScreenMessage(epdOverrideMsg, EpdFontFamily::BOLD);
+    return;
+  }
 
 #ifdef GRAYSCALE_TEST_MODE
   activityManager.replaceActivity(std::make_unique<GrayscaleTestActivity>(renderer, mappedInputManager));

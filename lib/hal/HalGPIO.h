@@ -66,13 +66,19 @@ class HalGPIO {
   // an NVS cache and a manual override (see NVS keys epd_det / epd_ovr).
   inline bool x3DisplayIsUc8279() const { return _x3DisplayIsUc8279; }
 
-  // Rescue hatch for a misdetected panel controller (Issue #109): toggles the
-  // EPD override in NVS. If no override is active, forces UC8253 (and drops
-  // the in-RAM UC8279 flag immediately, so a display init that follows in
-  // this same boot already uses the UC8253 driver). If the force-UC8253
-  // override is already active, clears it back to auto and drops the cache so
-  // the next boot re-probes. Wired to POWER + side-lower held at boot.
-  void toggleX3DisplayControllerOverride();
+  // Rescue hatch for a misdetected panel controller (Issue #109): cycles the
+  // EPD override in NVS through auto -> force UC8253 -> force UC8279 -> auto.
+  // Forced states update the in-RAM flag immediately (display init follows in
+  // the same boot); auto takes effect on the next boot (cache is dropped so
+  // it re-probes). Wired to POWER + side-lower long-held at boot. Returns the
+  // state that is now active, for on-screen feedback.
+  enum class EpdOverride : uint8_t { Auto = 0, ForceUc8253 = 1, ForceUc8279 = 2 };
+  EpdOverride toggleX3DisplayControllerOverride();
+
+  // Replay the panel-controller detection diagnostics (probe VER/FLG bytes,
+  // MTP dump, decision source) to the log. Call after Serial.begin() — the
+  // detection itself runs in begin(), before serial is up.
+  void logX3DisplayProbeDiag() const;
 
   // Start button GPIO and setup SPI for screen and SD card
   void begin();
