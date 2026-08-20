@@ -1,8 +1,10 @@
+#include <BoardConfig.h>
 #include <HalGPIO.h>
 #include <Logging.h>
 #include <Preferences.h>
 #include <SPI.h>
 #include <Wire.h>
+#include <XteinkDetect.h>
 #include <driver/gpio.h>
 #include <esp_sleep.h>
 
@@ -479,23 +481,45 @@ bool detectX3DisplayIsUc8279() {
 }  // namespace
 
 void HalGPIO::begin() {
-  inputMgr.begin();
-
   // The deep-sleep path (esp_sleep_config_gpio_isolate + gpio_deep_sleep_hold_en)
   // may leave per-pin holds on the EPD pins; whether they survive the wake
   // reset on the C3 is disputed (the IDF note says digital pads reset, the
   // freeink bench found the RST hold sticking), so release them here
   // unconditionally — the calls are free and this keeps every boot identical
-  // regardless of whether the probe below runs or hits its NVS cache.
+  // regardless of whether the probe below runs.
   gpio_hold_dis(static_cast<gpio_num_t>(EPD_RST));
   gpio_hold_dis(static_cast<gpio_num_t>(EPD_DC));
   gpio_hold_dis(static_cast<gpio_num_t>(EPD_CS));
 
-  // Device fingerprint is I2C-only, so it can run before SPI comes up. The
-  // panel-controller probe bit-bangs the EPD pins, so it MUST run before
-  // SPI.begin() attaches them to the SPI matrix.
+  // Device fingerprint is I2C-only, so it can run before SPI comes up.
   _deviceType = detectDeviceTypeWithFingerprint();
-  _x3DisplayIsUc8279 = deviceIsX3() && detectX3DisplayIsUc8279();
+
+  // The SDK's InputManager / SDCardManager / FreeInkDisplay all read
+  // BoardConfig::ACTIVE, so the profile must be locked in before any of
+  // them initialize.
+  BoardConfig::selectDevice(deviceIsX3() ? BoardConfig::Board::XteinkX3 : BoardConfig::Board::XteinkX4);
+
+  if (deviceIsX3()) {
+    // Panel-controller probe (UC8253 vs UC8279d). Bit-bangs the EPD pins, so
+    // it MUST run before SPI.begin() attaches them to the SPI matrix. X3 only:
+    // probing on X4 would also enable the (untested here) SSD1677->UC8179
+    // auto-promotion and cost ~66ms per boot.
+    freeink::applyXteinkDisplayController();
+    if (BoardConfig::ACTIVE.displayController == BoardConfig::DisplayController::UC8279) {
+      // applyXteinkDisplayController() only rewrites ACTIVE.displayController;
+      // ACTIVE.board stays XteinkX3, and FreeInkDisplay::setDisplayX3() resets
+      // any board that is not XteinkX3Uc8279 back to the plain X3 profile —
+      // which would silently undo the promotion. Switch to the sibling
+      // profile explicitly so setDisplayX3() preserves it.
+      BoardConfig::selectDevice(BoardConfig::Board::XteinkX3Uc8279);
+    }
+    // The SDK probe floats RST afterwards (releaseDisplayPins()), but
+    // display.begin() is seconds away (SD init, settings load, font scan),
+    // and a floating reset input burns current and risks a spurious reset.
+    // Keep RST actively driven HIGH until then, as the old in-tree probe did.
+    pinMode(EPD_RST, OUTPUT);
+    digitalWrite(EPD_RST, HIGH);
+  }
 
   SPI.begin(EPD_SCLK, SPI_MISO, EPD_MOSI, EPD_CS);
 
@@ -503,6 +527,11 @@ void HalGPIO::begin() {
     pinMode(BAT_GPIO0, INPUT);
     pinMode(UART0_RXD, INPUT);
   }
+
+  // Last: the new InputManager reads BoardConfig::ACTIVE in begin(), so it
+  // must run after selectDevice(). (X3/X4 input profiles are identical today,
+  // but the ordering keeps this correct if they ever diverge.)
+  inputMgr.begin();
 }
 
 HalGPIO::EpdOverride HalGPIO::toggleX3DisplayControllerOverride() {

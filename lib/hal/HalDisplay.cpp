@@ -1,5 +1,14 @@
+#include <BoardConfig.h>
 #include <HalDisplay.h>
 #include <HalGPIO.h>
+
+#if FREEINK_DRIVER_UC8279
+// Internal SDK header, resolved via -I freeink-sdk/libs/display/FreeInkDisplay/src
+// (see platformio.ini). setBackgroundHint() is not part of the FreeInkDisplay
+// facade, only of the panel drivers; re-check this dependency whenever the
+// freeink-sdk pin moves.
+#include <driver/Uc8279Driver.h>
+#endif
 
 // Global HalDisplay instance
 HalDisplay display;
@@ -11,15 +20,18 @@ HalDisplay::HalDisplay() : einkDisplay(EPD_SCLK, EPD_MOSI, EPD_CS, EPD_DC, EPD_R
 HalDisplay::~HalDisplay() {}
 
 void HalDisplay::begin() {
-  // Set X3-specific panel mode before initializing.
+  // Set X3-specific panel mode before initializing. The UC8253/UC8279d choice
+  // was already resolved in HalGPIO::begin() (XteinkDetect probe promoted
+  // BoardConfig::ACTIVE to the XteinkX3Uc8279 profile); setDisplayX3()
+  // preserves that promotion.
   if (gpio.deviceIsX3()) {
     einkDisplay.setDisplayX3();
-    if (gpio.x3DisplayIsUc8279()) {
-      einkDisplay.setDisplayX3Uc8279();
-    }
   }
 
   einkDisplay.begin();
+
+  // begin() reset the driver's background hint; re-apply ours.
+  applyDarkHintToDriver();
 
   // Request resync after specific wakeup events to ensure clean display state
   const auto wakeupReason = gpio.getWakeupReason();
@@ -71,7 +83,18 @@ void HalDisplay::refreshDisplay(HalDisplay::RefreshMode mode, bool turnOffScreen
 
 void HalDisplay::deepSleep() { einkDisplay.deepSleep(); }
 
-void HalDisplay::setDarkBackgroundHint(bool darkBackground) { einkDisplay.setBackgroundHint(darkBackground); }
+void HalDisplay::setDarkBackgroundHint(bool darkBackground) {
+  darkHint = darkBackground;
+  applyDarkHintToDriver();
+}
+
+void HalDisplay::applyDarkHintToDriver() {
+#if FREEINK_DRIVER_UC8279
+  if (gpio.deviceIsX3() && BoardConfig::ACTIVE.displayController == BoardConfig::DisplayController::UC8279) {
+    freeink::uc8279Driver().setBackgroundHint(darkHint);
+  }
+#endif
+}
 
 uint8_t* HalDisplay::getFrameBuffer() const { return einkDisplay.getFrameBuffer(); }
 
