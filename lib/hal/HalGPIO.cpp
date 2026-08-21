@@ -1,6 +1,7 @@
 #include <BoardConfig.h>
 #include <HalGPIO.h>
 #include <Logging.h>
+#include <PowerManager.h>
 #include <Preferences.h>
 #include <SPI.h>
 #include <Wire.h>
@@ -215,6 +216,12 @@ void HalGPIO::begin() {
   BoardConfig::selectDevice(deviceIsX3() ? BoardConfig::Board::XteinkX3 : BoardConfig::Board::XteinkX4);
 
   if (deviceIsX3()) {
+    // 前回スリープでSDレール(GPIO13)がLOWホールドされたまま復帰した場合、
+    // 無給電のSDカードが共有SPIバス(SCLK/MOSI)をクランプして下のパネル
+    // プローブを妨害しうる。ホールド解除+給電+CSデアサートを先に行う
+    // （SDCardManager::begin()も同処理を持つが、走るのはプローブより後）。
+    BoardConfig::releaseSdRail();
+
     // The OEM records the panel controller in NVS hw_calib/screenType, but a
     // full-flash from another unit can overwrite it — capture it for the
     // diagnostics replay, never decide on it. The live bus probe below is the
@@ -327,6 +334,12 @@ void HalGPIO::startDeepSleep() {
     delay(50);
     inputMgr.update();
   }
+  // 短押し復帰の再スリープ経路。Storage.begin()が既にSDレールを再給電して
+  // いる場合があるため、ここでもレールをOFFホールドしないとSD給電つきの
+  // スリープに戻ってしまう。ホールドをスリープ中も維持するために
+  // gpio_deep_sleep_hold_en()が必要（HalPowerManager::startDeepSleepと同じ）。
+  freeink::PowerManager::powerDownRailsForSleep();
+  gpio_deep_sleep_hold_en();
   // Arm the wakeup trigger *after* the button is released
   esp_deep_sleep_enable_gpio_wakeup(1ULL << InputManager::POWER_BUTTON_PIN, ESP_GPIO_WAKEUP_GPIO_LOW);
   // Enter Deep Sleep
