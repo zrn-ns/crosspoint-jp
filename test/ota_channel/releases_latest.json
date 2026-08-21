@@ -1,0 +1,90 @@
+{
+ "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/372370830",
+ "assets_url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/372370830/assets",
+ "html_url": "https://github.com/zrn-ns/crosspoint-jp/releases/tag/v0.1.17",
+ "id": 372370830,
+ "node_id": "RE_kwDOR5XYUM4WMe2O",
+ "tag_name": "v0.1.17",
+ "target_commitish": "master",
+ "name": "CrossPoint Reader JP v0.1.17",
+ "draft": false,
+ "prerelease": false,
+ "created_at": "2026-08-18T12:41:26Z",
+ "published_at": "2026-08-18T13:30:50Z",
+ "author": {
+  "login": "github-actions[bot]",
+  "id": 41898282,
+  "node_id": "MDM6Qm90NDE4OTgyODI=",
+  "type": "Bot",
+  "site_admin": false
+ },
+ "assets": [
+  {
+   "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/519493929",
+   "id": 519493929,
+   "node_id": "RA_kwDOR5XYUM4e9tkp",
+   "name": "bootloader.bin",
+   "label": "",
+   "content_type": "application/octet-stream",
+   "state": "uploaded",
+   "size": 18672,
+   "download_count": 7,
+   "created_at": "2026-08-18T13:30:49Z",
+   "updated_at": "2026-08-18T13:30:49Z",
+   "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/v0.1.17/bootloader.bin",
+   "uploader": {
+    "login": "github-actions[bot]",
+    "id": 41898282,
+    "type": "Bot",
+    "site_admin": false
+   }
+  },
+  {
+   "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/519493930",
+   "id": 519493930,
+   "node_id": "RA_kwDOR5XYUM4e9tkq",
+   "name": "firmware.bin",
+   "label": "",
+   "content_type": "application/octet-stream",
+   "state": "uploaded",
+   "size": 6258960,
+   "download_count": 63,
+   "created_at": "2026-08-18T13:30:49Z",
+   "updated_at": "2026-08-18T13:30:50Z",
+   "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/v0.1.17/firmware.bin",
+   "uploader": {
+    "login": "github-actions[bot]",
+    "id": 41898282,
+    "type": "Bot",
+    "site_admin": false
+   }
+  },
+  {
+   "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/519493931",
+   "id": 519493931,
+   "node_id": "RA_kwDOR5XYUM4e9tkr",
+   "name": "partitions.bin",
+   "label": "",
+   "content_type": "application/octet-stream",
+   "state": "uploaded",
+   "size": 3072,
+   "download_count": 6,
+   "created_at": "2026-08-18T13:30:49Z",
+   "updated_at": "2026-08-18T13:30:49Z",
+   "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/v0.1.17/partitions.bin",
+   "uploader": {
+    "login": "github-actions[bot]",
+    "id": 41898282,
+    "type": "Bot",
+    "site_admin": false
+   }
+  }
+ ],
+ "body": "## CrossPoint Reader JP v0.1.17\n\n### 📦 ファームウェア\n\n| ファイル | 言語 |\n|---------|------|\n| `firmware.bin` | 日本語 / English |\n\n### 📥 インストール方法\n\n1. USB-C でデバイスをPCに接続\n2. `firmware.bin` をダウンロードし、フラッシュツールで書き込み\n\n\n## ",
+ "reactions": {
+  "url": "https://api.github.com/x",
+  "total_count": 0,
+  "+1": 0,
+  "-1": 0
+ }
+}
