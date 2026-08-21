@@ -20,6 +20,21 @@
 #include "CrossPointSettings.h"
 #include "ReleaseVersion.h"
 
+// The channel lives in three places: the persisted setting, the comparison
+// policy, and the settings-screen labels. Nothing but these asserts stops the
+// first two from drifting — a value added to one only would compile, then get
+// silently clamped back to STABLE at runtime with no test failure.
+// The label count in SettingsList.h is a std::vector size and cannot be bound
+// here; keep it in step with OTA_CHANNEL_COUNT by hand.
+static_assert(static_cast<int>(releaseVersion::CHANNEL_STABLE) == CrossPointSettings::OTA_CHANNEL_STABLE,
+              "otaChannel の永続値と releaseVersion::Channel がずれている");
+static_assert(static_cast<int>(releaseVersion::CHANNEL_RC) == CrossPointSettings::OTA_CHANNEL_RC,
+              "otaChannel の永続値と releaseVersion::Channel がずれている");
+static_assert(static_cast<int>(releaseVersion::CHANNEL_DEV) == CrossPointSettings::OTA_CHANNEL_DEV,
+              "otaChannel の永続値と releaseVersion::Channel がずれている");
+static_assert(CrossPointSettings::OTA_CHANNEL_COUNT == static_cast<int>(releaseVersion::CHANNEL_DEV) + 1,
+              "チャネルを追加したら SettingsList.h のラベルも増やすこと");
+
 namespace {
 // The stable channel asks GitHub for the release it marks as latest. Prereleases
 // (RC and Dev Build) can never hold that flag, so this endpoint is exactly the
