@@ -118,6 +118,7 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
   totalSize = 0;
   lastErrorDetail.clear();
   winnerKey = VersionKey{};
+  releasesScanned = 0;
 
   if (!releaseVersion::parseDeviceVersion(CROSSPOINT_VERSION, &deviceKey)) {
     // Only reachable when no v* tag was in reach at build time. Dev candidates
@@ -151,9 +152,10 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
     if (err != OK) LOG_ERR("OTA", "Prerelease list unavailable; falling back to the stable candidate");
   }
 
+  releasesScanned = releaseParser->releaseCount();
+
   if (!updateAvailable) {
-    LOG_DBG("OTA", "No newer release in channel %d (%zu releases scanned)", static_cast<int>(channel),
-            releaseParser->releaseCount());
+    LOG_DBG("OTA", "No newer release in channel %d (%zu releases scanned)", static_cast<int>(channel), releasesScanned);
     return OK;  // not an error: the device is already on the newest build
   }
 

@@ -30,6 +30,11 @@ class OtaUpdater {
   const std::string& getLastErrorDetail() const { return lastErrorDetail; }
   const std::string& getLatestVersion() const;
 
+  // 画面デバッグ用 (SETTINGS.debugDisplay)。シリアルが取れない環境で
+  // チャネル判定と2フェッチ構成を確認するために公開している。
+  releaseVersion::Channel getChannel() const { return channel; }
+  size_t getReleasesScanned() const { return releasesScanned; }
+
   // True when checkForUpdate() selected a release that is newer than this
   // build. The comparison happens during the scan, so this is just the result.
   bool isUpdateNewer() const { return updateAvailable; }
@@ -55,6 +60,8 @@ class OtaUpdater {
   std::string lastErrorDetail;
 
   releaseVersion::Channel channel = releaseVersion::CHANNEL_STABLE;
+  // 走査した release の件数。正式チャネルなら1、RC/Dev なら 1+per_page。
+  size_t releasesScanned = 0;
   VersionKey deviceKey;
   VersionKey winnerKey;
 };

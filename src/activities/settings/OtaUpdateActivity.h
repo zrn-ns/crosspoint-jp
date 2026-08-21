@@ -23,6 +23,7 @@ class OtaUpdateActivity : public Activity {
   OtaUpdater updater;
 
   void onWifiSelectionComplete(bool success);
+  void drawChannelDiagnostics(int y);
 
  public:
   explicit OtaUpdateActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)

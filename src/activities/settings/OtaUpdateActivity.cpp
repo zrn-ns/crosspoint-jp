@@ -4,6 +4,8 @@
 #include <I18n.h>
 #include <WiFi.h>
 
+#include "BuildInfo.h"
+#include "CrossPointSettings.h"
 #include "MappedInputManager.h"
 #include "activities/network/WifiSelectionActivity.h"
 #include "components/UITheme.h"
@@ -73,6 +75,19 @@ void OtaUpdateActivity::onExit() {
   delay(100);  // Allow WiFi hardware to fully power down
 }
 
+// 「設定 → 本体 → デバッグ表示」がONのときだけ、チャネル判定の根拠を画面に出す。
+// ESP32-C3 の USB Serial/JTAG は動作中に切れるため LOG_DBG が読めないことが多く、
+// チャネル(0=正式/1=RC/2=Dev)・埋め込みビルド時刻・走査した release 件数が
+// 分かればチャネル判定と2フェッチ構成をシリアル無しで検証できる。
+// scan は正式チャネルなら1、RC/Dev なら 1+per_page(=11) になる。
+void OtaUpdateActivity::drawChannelDiagnostics(const int y) {
+  if (!SETTINGS.debugDisplay) return;
+  char buf[64];
+  snprintf(buf, sizeof(buf), "ch=%d built=%s scan=%u", static_cast<int>(updater.getChannel()), CROSSPOINT_BUILD_TIME,
+           static_cast<unsigned>(updater.getReleasesScanned()));
+  renderer.drawCenteredText(UI_10_FONT_ID, y, buf);
+}
+
 void OtaUpdateActivity::render(RenderLock&&) {
   const auto& metrics = UITheme::getInstance().getMetrics();
   const auto pageWidth = renderer.getScreenWidth();
@@ -103,6 +118,7 @@ void OtaUpdateActivity::render(RenderLock&&) {
                       (std::string(tr(STR_CURRENT_VERSION)) + CROSSPOINT_VERSION).c_str());
     renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, top + height * 2 + metrics.verticalSpacing * 2,
                       (std::string(tr(STR_NEW_VERSION)) + updater.getLatestVersion()).c_str());
+    drawChannelDiagnostics(top + height * 3 + metrics.verticalSpacing * 3);
 
     const auto labels = mappedInput.mapLabels(tr(STR_CANCEL), tr(STR_UPDATE), "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
@@ -124,6 +140,7 @@ void OtaUpdateActivity::render(RenderLock&&) {
         (std::to_string(updater.getProcessedSize()) + " / " + std::to_string(updater.getTotalSize())).c_str());
   } else if (state == NO_UPDATE) {
     renderer.drawCenteredText(UI_10_FONT_ID, top, tr(STR_NO_UPDATE), true, EpdFontFamily::BOLD);
+    drawChannelDiagnostics(top + height + metrics.verticalSpacing);
     const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else if (state == FAILED) {
