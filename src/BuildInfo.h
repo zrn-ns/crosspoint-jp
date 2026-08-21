@@ -20,4 +20,6 @@
 #endif
 
 // Length of a "YYYYMMDD-HHMMSS" stamp, excluding the terminator.
-static constexpr size_t CROSSPOINT_BUILD_TIME_LEN = 15;
+// inline, not static: `static` at namespace scope in a header gives every
+// including TU its own internal-linkage copy.
+inline constexpr size_t CROSSPOINT_BUILD_TIME_LEN = 15;

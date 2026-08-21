@@ -196,6 +196,12 @@ void testTagParsing() {
   check(!releaseVersion::parseCandidateTag("dev-2026082a-122514", &k), "non-digit dev stamp rejected");
   check(!releaseVersion::parseCandidateTag("v0.1.18-rc0", &k), "rc0 rejected");
   check(!releaseVersion::parseCandidateTag("v0.1.18-rc1x", &k), "trailing junk after rc rejected");
+  // 桁数を縛っていないと、device (RISC-V ILP32, LONG_MAX == INT_MAX) では
+  // strtol が飽和して 2147483647 として通ってしまい、ホストと挙動が食い違う。
+  check(!releaseVersion::parseCandidateTag("v99999999999.0.0", &k), "over-long version segment rejected");
+  check(!releaseVersion::parseCandidateTag("v0.1.18-rc99999999999", &k), "over-long rc ordinal rejected");
+  check(releaseVersion::parseCandidateTag("v999999999.0.0", &k) && k.major == 999999999,
+        "nine-digit segment still accepted");
   check(!releaseVersion::parseCandidateTag("", &k), "empty tag rejected");
   check(!releaseVersion::parseCandidateTag(nullptr, &k), "null tag rejected");
 }
@@ -212,6 +218,8 @@ void testDeviceVersionParsing() {
   check(releaseVersion::parseDeviceVersion("0.1.17-dev-feature/91-ota-abc1234", &k) && k.offTag,
         "local build with a slash in the branch is off-tag");
   check(!releaseVersion::parseDeviceVersion("unknown", &k), "unparseable version rejected");
+  check(releaseVersion::parseDeviceVersion("0.1.18-rc99999999999-3-gabc", &k) && k.rc == 0 && k.offTag,
+        "over-long rc ordinal on the device falls back to offTag");
   check(!releaseVersion::parseDeviceVersion("", &k), "empty version rejected");
 }
 

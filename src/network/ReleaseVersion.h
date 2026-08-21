@@ -46,15 +46,25 @@ inline bool isDigits(const char* p, size_t n) {
   return true;
 }
 
+// Longest digit run accepted per version segment. Nine digits always fit in an
+// int, which keeps the result identical on the device (RISC-V ILP32, where
+// LONG_MAX == INT_MAX and strtol saturates instead of reporting overflow) and on
+// the 64-bit host the tests run on. Without the cap, "v99999999999.0.0" would be
+// rejected by the host test but silently become 2147483647 on the device.
+constexpr size_t kMaxSegmentDigits = 9;
+
 // Parses "<num>.<num>.<num>" at p. Returns the position just past it, or
 // nullptr if the text does not start with three dot-separated numbers.
 inline const char* parseTriple(const char* p, int* major, int* minor, int* patch) {
   int* out[3] = {major, minor, patch};
   for (int i = 0; i < 3; i++) {
     if (*p < '0' || *p > '9') return nullptr;  // reject the signs and spaces strtol would accept
+    size_t digits = 0;
+    while (p[digits] >= '0' && p[digits] <= '9') digits++;
+    if (digits > kMaxSegmentDigits) return nullptr;
     char* end = nullptr;
     const long v = strtol(p, &end, 10);
-    if (end == p || v < 0 || v > INT_MAX) return nullptr;
+    if (end == p || v < 0) return nullptr;
     *out[i] = static_cast<int>(v);
     p = end;
     if (i < 2) {
@@ -90,9 +100,13 @@ inline bool parseCandidateTag(const char* tag, ReleaseVersionKey* out) {
     return true;
   }
   if (strncmp(rest, "-rc", 3) != 0) return false;
+  const char* digits = rest + 3;
+  size_t rcDigits = 0;
+  while (digits[rcDigits] >= '0' && digits[rcDigits] <= '9') rcDigits++;
+  if (rcDigits == 0 || rcDigits > kMaxSegmentDigits) return false;
   char* end = nullptr;
-  const long n = strtol(rest + 3, &end, 10);
-  if (end == rest + 3 || *end != '\0' || n <= 0 || n > INT_MAX) return false;
+  const long n = strtol(digits, &end, 10);
+  if (*end != '\0' || n <= 0) return false;
   out->rc = static_cast<int>(n);
   out->valid = true;
   return true;
@@ -113,11 +127,16 @@ inline bool parseDeviceVersion(const char* version, ReleaseVersionKey* out) {
   out->valid = true;
 
   if (strncmp(rest, "-rc", 3) == 0) {
-    char* end = nullptr;
-    const long n = strtol(rest + 3, &end, 10);
-    if (end != rest + 3 && n > 0 && n <= INT_MAX) {
-      out->rc = static_cast<int>(n);
-      rest = end;
+    const char* digits = rest + 3;
+    size_t rcDigits = 0;
+    while (digits[rcDigits] >= '0' && digits[rcDigits] <= '9') rcDigits++;
+    if (rcDigits > 0 && rcDigits <= kMaxSegmentDigits) {
+      char* end = nullptr;
+      const long n = strtol(digits, &end, 10);
+      if (n > 0) {
+        out->rc = static_cast<int>(n);
+        rest = end;
+      }
     }
   }
   out->offTag = (*rest != '\0');
