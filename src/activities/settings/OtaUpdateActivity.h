@@ -12,7 +12,6 @@ class OtaUpdateActivity : public Activity {
     NO_UPDATE,
     FAILED,
     FINISHED,
-    SHUTTING_DOWN
   };
 
   // Can't initialize this to 0 or the first render doesn't happen

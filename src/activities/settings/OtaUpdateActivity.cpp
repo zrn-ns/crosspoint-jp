@@ -162,7 +162,7 @@ void OtaUpdateActivity::render(RenderLock&&) {
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else if (state == FINISHED) {
     renderer.drawCenteredText(UI_10_FONT_ID, top, tr(STR_UPDATE_COMPLETE), true, EpdFontFamily::BOLD);
-    renderer.drawCenteredText(UI_10_FONT_ID, top + height + metrics.verticalSpacing, tr(STR_POWER_ON_HINT));
+    renderer.drawCenteredText(UI_10_FONT_ID, top + height + metrics.verticalSpacing, tr(STR_RESTARTING_HINT));
   }
 
   renderer.displayBuffer();
@@ -196,11 +196,17 @@ void OtaUpdateActivity::loop() {
         return;
       }
 
+      LOG_INF("OTA", "Update complete, restarting");
       {
         RenderLock lock(*this);
         state = FINISHED;
       }
-      requestUpdate();
+      // SdFirmwareUpdateActivity::performUpdate() と同じ手順。完了画面を確実に
+      // 描き切ってから再起動する。requestUpdate() だけでは描画前に restart して
+      // しまい、ユーザーに何も見えない。
+      requestUpdateAndWait();
+      delay(1500);
+      ESP.restart();
     }
 
     if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
@@ -222,9 +228,5 @@ void OtaUpdateActivity::loop() {
       finish();
     }
     return;
-  }
-
-  if (state == SHUTTING_DOWN) {
-    ESP.restart();
   }
 }
