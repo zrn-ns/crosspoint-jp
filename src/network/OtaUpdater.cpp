@@ -95,7 +95,9 @@ OtaUpdater::OtaUpdaterError OtaUpdater::fetchReleases(const char* url, ReleaseJs
   // too, so this cannot be confused with "nothing newer".
   if (releaseParser.releaseCount() == seenBefore) {
     LOG_ERR("OTA", "No release object in response: %s", url);
-    lastErrorDetail = "no release in json";
+    char buf[64];
+    snprintf(buf, sizeof(buf), "no release in json http=%d", HttpDownloader::lastHttpCode);
+    lastErrorDetail = buf;
     return JSON_PARSE_ERROR;
   }
   return OK;

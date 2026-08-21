@@ -10,9 +10,11 @@ class OtaUpdater {
  public:
   using ProgressCallback = void (*)(void* ctx);
 
+  // No "no update" value: a scan that finds nothing newer is a success. It
+  // returns OK with isUpdateNewer() == false, because OtaUpdateActivity turns
+  // any non-OK result into the FAILED screen.
   enum OtaUpdaterError {
     OK = 0,
-    NO_UPDATE,
     HTTP_ERROR,
     JSON_PARSE_ERROR,
     UPDATE_OLDER_ERROR,
