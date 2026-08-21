@@ -163,6 +163,9 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
                           StrId::STR_CAT_SYSTEM),
       SettingInfo::Toggle(StrId::STR_DEBUG_DISPLAY, &CrossPointSettings::debugDisplay, "debugDisplay",
                           StrId::STR_CAT_SYSTEM),
+      SettingInfo::Enum(StrId::STR_OTA_CHANNEL, &CrossPointSettings::otaChannel,
+                        {StrId::STR_OTA_CHANNEL_STABLE, StrId::STR_OTA_CHANNEL_RC, StrId::STR_OTA_CHANNEL_DEV},
+                        "otaChannel", StrId::STR_CAT_SYSTEM),
 
       // --- KOReader Sync (web-only, uses KOReaderCredentialStore) ---
       SettingInfo::DynamicString(

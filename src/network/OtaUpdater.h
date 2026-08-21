@@ -1,18 +1,12 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
 #include <string>
 
-class OtaUpdater {
-  bool updateAvailable = false;
-  std::string latestVersion;
-  std::string otaUrl;
-  size_t otaSize = 0;
-  size_t processedSize = 0;
-  size_t totalSize = 0;
-  // 失敗ステップと esp_err_t の名前を短くまとめた診断文字列。
-  // シリアルが取れない環境で FAILED 画面に表示するため。
-  std::string lastErrorDetail;
+#include "ReleaseVersion.h"
 
+class OtaUpdater {
  public:
   using ProgressCallback = void (*)(void* ctx);
 
@@ -26,17 +20,39 @@ class OtaUpdater {
     OOM_ERROR,
   };
 
-  size_t getOtaSize() const { return otaSize; }
-
-  size_t getProcessedSize() const { return processedSize; }
-
-  size_t getTotalSize() const { return totalSize; }
-
-  const std::string& getLastErrorDetail() const { return lastErrorDetail; }
-
   OtaUpdater() = default;
-  bool isUpdateNewer() const;
+
+  size_t getOtaSize() const { return otaSize; }
+  size_t getProcessedSize() const { return processedSize; }
+  size_t getTotalSize() const { return totalSize; }
+  const std::string& getLastErrorDetail() const { return lastErrorDetail; }
   const std::string& getLatestVersion() const;
+
+  // True when checkForUpdate() selected a release that is newer than this
+  // build. The comparison happens during the scan, so this is just the result.
+  bool isUpdateNewer() const { return updateAvailable; }
+
   OtaUpdaterError checkForUpdate();
   OtaUpdaterError installUpdate(ProgressCallback onProgress = nullptr, void* ctx = nullptr);
+
+ private:
+  using VersionKey = ReleaseVersionKey;
+
+  static void sOnRelease(void* ctx, const char* tag, const char* fwUrl, size_t fwSize);
+  void onRelease(const char* tag, const char* fwUrl, size_t fwSize);
+  OtaUpdaterError fetchReleases(const char* url, class ReleaseJsonParser& releaseParser);
+
+  bool updateAvailable = false;
+  std::string latestVersion;
+  std::string otaUrl;
+  size_t otaSize = 0;
+  size_t processedSize = 0;
+  size_t totalSize = 0;
+  // 失敗ステップと esp_err_t の名前を短くまとめた診断文字列。
+  // シリアルが取れない環境で FAILED 画面に表示するため。
+  std::string lastErrorDetail;
+
+  releaseVersion::Channel channel = releaseVersion::CHANNEL_STABLE;
+  VersionKey deviceKey;
+  VersionKey winnerKey;
 };

@@ -12,10 +12,30 @@
 // clang-format on
 
 #include <cstring>
+#include <memory>
+#include <new>
 #include <string>
 
+#include "BuildInfo.h"
+#include "CrossPointSettings.h"
+#include "ReleaseVersion.h"
+
 namespace {
+// The stable channel asks GitHub for the release it marks as latest. Prereleases
+// (RC and Dev Build) can never hold that flag, so this endpoint is exactly the
+// stable line — no filtering needed, and it stays a single 8.7KB object.
 constexpr char latestReleaseUrl[] = "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/latest";
+
+// The RC and DEV channels additionally scan the release list, which is where the
+// prereleases live. The list is ordered by the tag commit's date, not by publish
+// time, so "first entry" is not reliably the newest — every entry in the window
+// is compared and the best one wins. 10 entries is ~90KB streamed; Dev Builds
+// land about once a day, so the window covers well over a week of prereleases.
+//
+// The list alone is NOT enough: with a Dev Build a day, the window fills with
+// dev tags within days and would hide a stable/RC release that sits just past
+// it. That is why /releases/latest is always fetched too.
+constexpr char releaseListUrl[] = "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases?per_page=10";
 
 // esp_err_to_name の "ESP_ERR_" prefix を削って画面幅に収まる短い名前にする。
 const char* shortErrName(const char* name) {
@@ -24,20 +44,69 @@ const char* shortErrName(const char* name) {
   return name;
 }
 
-bool parseSemver3(const char* version, int* major, int* minor, int* patch) {
-  if (!version || !major || !minor || !patch) {
-    return false;
-  }
-  const char* p = version;
-  if (*p == 'v' || *p == 'V') {
-    p++;
-  }
-  return sscanf(p, "%d.%d.%d", major, minor, patch) == 3;
-}
 }  // namespace
 
+void OtaUpdater::sOnRelease(void* ctx, const char* tag, const char* fwUrl, size_t fwSize) {
+  static_cast<OtaUpdater*>(ctx)->onRelease(tag, fwUrl, fwSize);
+}
+
+void OtaUpdater::onRelease(const char* tag, const char* fwUrl, size_t fwSize) {
+  VersionKey key;
+  if (!releaseVersion::parseCandidateTag(tag, &key)) {
+    LOG_DBG("OTA", "Skipping release with unrecognised tag: %s", tag);
+    return;
+  }
+
+  if (!releaseVersion::shouldReplaceWinner(key, winnerKey, deviceKey, CROSSPOINT_BUILD_TIME, channel)) return;
+
+  winnerKey = key;
+  latestVersion = tag;
+  otaUrl = fwUrl;
+  otaSize = fwSize;
+  totalSize = fwSize;
+  updateAvailable = true;
+  LOG_DBG("OTA", "Candidate accepted: %s (%zu bytes)", tag, fwSize);
+}
+
+OtaUpdater::OtaUpdaterError OtaUpdater::fetchReleases(const char* url, ReleaseJsonParser& releaseParser) {
+  releaseParser.resetStream();
+  const size_t seenBefore = releaseParser.releaseCount();
+
+  // Stream the release JSON straight into the parser as it arrives. Buffering
+  // the whole body in a std::string would add a growing allocation on top of the
+  // TLS session's heap during the fetch; with -fno-exceptions an OOM there
+  // aborts. fetchUrl handles the verified-https GET, redirects, and User-Agent
+  // (see HttpDownloader).
+  const bool ok = HttpDownloader::fetchUrl(url, [&releaseParser](const uint8_t* data, size_t len) {
+    releaseParser.feed(reinterpret_cast<const char*>(data), len);
+    return true;
+  });
+  if (!ok) {
+    LOG_ERR("OTA", "Release check fetch failed: %s", url);
+    char buf[64];
+    snprintf(buf, sizeof(buf), "fetch fail http=%d heap=%dKB", HttpDownloader::lastHttpCode,
+             static_cast<int>(ESP.getFreeHeap() / 1024));
+    lastErrorDetail = buf;
+    return HTTP_ERROR;
+  }
+
+  // Zero releases parsed out of a successful fetch means the body was not a
+  // release payload. Releases that simply lost the comparison are counted here
+  // too, so this cannot be confused with "nothing newer".
+  if (releaseParser.releaseCount() == seenBefore) {
+    LOG_ERR("OTA", "No release object in response: %s", url);
+    lastErrorDetail = "no release in json";
+    return JSON_PARSE_ERROR;
+  }
+  return OK;
+}
+
 OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
-  LOG_DBG("OTA", "Checking for update (current: %s)", CROSSPOINT_VERSION);
+  // A settings.json written by a newer firmware could carry a channel this
+  // build does not know; fall back to the safest one rather than trusting it.
+  channel = SETTINGS.otaChannel <= releaseVersion::CHANNEL_DEV
+                ? static_cast<releaseVersion::Channel>(SETTINGS.otaChannel)
+                : releaseVersion::CHANNEL_STABLE;
 
   updateAvailable = false;
   latestVersion.clear();
@@ -46,94 +115,49 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
   processedSize = 0;
   totalSize = 0;
   lastErrorDetail.clear();
+  winnerKey = VersionKey{};
 
-  // Stream the ~32KB release JSON straight into the parser as it arrives.
-  // Buffering the whole body in a std::string would add a growing allocation
-  // on top of the TLS session's heap during the fetch; with -fno-exceptions an
-  // OOM there aborts. fetchUrl handles the verified-https GET, redirects, and
-  // User-Agent (see HttpDownloader).
-  ReleaseJsonParser releaseParser;
-  const bool ok = HttpDownloader::fetchUrl(latestReleaseUrl, [&releaseParser](const uint8_t* data, size_t len) {
-    releaseParser.feed(reinterpret_cast<const char*>(data), len);
-    return true;
-  });
-  if (!ok) {
-    LOG_ERR("OTA", "Release check fetch failed");
-    char buf[64];
-    snprintf(buf, sizeof(buf), "fetch fail http=%d heap=%dKB", HttpDownloader::lastHttpCode,
-             static_cast<int>(ESP.getFreeHeap() / 1024));
-    lastErrorDetail = buf;
-    return HTTP_ERROR;
+  if (!releaseVersion::parseDeviceVersion(CROSSPOINT_VERSION, &deviceKey)) {
+    // Only reachable when no v* tag was in reach at build time. Dev candidates
+    // still compare fine (they use the build stamp), release candidates do not.
+    LOG_ERR("OTA", "Version parse failed: current=%s", CROSSPOINT_VERSION);
+  }
+  LOG_DBG("OTA", "Checking for update (current: %s, built: %s, channel: %d)", CROSSPOINT_VERSION, CROSSPOINT_BUILD_TIME,
+          static_cast<int>(channel));
+
+  // ~1.7KB of buffers. The check runs on the loop task, whose stack this would
+  // eat into, and it is a single short-lived allocation — the acceptable-malloc
+  // case from CLAUDE.md.
+  // nothrow: the build is -fno-exceptions, so a throwing new would abort
+  // instead of letting the check fail gracefully.
+  std::unique_ptr<ReleaseJsonParser> releaseParser(new (std::nothrow) ReleaseJsonParser());
+  if (!releaseParser) {
+    LOG_ERR("OTA", "Parser allocation failed");
+    lastErrorDetail = "parser oom";
+    return OOM_ERROR;
+  }
+  releaseParser->setHandler(&OtaUpdater::sOnRelease, this);
+
+  OtaUpdaterError err = fetchReleases(latestReleaseUrl, *releaseParser);
+  if (err != OK) return err;
+
+  if (channel != releaseVersion::CHANNEL_STABLE) {
+    err = fetchReleases(releaseListUrl, *releaseParser);
+    // A stable candidate found by the first request is still worth offering, so
+    // only report the list failure when it leaves us with nothing.
+    if (err != OK && !updateAvailable) return err;
+    if (err != OK) LOG_ERR("OTA", "Prerelease list unavailable; falling back to the stable candidate");
   }
 
-  LOG_DBG("OTA", "Parser results: tag=%s firmware=%s", releaseParser.foundTag() ? "yes" : "no",
-          releaseParser.foundFirmware() ? "yes" : "no");
-
-  if (!releaseParser.foundTag()) {
-    LOG_ERR("OTA", "No tag_name in release JSON");
-    return JSON_PARSE_ERROR;
+  if (!updateAvailable) {
+    LOG_DBG("OTA", "No newer release in channel %d (%zu releases scanned)", static_cast<int>(channel),
+            releaseParser->releaseCount());
+    return OK;  // not an error: the device is already on the newest build
   }
-
-  if (!releaseParser.foundFirmware()) {
-    LOG_ERR("OTA", "No firmware.bin asset found");
-    return NO_UPDATE;
-  }
-
-  latestVersion = releaseParser.getTagName();
-  otaUrl = releaseParser.getFirmwareUrl();
-  otaSize = releaseParser.getFirmwareSize();
-  totalSize = otaSize;
-  updateAvailable = true;
 
   LOG_DBG("OTA", "Found update: tag=%s size=%zu", latestVersion.c_str(), otaSize);
   LOG_DBG("OTA", "Firmware URL: %s", otaUrl.c_str());
   return OK;
-}
-
-bool OtaUpdater::isUpdateNewer() const {
-  if (!updateAvailable || latestVersion.empty() || latestVersion == CROSSPOINT_VERSION) {
-    return false;
-  }
-
-  int currentMajor, currentMinor, currentPatch;
-  int latestMajor, latestMinor, latestPatch;
-
-  const auto currentVersion = CROSSPOINT_VERSION;
-
-  // semantic version check (only match on 3 segments)
-  if (!parseSemver3(latestVersion.c_str(), &latestMajor, &latestMinor, &latestPatch) ||
-      !parseSemver3(currentVersion, &currentMajor, &currentMinor, &currentPatch)) {
-    LOG_ERR("OTA", "Version parse failed: current=%s, latest=%s", currentVersion, latestVersion.c_str());
-    return false;
-  }
-
-  /*
-   * Compare major versions.
-   * If they differ, return true if latest major version greater than current major version
-   * otherwise return false.
-   */
-  if (latestMajor != currentMajor) return latestMajor > currentMajor;
-
-  /*
-   * Compare minor versions.
-   * If they differ, return true if latest minor version greater than current minor version
-   * otherwise return false.
-   */
-  if (latestMinor != currentMinor) return latestMinor > currentMinor;
-
-  /*
-   * Check patch versions.
-   */
-  if (latestPatch != currentPatch) return latestPatch > currentPatch;
-
-  // If we reach here, it means all segments are equal.
-  // One final check, if we're on an RC build (contains "-rc"), we should consider the latest version as newer even if
-  // the segments are equal, since RC builds are pre-release versions.
-  if (strstr(currentVersion, "-rc") != nullptr) {
-    return true;
-  }
-
-  return false;
 }
 
 const std::string& OtaUpdater::getLatestVersion() const { return latestVersion; }
