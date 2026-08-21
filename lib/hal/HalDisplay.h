@@ -73,7 +73,14 @@ class HalDisplay {
   uint32_t getBufferSize() const;
 
  private:
+  // Re-push the dark hint into the active panel driver. Needed because
+  // FreeInkDisplay::begin() resets the driver's hint from its own _inverted
+  // flag (always false here — inversion is done in GfxRenderer), which would
+  // silently drop a hint set before begin().
+  void applyDarkHintToDriver();
+
   EInkDisplay einkDisplay;
+  bool darkHint = false;
 };
 
 extern HalDisplay display;
