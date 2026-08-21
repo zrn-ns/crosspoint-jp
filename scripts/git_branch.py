@@ -13,6 +13,7 @@ An environment that sets CROSSPOINT_VERSION in build_flags keeps its own value;
 platformio.local.ini uses that to pin a version for OTA testing.
 """
 
+import datetime
 import os
 import subprocess
 import sys
@@ -114,14 +115,87 @@ def get_base_version(project_dir, bare=False):
     return '0.0.0'
 
 
+BUILD_TIME_FALLBACK = '00000000-000000'
+
+
+def get_build_time(project_dir):
+    """Derive CROSSPOINT_BUILD_TIME, the OTA comparison key for Dev Builds.
+
+    Format is "YYYYMMDD-HHMMSS" in UTC: fixed width, zero padded, so strcmp
+    ordering equals chronological ordering on the device (see src/BuildInfo.h).
+
+    The CROSSPOINT_BUILD_TIME environment variable wins. .github/workflows/
+    dev-build.yml sets it to the same shell variable it builds the dev-<stamp>
+    tag from, which is what makes a device recognise its own Dev Build and stop
+    offering it as an update.
+
+    Without the variable, HEAD's commit date is used — deliberately not the wall
+    clock, which would change the -D flag on every invocation and force a full
+    rebuild each time.
+    """
+    override = os.environ.get('CROSSPOINT_BUILD_TIME')
+    if override:
+        if is_valid_build_time(override):
+            return override
+        warn(
+            f'CROSSPOINT_BUILD_TIME="{override}" is not YYYYMMDD-HHMMSS; '
+            f'falling back to the commit date'
+        )
+
+    epoch = run_git_value(
+        project_dir, ['show', '-s', '--format=%ct', 'HEAD'], 'commit date'
+    )
+    try:
+        stamp = datetime.datetime.fromtimestamp(
+            int(epoch), datetime.timezone.utc
+        ).strftime('%Y%m%d-%H%M%S')
+    except (TypeError, ValueError, OSError, OverflowError):
+        warn(
+            f'could not read HEAD commit date (got "{epoch}"); '
+            f'build time will be "{BUILD_TIME_FALLBACK}"'
+        )
+        return BUILD_TIME_FALLBACK
+    return stamp
+
+
+def is_valid_build_time(value):
+    return (
+        len(value) == 15
+        and value[:8].isdigit()
+        and value[8] == '-'
+        and value[9:].isdigit()
+    )
+
+
+def already_defined(env, name):
+    """True when an environment pins the define in build_flags.
+
+    platformio.local.ini uses this to fake a device state for OTA testing.
+    """
+    for define in env.get('CPPDEFINES', []):
+        defined = define[0] if isinstance(define, (list, tuple)) else define
+        if defined == name:
+            return True
+    return False
+
+
+def inject_build_time(env):
+    # Checked independently of CROSSPOINT_VERSION: pinning only the version in
+    # platformio.local.ini must not leave the build without a build time, or
+    # src/BuildInfo.h's fallback silently takes over.
+    if already_defined(env, 'CROSSPOINT_BUILD_TIME'):
+        return
+    build_time = get_build_time(env['PROJECT_DIR'])
+    env.Append(CPPDEFINES=[('CROSSPOINT_BUILD_TIME', f'\\"{build_time}\\"')])
+    print(f'CrossPoint build time: {build_time}')
+
+
 def inject_version(env):
     # Every environment gets its version from here. An env that already defines
     # CROSSPOINT_VERSION in build_flags (e.g. an OTA test build pinning
     # "0.1.12-rc1") keeps that value.
-    for define in env.get('CPPDEFINES', []):
-        name = define[0] if isinstance(define, (list, tuple)) else define
-        if name == 'CROSSPOINT_VERSION':
-            return
+    if already_defined(env, 'CROSSPOINT_VERSION'):
+        return
 
     project_dir = env['PROJECT_DIR']
 
@@ -153,9 +227,12 @@ def inject_version(env):
 try:
     Import('env')           # noqa: F821  # type: ignore[name-defined]
     inject_version(env)     # noqa: F821  # type: ignore[name-defined]
+    inject_build_time(env)  # noqa: F821  # type: ignore[name-defined]
 except NameError:
     class _Env(dict):
         def Append(self, **_): pass
 
     _project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    inject_version(_Env({'PIOENV': 'default', 'PROJECT_DIR': _project_dir}))
+    _env = _Env({'PIOENV': 'default', 'PROJECT_DIR': _project_dir})
+    inject_version(_env)
+    inject_build_time(_env)
