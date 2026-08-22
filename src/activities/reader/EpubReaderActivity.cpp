@@ -394,17 +394,23 @@ void EpubReaderActivity::loop() {
   const bool skipChapter = SETTINGS.longPressChapterSkip && mappedInput.getHeldTime() > skipChapterMs;
 
   if (skipChapter) {
-    lastPageTurnTime = millis();
-    // We don't want to delete the section mid-render, so grab the semaphore
-    {
-      RenderLock lock(*this);
-      nextPageNumber = 0;
-      const bool skipForward = verticalMode ? !nextTriggered : nextTriggered;
-      currentSpineIndex = skipForward ? currentSpineIndex + 1 : currentSpineIndex - 1;
-      section.reset();
+    // 隣接する章が存在しない方向へのスキップは抑止し、通常のページめくりに落とす。
+    // 1章構成の書籍で誤って長押しすると、前方は末尾（読了マークが付き読書位置を失う）、
+    // 後方は書籍の先頭へ飛ばされてしまうため。
+    const bool skipForward = verticalMode ? !nextTriggered : nextTriggered;
+    const int targetSpineIndex = skipForward ? currentSpineIndex + 1 : currentSpineIndex - 1;
+    if (targetSpineIndex >= 0 && targetSpineIndex < epub->getSpineItemsCount()) {
+      lastPageTurnTime = millis();
+      // We don't want to delete the section mid-render, so grab the semaphore
+      {
+        RenderLock lock(*this);
+        nextPageNumber = 0;
+        currentSpineIndex = targetSpineIndex;
+        section.reset();
+      }
+      requestUpdate();
+      return;
     }
-    requestUpdate();
-    return;
   }
 
   // No current section, attempt to rerender the book
