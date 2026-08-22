@@ -35,3 +35,14 @@ c++ "${CXXFLAGS[@]}" "${SOURCES[@]}" -o "$BINARY"
 
 echo "Running OTA channel test..."
 "$BINARY" "$ROOT_DIR/test/ota_channel"
+
+# ASan/UBSan でもう一度。パーサは固定長の char 配列を SAX コールバックから
+# 書き換えるので、状態機械の取り違えが配列外アクセスとして出る。実機では
+# RISC-V のアラインメント例外や静かなメモリ破壊になり追跡が難しい。
+if [ "${OTA_TEST_SKIP_SANITIZERS:-0}" != "1" ]; then
+  echo "Rebuilding with ASan/UBSan..."
+  c++ "${CXXFLAGS[@]}" -g -fsanitize=address,undefined -fno-omit-frame-pointer \
+    "${SOURCES[@]}" -o "$BINARY-san"
+  echo "Running under ASan/UBSan..."
+  UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 "$BINARY-san" "$ROOT_DIR/test/ota_channel"
+fi

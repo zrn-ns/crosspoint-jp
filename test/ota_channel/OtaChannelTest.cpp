@@ -326,6 +326,161 @@ void testSelectionMatrix() {
           "missing build stamp treats every dev build as newer");
 }
 
+// 途中で切れたレスポンスでパーサが壊れないこと。TLS ストリームは切断されうるし、
+// GitHub がエラーボディを返すこともある。ASan/UBSan ビルドで走らせると
+// 配列外アクセスもここで捕まる。
+void testParserTruncatedAndGarbage(const std::string& dir) {
+  printf("parser: truncated and garbage input\n");
+
+  const std::string body = readFile(dir + "/releases_list.json");
+  if (body.empty()) return;
+
+  // 全ての長さで打ち切る。emit された分は必ず正常な prefix になっているはず。
+  const auto full = parseAll(body, 4096);
+  for (size_t len = 0; len <= body.size(); len += 97) {
+    const auto partial = parseAll(body.substr(0, len), 512);
+    if (partial.size() > full.size()) {
+      check(false, "truncated input emitted more releases than the full body at len=" + std::to_string(len));
+      break;
+    }
+    bool prefixOk = true;
+    for (size_t i = 0; i < partial.size(); i++) {
+      if (partial[i].tag != full[i].tag) prefixOk = false;
+    }
+    if (!prefixOk) {
+      check(false, "truncated input emitted a different release sequence at len=" + std::to_string(len));
+      break;
+    }
+  }
+
+  // 決定的な擬似乱数バイト列。クラッシュしないことだけを見る。
+  uint32_t seed = 0xC0FFEEu;
+  for (int trial = 0; trial < 64; trial++) {
+    std::string junk;
+    junk.reserve(2048);
+    for (int i = 0; i < 2048; i++) {
+      seed = seed * 1664525u + 1013904223u;
+      // JSON の構造文字を濃くして状態機械を深く踏ませる
+      static const char alphabet[] = "{}[]\":,0123456789abcdefgtruefalsnl \\\n";
+      junk.push_back(alphabet[(seed >> 16) % (sizeof(alphabet) - 1)]);
+    }
+    parseAll(junk, 64);
+  }
+
+  // 深いネスト。StreamingJsonParser の MAX_NESTING(32) を超える入力。
+  std::string deep = "{\"tag_name\":\"v9.9.9\",\"assets\":[";
+  for (int i = 0; i < 64; i++) deep += "[";
+  for (int i = 0; i < 64; i++) deep += "]";
+  deep += "]}";
+  parseAll(deep, 16);
+
+  check(true, "parser survived truncated, garbage and deeply nested input");
+}
+
+// -- 4. 性質テスト ----------------------------------------------------------
+
+// 勝者を選ぶ順序が GitHub のレスポンス順に依存しないこと。
+// /releases は publish 時系列で並んでおらず順序逆転が実際に起きるため、
+// どの順で候補が届いても同じ勝者になることが要件になる。
+void testOrderIndependence() {
+  printf("property: winner is independent of arrival order\n");
+
+  const std::vector<std::string> base = {"v0.1.17",   "dev-20260822-090000", "v0.1.18-rc2", "v0.1.18-rc1",
+                                         "sd-fonts",  "v0.2.0-beta1",        "v0.1.16",     "dev-20260817-100000",
+                                         "notes-only"};
+  const struct {
+    const char* version;
+    const char* stamp;
+  } devices[] = {
+      {"0.1.17", "20260818-124126"},
+      {"0.1.18-rc1", "20260820-100000"},
+      {"0.1.17-3-gabc1234", "20260817-100000"},
+      {"0.1.18-rc2-2-gdef5678", "20260822-090000"},
+      {"unknown", "00000000-000000"},
+  };
+
+  // 決定的な擬似乱数で並べ替える。テストの再現性を壊さないため rand() は使わない。
+  uint32_t seed = 0x12345678u;
+  auto nextRand = [&seed]() {
+    seed = seed * 1664525u + 1013904223u;
+    return seed >> 16;
+  };
+
+  for (const auto& dev : devices) {
+    for (const auto channel :
+         {releaseVersion::CHANNEL_STABLE, releaseVersion::CHANNEL_RC, releaseVersion::CHANNEL_DEV}) {
+      const std::string expected = selectWinner(base, dev.version, dev.stamp, channel);
+      for (int trial = 0; trial < 200; trial++) {
+        std::vector<std::string> shuffled = base;
+        for (size_t i = shuffled.size(); i > 1; i--) {
+          std::swap(shuffled[i - 1], shuffled[nextRand() % i]);
+        }
+        const std::string got = selectWinner(shuffled, dev.version, dev.stamp, channel);
+        if (got != expected) {
+          checkEq(got, expected,
+                  std::string("order independence: device=") + dev.version + " channel=" + std::to_string(channel));
+          break;  // 1件報告すれば十分
+        }
+      }
+    }
+  }
+}
+
+// 端末が2つのビルドを往復し続けない（ping-pong しない）こと。
+// 案1・案2がここで破綻した。勝者をインストールした後の端末状態を作り、
+// 「更新なし」に到達するか、同じ状態に戻ってこないかを確認する。
+void testConvergence() {
+  printf("property: repeated installs converge (no ping-pong)\n");
+
+  const std::vector<std::string> candidates = {"v0.1.17", "v0.1.18-rc1", "v0.1.18-rc2", "dev-20260822-090000",
+                                               "dev-20260817-100000"};
+
+  // インストール後の端末状態をモデル化する。
+  //  - dev タグ: 版はその時点で master にある最上位の v タグ + distance
+  //    （git describe の挙動。RCタグが打たれた後の dev build は
+  //     "0.1.18-rc2-2-g…" になる）。埋め込み時刻はタグのスタンプ
+  //  - v タグ: 版はそのタグちょうど（off-tag ではない）。埋め込み時刻は
+  //    リリースビルドの壁時計で、こちらは候補集合から決まらないので
+  //    「全 dev より古い」「全 dev より新しい」の両極端で試す
+  const char* highestReleaseTag = "v0.1.18-rc2";
+
+  for (const char* releaseStamp : {"20260101-000000", "20260901-000000"}) {
+    for (const auto channel :
+         {releaseVersion::CHANNEL_STABLE, releaseVersion::CHANNEL_RC, releaseVersion::CHANNEL_DEV}) {
+      for (const char* startVersion : {"0.1.16", "0.1.17", "0.1.18-rc1", "0.1.17-3-gabc", "0.1.18-rc2-2-gdef"}) {
+        std::string version = startVersion;
+        std::string stamp = "20260817-100000";
+        std::vector<std::string> seen;
+
+        for (int step = 0; step < 12; step++) {
+          const std::string key = version + "@" + stamp;
+          bool cycled = false;
+          for (const auto& s : seen) {
+            if (s == key) cycled = true;
+          }
+          if (cycled) {
+            check(false, std::string("ping-pong: start=") + startVersion + " channel=" + std::to_string(channel) +
+                             " releaseStamp=" + releaseStamp + " revisited " + key);
+            break;
+          }
+          seen.push_back(key);
+
+          const std::string winner = selectWinner(candidates, version.c_str(), stamp.c_str(), channel);
+          if (winner == "(none)") break;  // 収束
+
+          if (winner.rfind("dev-", 0) == 0) {
+            version = std::string(highestReleaseTag).substr(1) + "-2-gsim";
+            stamp = winner.substr(4);
+          } else {
+            version = winner.substr(1);
+            stamp = releaseStamp;
+          }
+        }
+      }
+    }
+  }
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -335,9 +490,12 @@ int main(int argc, char** argv) {
   testParserSkipsUninstallable(dir);
   testParserCountsAcrossResponses(dir);
   testParserRejectsGarbage();
+  testParserTruncatedAndGarbage(dir);
   testTagParsing();
   testDeviceVersionParsing();
   testSelectionMatrix();
+  testOrderIndependence();
+  testConvergence();
 
   if (failures == 0) {
     printf("\nAll OTA channel tests passed.\n");
