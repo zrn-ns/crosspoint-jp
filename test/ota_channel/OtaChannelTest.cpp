@@ -518,42 +518,47 @@ void testConvergence() {
   //    リリースビルドの壁時計で、こちらは候補集合から決まらないので
   //    「全 dev より古い」「全 dev より新しい」の両極端で試す
   const char* highestReleaseTag = "v0.1.18-rc2";
+  // 汚染バリアント: dev-build.yml の再実行で生まれる「describe のベースが
+  // 最上位リリースタグより下のまま、スタンプだけ新しい」Dev Build。
+  // これが ping-pong の発生源だったので、モデルにも入れておく。
+  const char* poisonedDevBase = "v0.1.17";
 
-  for (const char* releaseStamp : {"20260101-000000", "20260901-000000"}) {
-    for (const auto channel :
-         {releaseVersion::CHANNEL_STABLE, releaseVersion::CHANNEL_RC, releaseVersion::CHANNEL_DEV}) {
-      for (const char* startVersion : {"0.1.16", "0.1.17", "0.1.18-rc1", "0.1.17-3-gabc", "0.1.18-rc2-2-gdef"}) {
-        std::string version = startVersion;
-        std::string stamp = "20260817-100000";
-        std::vector<std::string> seen;
+  for (const bool poisoned : {false, true})
+    for (const char* releaseStamp : {"20260101-000000", "20260901-000000"}) {
+      for (const auto channel :
+           {releaseVersion::CHANNEL_STABLE, releaseVersion::CHANNEL_RC, releaseVersion::CHANNEL_DEV}) {
+        for (const char* startVersion : {"0.1.16", "0.1.17", "0.1.18-rc1", "0.1.17-3-gabc", "0.1.18-rc2-2-gdef"}) {
+          std::string version = startVersion;
+          std::string stamp = "20260817-100000";
+          std::vector<std::string> seen;
 
-        for (int step = 0; step < 12; step++) {
-          const std::string key = version + "@" + stamp;
-          bool cycled = false;
-          for (const auto& s : seen) {
-            if (s == key) cycled = true;
-          }
-          if (cycled) {
-            check(false, std::string("ping-pong: start=") + startVersion + " channel=" + std::to_string(channel) +
-                             " releaseStamp=" + releaseStamp + " revisited " + key);
-            break;
-          }
-          seen.push_back(key);
+          for (int step = 0; step < 12; step++) {
+            const std::string key = version + "@" + stamp;
+            bool cycled = false;
+            for (const auto& s : seen) {
+              if (s == key) cycled = true;
+            }
+            if (cycled) {
+              check(false, std::string("ping-pong: start=") + startVersion + " channel=" + std::to_string(channel) +
+                               " releaseStamp=" + releaseStamp + (poisoned ? " poisoned" : "") + " revisited " + key);
+              break;
+            }
+            seen.push_back(key);
 
-          const std::string winner = selectWinner(candidates, version.c_str(), stamp.c_str(), channel);
-          if (winner == "(none)") break;  // 収束
+            const std::string winner = selectWinner(candidates, version.c_str(), stamp.c_str(), channel);
+            if (winner == "(none)") break;  // 収束
 
-          if (winner.rfind("dev-", 0) == 0) {
-            version = std::string(highestReleaseTag).substr(1) + "-2-gsim";
-            stamp = winner.substr(4);
-          } else {
-            version = winner.substr(1);
-            stamp = releaseStamp;
+            if (winner.rfind("dev-", 0) == 0) {
+              version = std::string(poisoned ? poisonedDevBase : highestReleaseTag).substr(1) + "-2-gsim";
+              stamp = winner.substr(4);
+            } else {
+              version = winner.substr(1);
+              stamp = releaseStamp;
+            }
           }
         }
       }
     }
-  }
 }
 
 }  // namespace
