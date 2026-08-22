@@ -11,12 +11,27 @@ with a bad OTA and watching it not recover.
 
 So check the linked ELF: the symbol must resolve to a strong definition ('T'),
 not to the core's weak fallback ('W').
+
+Two things make this survive a clean build. With custom_sdkconfig, PlatformIO
+links firmware.elf twice — once to bootstrap ESP-IDF, before src/ is compiled at
+all, and once for real. The check therefore hangs off firmware.bin, which is
+only produced from the final link, and additionally refuses to judge an ELF that
+does not contain setup() (i.e. one the sketch was never linked into).
 """
 
 import subprocess
 import sys
 
 SYMBOL = 'verifyRollbackLater'
+# From src/main.cpp, in a different translation unit than the override. Present
+# in the real firmware, absent from the bootstrap link (src/ is compiled after
+# it). setup()/loop() are no use here: they get inlined into loopTask.
+# Matched as a substring so the C++ mangling (name length prefix, signature)
+# does not have to be spelled out here.
+APP_MARKER = 'setupDisplayAndFonts'
+# Mangled fragment of the ota_rollback namespace. Used only to tell a genuine
+# bootstrap link apart from a stale APP_MARKER.
+MODULE_MARKER = '12ota_rollback'
 
 
 def fail(msg):
@@ -35,7 +50,7 @@ def find_nm(env):
 
 
 def check_rollback_hook(source, target, env):
-    elf = str(target[0])
+    elf = env.subst('$BUILD_DIR/${PROGNAME}.elf')
     nm = find_nm(env)
     if not nm:
         fail(f'could not derive nm from CC={env.subst("$CC")!r}')
@@ -47,11 +62,26 @@ def check_rollback_hook(source, target, env):
     except subprocess.CalledProcessError as e:
         fail(f'nm failed on {elf}: {e.stderr.strip()}')
 
-    matches = [
-        line.split()
-        for line in out.splitlines()
-        if line.split()[-1:] == [SYMBOL]
-    ]
+    symbols = [line.split() for line in out.splitlines() if line.split()]
+
+    names = [parts[-1] for parts in symbols]
+
+    # The bootstrap link contains framework code only. Judging it would fail
+    # every clean build, because the override cannot be there yet.
+    if not any(APP_MARKER in name for name in names):
+        # ...but do not take that on faith. If the module's own symbols are
+        # here, this is the real firmware and APP_MARKER simply went stale —
+        # say so rather than skipping the check for good.
+        if any(MODULE_MARKER in name for name in names):
+            fail(
+                f'{APP_MARKER} is missing from {elf} but {MODULE_MARKER} symbols are '
+                f'present, so this IS the application link. Update APP_MARKER in '
+                f'this script to a symbol src/main.cpp still exports.'
+            )
+        print(f'OTA rollback hook: {elf} is the ESP-IDF bootstrap link, skipping')
+        return
+
+    matches = [parts for parts in symbols if parts[-1] == SYMBOL]
     if not matches:
         fail(
             f'{SYMBOL} not present in {elf}. The OTA rollback deferral is not '
@@ -74,8 +104,11 @@ def check_rollback_hook(source, target, env):
 # PlatformIO/SCons entry point.
 try:
     Import('env')  # noqa: F821  # type: ignore[name-defined]
+    # Hooked on the .bin, not the .elf: with custom_sdkconfig the ELF is linked
+    # once before src/ is even compiled, and that bootstrap link has no override
+    # in it. The .bin only ever comes from the final link.
     env.AddPostAction(  # noqa: F821  # type: ignore[name-defined]
-        '$BUILD_DIR/${PROGNAME}.elf',
+        '$BUILD_DIR/${PROGNAME}.bin',
         # VerboseAction keeps SCons from echoing the whole object-file list.
         env.VerboseAction(  # noqa: F821  # type: ignore[name-defined]
             check_rollback_hook, 'Checking the OTA rollback hook'
