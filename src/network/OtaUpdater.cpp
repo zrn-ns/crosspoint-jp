@@ -108,10 +108,15 @@ OtaUpdater::OtaUpdaterError OtaUpdater::fetchReleases(const char* url, ReleaseJs
   // Zero releases parsed out of a successful fetch means the body was not a
   // release payload. Releases that simply lost the comparison are counted here
   // too, so this cannot be confused with "nothing newer".
-  if (releaseParser.releaseCount() == seenBefore) {
-    LOG_ERR("OTA", "No release object in response: %s", url);
+  //
+  // A latched syntax error is equally fatal even when some releases did parse:
+  // everything after it was dropped, so the scan is not a scan of the whole
+  // body and the winner would be picked from an arbitrary prefix.
+  if (releaseParser.releaseCount() == seenBefore || releaseParser.hasError()) {
+    LOG_ERR("OTA", "Unusable release payload: %s (parse error: %s)", url, releaseParser.hasError() ? "yes" : "no");
     char buf[64];
-    snprintf(buf, sizeof(buf), "no release in json http=%d", HttpDownloader::lastHttpCode);
+    snprintf(buf, sizeof(buf), "bad json http=%d err=%d", HttpDownloader::lastHttpCode,
+             releaseParser.hasError() ? 1 : 0);
     lastErrorDetail = buf;
     return JSON_PARSE_ERROR;
   }
@@ -164,7 +169,7 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
     // A stable candidate found by the first request is still worth offering, so
     // only report the list failure when it leaves us with nothing.
     if (err != OK && !updateAvailable) return err;
-    if (err != OK) LOG_ERR("OTA", "Prerelease list unavailable; falling back to the stable candidate");
+    if (err != OK) LOG_ERR("OTA", "Prerelease list unusable; keeping the candidate found so far");
   }
 
   releasesScanned = releaseParser->releaseCount();

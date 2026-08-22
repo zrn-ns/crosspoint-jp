@@ -37,6 +37,7 @@ void ReleaseJsonParser::resetStream() {
   lastKey = LastKey::NONE;
   depth = 0;
   assetDepth = 0;
+  assetsStrayDepth = 0;
   keyDepth = 0;
   beginRelease();
 }
@@ -64,7 +65,10 @@ void ReleaseJsonParser::endRelease() {
 }
 
 void ReleaseJsonParser::commitAsset() {
-  if (strcmp(currentAssetName, "firmware.bin") == 0) {
+  // The URL is required: a token longer than StreamingJsonParser's buffer is
+  // dropped rather than truncated, which would otherwise mark the release
+  // installable with an empty download URL.
+  if (strcmp(currentAssetName, "firmware.bin") == 0 && currentAssetUrl[0] != '\0') {
     memcpy(currentFwUrl, currentAssetUrl, sizeof(currentFwUrl));
     currentFwSize = currentAssetSize;
     currentFwFound = true;
@@ -208,11 +212,15 @@ void ReleaseJsonParser::sOnArrayStart(void* ctx) {
       }
       self->lastKey = LastKey::NONE;
       break;
+    case Position::IN_ASSETS_ARRAY:
+      // Not an asset object; consume it symmetrically so the assets array does
+      // not close early. sOnArrayEnd unwinds this counter before leaving.
+      self->assetsStrayDepth++;
+      self->lastKey = LastKey::NONE;
+      break;
     case Position::IN_ASSET_OBJECT:
       self->assetDepth++;
       self->lastKey = LastKey::NONE;
-      break;
-    default:
       break;
   }
 }
@@ -225,7 +233,11 @@ void ReleaseJsonParser::sOnArrayEnd(void* ctx) {
       if (self->depth > 0) self->depth--;
       break;
     case Position::IN_ASSETS_ARRAY:
-      self->position = Position::TOP_LEVEL;
+      if (self->assetsStrayDepth > 0) {
+        self->assetsStrayDepth--;
+      } else {
+        self->position = Position::TOP_LEVEL;
+      }
       break;
     case Position::IN_ASSET_OBJECT:
       self->assetDepth--;

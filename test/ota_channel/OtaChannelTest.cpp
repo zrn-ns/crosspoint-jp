@@ -310,6 +310,18 @@ void testSelectionMatrix() {
   checkEq(selectWinner(onlyOldDev, "0.1.17", "20260817-100000", DEV), "v0.1.18",
           "DEV falls back to the release when every dev build is older");
 
+  // Devチャネルで、Dev Build に乗っている端末はリリース候補を受け取らない。
+  // dev-build.yml を再実行すると「describe のベースは古いまま stamp だけ新しい」
+  // Dev Build が生まれ、semver と stamp が互いに逆を指して無限往復になる。
+  const std::vector<std::string> reRun = {"v0.1.18", "dev-20260822-100500", "v0.1.17"};
+  checkEq(selectWinner(reRun, "0.1.18", "20260822-100400", DEV), "dev-20260822-100500",
+          "re-run dev build: release device takes the newer stamp");
+  checkEq(selectWinner(reRun, "0.1.17-4-gaaaaaaa", "20260822-100500", DEV), "(none)",
+          "re-run dev build: dev device does NOT go back to the release (no ping-pong)");
+  // 同じ端末でも、正式/RC チャネルへ切り替えればリリースに戻れる。
+  checkEq(selectWinner(reRun, "0.1.17-4-gaaaaaaa", "20260822-100500", STABLE), "v0.1.18",
+          "re-run dev build: switching to STABLE is the way out");
+
   // 未知の名前空間・firmware なしタグは決して勝たない。
   const std::vector<std::string> noise = {"sd-fonts", "v0.2.0-beta1", "notes-only"};
   checkEq(selectWinner(noise, "0.1.17", "20260817-100000", DEV), "(none)", "unknown tag namespaces never win");
@@ -375,6 +387,69 @@ void testParserTruncatedAndGarbage(const std::string& dir) {
   parseAll(deep, 16);
 
   check(true, "parser survived truncated, garbage and deeply nested input");
+}
+
+// assets 配列の中に asset オブジェクト以外のコンテナが来ても、以降の release を
+// 落とさないこと。GitHub は返さないが、開始側だけ無視して終了側で assets 配列を
+// 閉じてしまうと depth が1ずれ、ボディ全体が失われる。
+void testParserStrayNestingInAssets() {
+  printf("parser: stray container inside the assets array\n");
+
+  const std::string body =
+      R"([{"tag_name":"v1.0.0","assets":[[1,2],{"name":"firmware.bin","browser_download_url":"https://e.invalid/a","size":7}]},)"
+      R"({"tag_name":"v1.0.1","assets":[{"name":"firmware.bin","browser_download_url":"https://e.invalid/b","size":9}]}])";
+
+  const auto list = parseAll(body, 37);
+  checkEq(joinTags(list), "v1.0.0,v1.0.1", "stray nested array inside assets does not swallow the body");
+}
+
+// URL がトークンバッファを超えて落ちた場合、firmware.bin を「見つけた」ことに
+// してはいけない。空URLでOTAに進むと必ず失敗する。
+void testParserRejectsAssetWithoutUrl() {
+  printf("parser: firmware.bin without a usable url\n");
+
+  std::string longUrl = "https://e.invalid/";
+  longUrl.append(600, 'x');  // StreamingJsonParser::TOKEN_BUF_SIZE(512) 超
+  const std::string body = R"([{"tag_name":"v1.0.0","assets":[{"name":"firmware.bin","browser_download_url":")" +
+                           longUrl + R"(","size":7}]}])";
+
+  const auto list = parseAll(body, 128);
+  checkEq(joinTags(list), "", "an asset whose url was dropped is not installable");
+}
+
+// 構文エラーは掛かりっぱなしになり、それ以降の release は静かに消える。
+// 呼び出し側が部分スキャンを完全なスキャンと取り違えないよう、外から見える必要がある。
+void testParserErrorIsVisible() {
+  printf("parser: latched syntax error is observable\n");
+
+  ReleaseJsonParser parser;
+  parser.setHandler(&onRelease, nullptr);
+  emitted.clear();
+  parser.resetStream();
+  // StreamingJsonParser がエラーを立てるのは、不正なリテラルと
+  // MAX_NESTING(32) 超えの2つ。どちらも「以降のバイトを全部捨てる」挙動になる。
+  const std::string badLiteral =
+      R"([{"tag_name":"v1.0.0","assets":[{"name":"firmware.bin","browser_download_url":"https://e.invalid/a","size":7}]},)"
+      R"({"tag_name":tru}])";
+  parser.feed(badLiteral.data(), badLiteral.size());
+  check(parser.hasError(), "an invalid literal sets hasError()");
+  check(parser.releaseCount() >= 1, "releases before the error are still counted");
+
+  ReleaseJsonParser deep;
+  deep.setHandler(&onRelease, nullptr);
+  emitted.clear();
+  deep.resetStream();
+  std::string nested = R"([{"tag_name":"v1.0.0","assets":[]},{"x":)";
+  for (int i = 0; i < 40; i++) nested += "[";
+  deep.feed(nested.data(), nested.size());
+  check(deep.hasError(), "nesting past MAX_NESTING sets hasError()");
+
+  ReleaseJsonParser clean;
+  clean.setHandler(&onRelease, nullptr);
+  clean.resetStream();
+  const std::string ok = R"([{"tag_name":"v1.0.0","assets":[]}])";
+  clean.feed(ok.data(), ok.size());
+  check(!clean.hasError(), "a well-formed body leaves hasError() false");
 }
 
 // -- 4. 性質テスト ----------------------------------------------------------
@@ -491,6 +566,9 @@ int main(int argc, char** argv) {
   testParserCountsAcrossResponses(dir);
   testParserRejectsGarbage();
   testParserTruncatedAndGarbage(dir);
+  testParserStrayNestingInAssets();
+  testParserRejectsAssetWithoutUrl();
+  testParserErrorIsVisible();
   testTagParsing();
   testDeviceVersionParsing();
   testSelectionMatrix();

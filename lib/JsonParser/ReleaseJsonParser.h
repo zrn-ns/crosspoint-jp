@@ -44,6 +44,11 @@ class ReleaseJsonParser {
   // the caller tells "malformed" apart from "nothing newer".
   size_t releaseCount() const { return releasesSeen; }
 
+  // A latched syntax error. StreamingJsonParser drops every byte after one, so
+  // the releases past that point are silently missing — the caller must not
+  // treat the truncated scan as a complete one.
+  bool hasError() const { return parser.hasError(); }
+
  private:
   enum class Position : uint8_t {
     TOP_LEVEL,
@@ -83,6 +88,11 @@ class ReleaseJsonParser {
   LastKey lastKey;
   uint8_t depth;
   uint8_t assetDepth;
+  // Containers opened directly inside the assets array that are not asset
+  // objects. GitHub never emits them, but without the counter a stray nested
+  // array would close the assets array early and shift `depth` for the rest of
+  // the body, losing every remaining release.
+  uint8_t assetsStrayDepth;
   // Container depth at which a release object's own keys live: 1 for a bare
   // release object, 2 when the response is an array of releases. 0 until the
   // first structural token settles it.

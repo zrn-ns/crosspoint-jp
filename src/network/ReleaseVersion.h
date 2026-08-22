@@ -79,24 +79,30 @@ inline const char* parseTriple(const char* p, int* major, int* minor, int* patch
 // publishes firmware under are recognised. Anything else (sd-fonts, a future
 // "v0.2.0-beta1") is rejected rather than guessed at.
 inline bool parseCandidateTag(const char* tag, ReleaseVersionKey* out) {
-  *out = ReleaseVersionKey{};
+  // Built locally and only published on success: a half-filled key with
+  // valid == false would still carry a usable-looking triple, and
+  // cmpReleaseLine()/candidateBeatsWinner() do not check valid.
+  ReleaseVersionKey key{};
+  *out = key;
   if (!tag || tag[0] == '\0') return false;
 
   if (strncmp(tag, "dev-", 4) == 0) {
     const char* stamp = tag + 4;
     if (strlen(stamp) != CROSSPOINT_BUILD_TIME_LEN) return false;
     if (!isDigits(stamp, 8) || stamp[8] != '-' || !isDigits(stamp + 9, 6)) return false;
-    memcpy(out->devStamp, stamp, CROSSPOINT_BUILD_TIME_LEN + 1);
-    out->isDev = true;
-    out->valid = true;
+    memcpy(key.devStamp, stamp, CROSSPOINT_BUILD_TIME_LEN + 1);
+    key.isDev = true;
+    key.valid = true;
+    *out = key;
     return true;
   }
 
   if (tag[0] != 'v' && tag[0] != 'V') return false;
-  const char* rest = parseTriple(tag + 1, &out->major, &out->minor, &out->patch);
+  const char* rest = parseTriple(tag + 1, &key.major, &key.minor, &key.patch);
   if (!rest) return false;
   if (*rest == '\0') {
-    out->valid = true;  // plain release, rc stays 0
+    key.valid = true;  // plain release, rc stays 0
+    *out = key;
     return true;
   }
   if (strncmp(rest, "-rc", 3) != 0) return false;
@@ -107,8 +113,9 @@ inline bool parseCandidateTag(const char* tag, ReleaseVersionKey* out) {
   char* end = nullptr;
   const long n = strtol(digits, &end, 10);
   if (*end != '\0' || n <= 0) return false;
-  out->rc = static_cast<int>(n);
-  out->valid = true;
+  key.rc = static_cast<int>(n);
+  key.valid = true;
+  *out = key;
   return true;
 }
 
@@ -176,15 +183,31 @@ inline bool isCandidateNewerThanDevice(const ReleaseVersionKey& candidate, const
   }
   if (!device.valid) return false;  // nothing to compare against; stay put
 
+  // On DEV, a device that sits past its tag only ever moves to another Dev
+  // Build. Releases and Dev Builds are ordered by two independent keys — semver
+  // and the build stamp — and nothing keeps them consistent: dev-build.yml
+  // stamps the wall clock at build start while `git describe` reports whatever
+  // tag existed at checkout. Re-running an old Dev Build after a release is
+  // tagged produces a stamp newer than the release on top of an older describe
+  // base, and then each side considers the other newer:
+  //
+  //   device v0.1.18       (stamp 100400) -> picks dev-20260822-100500 (stamp wins)
+  //   device 0.1.17-4-gaaa (stamp 100500) -> picks v0.1.18             (semver wins)
+  //
+  // That reinstalls ~1.4MB and reboots on every check, forever. Refusing the
+  // release leg on DEV cuts the cycle. Such a device is not stranded: the next
+  // Dev Build carries the release's commits, and switching to the STABLE or RC
+  // channel re-enables the release below.
+  if (channel == CHANNEL_DEV && device.offTag) return false;
+
   const int cmp = cmpReleaseLine(candidate, device);
   if (cmp > 0) return true;
 
   // Escape hatch. A build past its tag is not any released version, so the
   // release with the same triple is the route back onto the selected channel's
   // line — the only OTA way off a Dev Build while #86 leaves rollback disabled.
-  // Suppressed on DEV, where such a device is already in-channel: allowing it
-  // there would ping-pong between the release and the next Dev Build forever.
-  return cmp == 0 && device.offTag && channel != CHANNEL_DEV;
+  // (DEV already returned above, so this only fires on STABLE and RC.)
+  return cmp == 0 && device.offTag;
 }
 
 // Ranks two candidates that both already qualify, so the scan can keep one
