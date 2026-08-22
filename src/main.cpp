@@ -420,10 +420,13 @@ void setup() {
 
   // First serial output only here to avoid timing inconsistencies for power button press duration verification
   LOG_DBG("MAIN", "Starting CrossPoint version " CROSSPOINT_VERSION);
+  // markCurrentAppValid() より前に控えておく。setup() の最後で VALID にして
+  // しまうと、あとから「override が効いていたか」を確かめる術が無くなる。
   // OTA/SD更新の直後の初回起動なら PENDING_VERIFY になる。VALID しか出ないなら
   // verifyRollbackLater() の override が効いておらず、initArduino() が既に
   // 確認を済ませてしまっている（scripts/check_rollback_hook.py も参照）。
-  LOG_INF("BOOT", "Running %s, ota state %s", ota_rollback::runningPartitionLabel(), ota_rollback::runningStateName());
+  ota_rollback::captureBootState();
+  LOG_INF("BOOT", "Running %s, ota state %s", ota_rollback::runningPartitionLabel(), ota_rollback::bootStateName());
 
   setupDisplayAndFonts();
 
@@ -476,7 +479,13 @@ void setup() {
     appendPowerLog("RLBK ");
   }
 
-  appendPowerLog("WAKE ");
+  // 起動時の ota_state を残す。実機ではシリアルが取れないことが多く、SDカードを
+  // 抜いてこのログを読むのが一番確実な確認手段になる。
+  {
+    char wakeEvent[48];
+    snprintf(wakeEvent, sizeof(wakeEvent), "WAKE  ota=%s", ota_rollback::bootStateName());
+    appendPowerLog(wakeEvent);
+  }
 
   RECENT_BOOKS.loadFromFile();
 

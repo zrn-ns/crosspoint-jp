@@ -20,7 +20,57 @@ bool readState(const esp_partition_t* partition, esp_ota_img_states_t* state) {
   return partition && esp_ota_get_state_partition(partition, state) == ESP_OK;
 }
 
+const char* stateName(esp_ota_img_states_t state) {
+  switch (state) {
+    case ESP_OTA_IMG_NEW:
+      return "NEW";
+    case ESP_OTA_IMG_PENDING_VERIFY:
+      return "PENDING_VERIFY";
+    case ESP_OTA_IMG_VALID:
+      return "VALID";
+    case ESP_OTA_IMG_INVALID:
+      return "INVALID";
+    case ESP_OTA_IMG_ABORTED:
+      return "ABORTED";
+    case ESP_OTA_IMG_UNDEFINED:
+      return "UNDEFINED";
+    default:
+      return "?";
+  }
+}
+
+// Some other slot was given up on by the bootloader, i.e. this boot is a
+// rollback. Scans the app partitions rather than assuming a two-slot layout.
+bool otherSlotAborted(const esp_partition_t* running) {
+  if (!running) return false;
+  esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, nullptr);
+  bool aborted = false;
+  while (it) {
+    const esp_partition_t* part = esp_partition_get(it);
+    esp_ota_img_states_t state;
+    if (part != running && readState(part, &state) && state == ESP_OTA_IMG_ABORTED) {
+      aborted = true;
+      break;
+    }
+    it = esp_partition_next(it);
+  }
+  esp_partition_iterator_release(it);
+  return aborted;
+}
+
+const char* bootState = "?";
+bool rolledBack = false;
+
 }  // namespace
+
+void captureBootState() {
+  const esp_partition_t* running = esp_ota_get_running_partition();
+  esp_ota_img_states_t state;
+  bootState = readState(running, &state) ? stateName(state) : "?";
+  rolledBack = otherSlotAborted(running);
+}
+
+const char* bootStateName() { return bootState; }
 
 void markCurrentAppValid() {
   const esp_partition_t* running = esp_ota_get_running_partition();
@@ -41,47 +91,7 @@ void markCurrentAppValid() {
   LOG_INF("BOOT", "App confirmed, rollback cancelled (%s)", running->label);
 }
 
-bool didRollBack() {
-  const esp_partition_t* running = esp_ota_get_running_partition();
-  if (!running) return false;
-
-  // The slot the bootloader gave up on is the one it marked ABORTED. Scan the
-  // app partitions rather than assuming a two-slot layout.
-  esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, nullptr);
-  bool aborted = false;
-  while (it) {
-    const esp_partition_t* part = esp_partition_get(it);
-    esp_ota_img_states_t state;
-    if (part != running && readState(part, &state) && state == ESP_OTA_IMG_ABORTED) {
-      aborted = true;
-      break;
-    }
-    it = esp_partition_next(it);
-  }
-  esp_partition_iterator_release(it);
-  return aborted;
-}
-
-const char* runningStateName() {
-  esp_ota_img_states_t state;
-  if (!readState(esp_ota_get_running_partition(), &state)) return "?";
-  switch (state) {
-    case ESP_OTA_IMG_NEW:
-      return "NEW";
-    case ESP_OTA_IMG_PENDING_VERIFY:
-      return "PENDING_VERIFY";
-    case ESP_OTA_IMG_VALID:
-      return "VALID";
-    case ESP_OTA_IMG_INVALID:
-      return "INVALID";
-    case ESP_OTA_IMG_ABORTED:
-      return "ABORTED";
-    case ESP_OTA_IMG_UNDEFINED:
-      return "UNDEFINED";
-    default:
-      return "?";
-  }
-}
+bool didRollBack() { return rolledBack; }
 
 const char* runningPartitionLabel() {
   const esp_partition_t* running = esp_ota_get_running_partition();

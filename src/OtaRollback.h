@@ -19,6 +19,17 @@
 // before this module existed, not a regression.
 namespace ota_rollback {
 
+// Records the boot-time state, before markCurrentAppValid() overwrites it.
+// Call once, early in setup(). Without this there is no way to tell afterwards
+// whether the deferral worked: by the end of setup() the state reads VALID
+// either way, whether this build deferred the confirmation or the Arduino core
+// cancelled the rollback during initArduino().
+void captureBootState();
+
+// The state captured at boot ("PENDING_VERIFY" right after an update, "VALID"
+// on an ordinary boot). "?" before captureBootState() runs. Never null.
+const char* bootStateName();
+
 // Confirms the running app so the bootloader keeps it. Only writes when the app
 // is actually awaiting confirmation, so the common boot costs no flash write.
 // Safe to call more than once.
@@ -26,11 +37,8 @@ void markCurrentAppValid();
 
 // True when the previous boot failed to confirm itself and the bootloader fell
 // back to this app. Detected from the other slot being ESP_OTA_IMG_ABORTED.
+// Reflects what captureBootState() saw.
 bool didRollBack();
-
-// "NEW" / "PENDING_VERIFY" / "VALID" / "ABORTED" / "UNDEFINED" / "?" for the
-// running partition. For the boot diagnostics; never null.
-const char* runningStateName();
 
 // Label of the running app partition ("app0" / "app1"). Never null.
 const char* runningPartitionLabel();
