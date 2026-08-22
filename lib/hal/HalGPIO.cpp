@@ -328,7 +328,7 @@ bool HalGPIO::wasAnyReleased() const { return inputMgr.wasAnyReleased(); }
 
 unsigned long HalGPIO::getHeldTime() const { return inputMgr.getHeldTime(); }
 
-void HalGPIO::startDeepSleep() {
+void HalGPIO::startDeepSleep(bool cutPowerRails) {
   // Ensure that the power button has been released to avoid immediately turning back on if you're holding it
   while (inputMgr.isPressed(BTN_POWER)) {
     delay(50);
@@ -338,7 +338,12 @@ void HalGPIO::startDeepSleep() {
   // いる場合があるため、ここでもレールをOFFホールドしないとSD給電つきの
   // スリープに戻ってしまう。ホールドをスリープ中も維持するために
   // gpio_deep_sleep_hold_en()が必要（HalPowerManager::startDeepSleepと同じ）。
-  freeink::PowerManager::powerDownRailsForSleep();
+  // cutPowerRails=false（X3 + RTC有効）では呼ばない: GPIO13はDS3231も給電して
+  // おり、切ると復帰後に時刻が失われる。判断の根拠は呼び出し元と同じなので、
+  // 両方の経路で同じ値を渡すこと（片方だけだと再スリープで時刻が飛ぶ）。
+  if (cutPowerRails) {
+    freeink::PowerManager::powerDownRailsForSleep();
+  }
   gpio_deep_sleep_hold_en();
   // Arm the wakeup trigger *after* the button is released
   esp_deep_sleep_enable_gpio_wakeup(1ULL << InputManager::POWER_BUTTON_PIN, ESP_GPIO_WAKEUP_GPIO_LOW);
@@ -346,7 +351,7 @@ void HalGPIO::startDeepSleep() {
   esp_deep_sleep_start();
 }
 
-void HalGPIO::verifyPowerButtonWakeup(uint16_t requiredDurationMs, bool shortPressAllowed) {
+void HalGPIO::verifyPowerButtonWakeup(uint16_t requiredDurationMs, bool shortPressAllowed, bool cutPowerRails) {
   if (shortPressAllowed) {
     // Fast path - no duration check needed
     return;
@@ -371,10 +376,10 @@ void HalGPIO::verifyPowerButtonWakeup(uint16_t requiredDurationMs, bool shortPre
       inputMgr.update();
     } while (inputMgr.isPressed(BTN_POWER) && inputMgr.getHeldTime() < calibratedDuration);
     if (inputMgr.getHeldTime() < calibratedDuration) {
-      startDeepSleep();
+      startDeepSleep(cutPowerRails);
     }
   } else {
-    startDeepSleep();
+    startDeepSleep(cutPowerRails);
   }
 }
 

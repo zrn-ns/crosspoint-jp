@@ -75,13 +75,21 @@ void HalPowerManager::startDeepSleep(HalGPIO& gpio, bool useFullPowerOff) const 
   // gpio_hold_en によるホールドは後続の gpio_deep_sleep_hold_en() でスリープ中
   // も維持され、復帰時はリセット経由の通常初期化（SDCardManager::begin() が
   // GPIO13を再度HIGHに駆動）で解除される。
-  freeink::PowerManager::powerDownRailsForSleep();
+  //
+  // useFullPowerOff=false（X3 + RTC有効）では呼ばない。X3実機で確認したところ、
+  // GPIO13をLOWホールドすると復帰後に時刻が失われる（DS3231はこのレールから
+  // 給電されており、バックアップ電池を持たない）。RTC有効モードは「GPIO13を
+  // HIGHのまま寝かせて時刻を保つ」ことで成立しているので、レールカットとは
+  // ハードウェア上両立しない。この経路はmaster同等の挙動に戻す。
+  if (useFullPowerOff) {
+    freeink::PowerManager::powerDownRailsForSleep();
+  }
 
   // Pre-sleep routines from the original firmware (crosspoint-reader/crosspoint-reader#1298)
   // GPIO13の意味は機種で異なる: X4ではバッテリーラッチMOSFET（LOWで電池切断→
-  // MCU全電源断）、X3ではSDレール（上のpowerDownRailsForSleepが既にLOWホールド
-  // 済みなので、ここでの再操作は同値で冪等）。useFullPowerOff=false（X3+RTC有効）
-  // の場合はバッテリーを切らず、MCUディープスリープでDS3231の時刻保持を狙う。
+  // MCU全電源断）、X3ではSD＋DS3231のレール（上のpowerDownRailsForSleepが既に
+  // LOWホールド済みなので、ここでの再操作は同値で冪等）。useFullPowerOff=false
+  // （X3+RTC有効）の場合はGPIO13を触らず、DS3231の時刻保持を狙う。
   constexpr gpio_num_t GPIO_SPIWP = GPIO_NUM_13;
   if (useFullPowerOff) {
     gpio_set_direction(GPIO_SPIWP, GPIO_MODE_OUTPUT);
