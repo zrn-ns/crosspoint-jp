@@ -133,8 +133,12 @@ def get_build_time(project_dir):
     clock, which would change the -D flag on every invocation and force a full
     rebuild each time.
     """
+    # `is not None` on purpose: an empty value means the workflow meant to pass a
+    # stamp and produced nothing. Treating that as "unset" would silently fall
+    # back to the commit date, leaving the tag and the embedded stamp
+    # inconsistent with no trace in the log.
     override = os.environ.get('CROSSPOINT_BUILD_TIME')
-    if override:
+    if override is not None:
         if is_valid_build_time(override):
             return override
         warn(
