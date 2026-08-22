@@ -163,6 +163,12 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
                           StrId::STR_CAT_SYSTEM),
       SettingInfo::Toggle(StrId::STR_DEBUG_DISPLAY, &CrossPointSettings::debugDisplay, "debugDisplay",
                           StrId::STR_CAT_SYSTEM),
+      // ラベル数は CrossPointSettings::OTA_CHANNEL_COUNT と一致させること。
+      // OtaUpdater.cpp の static_assert が enum 側のずれは検出するが、
+      // このラベル数（vector のサイズ）だけはコンパイル時に縛れない。
+      SettingInfo::Enum(StrId::STR_OTA_CHANNEL, &CrossPointSettings::otaChannel,
+                        {StrId::STR_OTA_CHANNEL_STABLE, StrId::STR_OTA_CHANNEL_RC, StrId::STR_OTA_CHANNEL_DEV},
+                        "otaChannel", StrId::STR_CAT_SYSTEM),
 
       // --- KOReader Sync (web-only, uses KOReaderCredentialStore) ---
       SettingInfo::DynamicString(

@@ -1,0 +1,902 @@
+[
+ {
+  "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/374382499",
+  "assets_url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/374382499/assets",
+  "html_url": "https://github.com/zrn-ns/crosspoint-jp/releases/tag/dev-20260821-122514",
+  "id": 374382499,
+  "node_id": "RE_kwDOR5XYUM4WUJ-j",
+  "tag_name": "dev-20260821-122514",
+  "target_commitish": "master",
+  "name": "Dev Build 2026-08-21 12:25:14",
+  "draft": false,
+  "prerelease": true,
+  "created_at": "2026-08-21T12:16:16Z",
+  "published_at": "2026-08-21T12:25:15Z",
+  "author": {
+   "login": "github-actions[bot]",
+   "id": 41898282,
+   "node_id": "MDM6Qm90NDE4OTgyODI=",
+   "type": "Bot",
+   "site_admin": false
+  },
+  "assets": [
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/523712461",
+    "id": 523712461,
+    "node_id": "RA_kwDOR5XYUM4fNzfN",
+    "name": "bootloader.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 18672,
+    "download_count": 1,
+    "created_at": "2026-08-21T12:25:17Z",
+    "updated_at": "2026-08-21T12:25:17Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/dev-20260821-122514/bootloader.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   },
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/523712462",
+    "id": 523712462,
+    "node_id": "RA_kwDOR5XYUM4fNzfO",
+    "name": "firmware.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 6281200,
+    "download_count": 1,
+    "created_at": "2026-08-21T12:25:17Z",
+    "updated_at": "2026-08-21T12:25:17Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/dev-20260821-122514/firmware.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   },
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/523712458",
+    "id": 523712458,
+    "node_id": "RA_kwDOR5XYUM4fNzfK",
+    "name": "partitions.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 3072,
+    "download_count": 1,
+    "created_at": "2026-08-21T12:25:17Z",
+    "updated_at": "2026-08-21T12:25:17Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/dev-20260821-122514/partitions.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   }
+  ],
+  "body": "## Dev Build\n\n| 項目 | 値 |\n|------|-----|\n| コミット | [`7803fb2`](https://github.com/zrn-ns/crosspoint-jp/commit/7803fb2f27d9a8ce3b523d4947c95d9ce3296eb8) |\n| メッセージ | Merge pull request #111 from zrn-ns/fe",
+  "reactions": {
+   "url": "https://api.github.com/x",
+   "total_count": 0,
+   "+1": 0,
+   "-1": 0
+  }
+ },
+ {
+  "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/373747428",
+  "assets_url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/373747428/assets",
+  "html_url": "https://github.com/zrn-ns/crosspoint-jp/releases/tag/dev-20260820-131454",
+  "id": 373747428,
+  "node_id": "RE_kwDOR5XYUM4WRu7k",
+  "tag_name": "dev-20260820-131454",
+  "target_commitish": "master",
+  "name": "Dev Build 2026-08-20 13:14:54",
+  "draft": false,
+  "prerelease": true,
+  "created_at": "2026-08-20T13:07:18Z",
+  "published_at": "2026-08-20T13:14:55Z",
+  "author": {
+   "login": "github-actions[bot]",
+   "id": 41898282,
+   "node_id": "MDM6Qm90NDE4OTgyODI=",
+   "type": "Bot",
+   "site_admin": false
+  },
+  "assets": [
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/522274983",
+    "id": 522274983,
+    "node_id": "RA_kwDOR5XYUM4fIUin",
+    "name": "bootloader.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 18672,
+    "download_count": 1,
+    "created_at": "2026-08-20T13:14:57Z",
+    "updated_at": "2026-08-20T13:14:58Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/dev-20260820-131454/bootloader.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   },
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/522274984",
+    "id": 522274984,
+    "node_id": "RA_kwDOR5XYUM4fIUio",
+    "name": "firmware.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 6265936,
+    "download_count": 1,
+    "created_at": "2026-08-20T13:14:57Z",
+    "updated_at": "2026-08-20T13:14:58Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/dev-20260820-131454/firmware.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   },
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/522274982",
+    "id": 522274982,
+    "node_id": "RA_kwDOR5XYUM4fIUim",
+    "name": "partitions.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 3072,
+    "download_count": 1,
+    "created_at": "2026-08-20T13:14:57Z",
+    "updated_at": "2026-08-20T13:14:58Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/dev-20260820-131454/partitions.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   }
+  ],
+  "body": "## Dev Build\n\n| 項目 | 値 |\n|------|-----|\n| コミット | [`09b65b6`](https://github.com/zrn-ns/crosspoint-jp/commit/09b65b66739c6e681a393c7b2e6cdb40f1c9c792) |\n| メッセージ | Merge pull request #110 from zrn-ns/fi",
+  "reactions": {
+   "url": "https://api.github.com/x",
+   "total_count": 0,
+   "+1": 0,
+   "-1": 0
+  }
+ },
+ {
+  "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/373037715",
+  "assets_url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/373037715/assets",
+  "html_url": "https://github.com/zrn-ns/crosspoint-jp/releases/tag/dev-20260819-123940",
+  "id": 373037715,
+  "node_id": "RE_kwDOR5XYUM4WPBqT",
+  "tag_name": "dev-20260819-123940",
+  "target_commitish": "master",
+  "name": "Dev Build 2026-08-19 12:39:40",
+  "draft": false,
+  "prerelease": true,
+  "created_at": "2026-08-19T12:31:44Z",
+  "published_at": "2026-08-19T12:39:41Z",
+  "author": {
+   "login": "github-actions[bot]",
+   "id": 41898282,
+   "node_id": "MDM6Qm90NDE4OTgyODI=",
+   "type": "Bot",
+   "site_admin": false
+  },
+  "assets": [
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/520827098",
+    "id": 520827098,
+    "node_id": "RA_kwDOR5XYUM4fCzDa",
+    "name": "bootloader.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 18672,
+    "download_count": 2,
+    "created_at": "2026-08-19T12:39:43Z",
+    "updated_at": "2026-08-19T12:39:43Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/dev-20260819-123940/bootloader.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   },
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/520827097",
+    "id": 520827097,
+    "node_id": "RA_kwDOR5XYUM4fCzDZ",
+    "name": "firmware.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 6259440,
+    "download_count": 7,
+    "created_at": "2026-08-19T12:39:42Z",
+    "updated_at": "2026-08-19T12:39:43Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/dev-20260819-123940/firmware.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   },
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/520827096",
+    "id": 520827096,
+    "node_id": "RA_kwDOR5XYUM4fCzDY",
+    "name": "partitions.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 3072,
+    "download_count": 2,
+    "created_at": "2026-08-19T12:39:42Z",
+    "updated_at": "2026-08-19T12:39:43Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/dev-20260819-123940/partitions.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   }
+  ],
+  "body": "## Dev Build\n\n| 項目 | 値 |\n|------|-----|\n| コミット | [`b6cc732`](https://github.com/zrn-ns/crosspoint-jp/commit/b6cc732e4f8e70d6958377f78cac21e1afd41c27) |\n| メッセージ | Merge pull request #108 from zrn-ns/fi",
+  "reactions": {
+   "url": "https://api.github.com/x",
+   "total_count": 0,
+   "+1": 0,
+   "-1": 0
+  }
+ },
+ {
+  "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/372370830",
+  "assets_url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/372370830/assets",
+  "html_url": "https://github.com/zrn-ns/crosspoint-jp/releases/tag/v0.1.17",
+  "id": 372370830,
+  "node_id": "RE_kwDOR5XYUM4WMe2O",
+  "tag_name": "v0.1.17",
+  "target_commitish": "master",
+  "name": "CrossPoint Reader JP v0.1.17",
+  "draft": false,
+  "prerelease": false,
+  "created_at": "2026-08-18T12:41:26Z",
+  "published_at": "2026-08-18T13:30:50Z",
+  "author": {
+   "login": "github-actions[bot]",
+   "id": 41898282,
+   "node_id": "MDM6Qm90NDE4OTgyODI=",
+   "type": "Bot",
+   "site_admin": false
+  },
+  "assets": [
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/519493929",
+    "id": 519493929,
+    "node_id": "RA_kwDOR5XYUM4e9tkp",
+    "name": "bootloader.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 18672,
+    "download_count": 7,
+    "created_at": "2026-08-18T13:30:49Z",
+    "updated_at": "2026-08-18T13:30:49Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/v0.1.17/bootloader.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   },
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/519493930",
+    "id": 519493930,
+    "node_id": "RA_kwDOR5XYUM4e9tkq",
+    "name": "firmware.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 6258960,
+    "download_count": 62,
+    "created_at": "2026-08-18T13:30:49Z",
+    "updated_at": "2026-08-18T13:30:50Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/v0.1.17/firmware.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   },
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/519493931",
+    "id": 519493931,
+    "node_id": "RA_kwDOR5XYUM4e9tkr",
+    "name": "partitions.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 3072,
+    "download_count": 6,
+    "created_at": "2026-08-18T13:30:49Z",
+    "updated_at": "2026-08-18T13:30:49Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/v0.1.17/partitions.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   }
+  ],
+  "body": "## CrossPoint Reader JP v0.1.17\n\n### 📦 ファームウェア\n\n| ファイル | 言語 |\n|---------|------|\n| `firmware.bin` | 日本語 / English |\n\n### 📥 インストール方法\n\n1. USB-C でデバイスをPCに接続\n2. `firmware.bin` をダウンロードし、フラッシュツールで書き込み\n\n\n## ",
+  "reactions": {
+   "url": "https://api.github.com/x",
+   "total_count": 0,
+   "+1": 0,
+   "-1": 0
+  }
+ },
+ {
+  "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/372340669",
+  "assets_url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/372340669/assets",
+  "html_url": "https://github.com/zrn-ns/crosspoint-jp/releases/tag/dev-20260818-124704",
+  "id": 372340669,
+  "node_id": "RE_kwDOR5XYUM4WMXe9",
+  "tag_name": "dev-20260818-124704",
+  "target_commitish": "master",
+  "name": "Dev Build 2026-08-18 12:47:04",
+  "draft": false,
+  "prerelease": true,
+  "created_at": "2026-08-18T12:38:25Z",
+  "published_at": "2026-08-18T12:47:06Z",
+  "author": {
+   "login": "github-actions[bot]",
+   "id": 41898282,
+   "node_id": "MDM6Qm90NDE4OTgyODI=",
+   "type": "Bot",
+   "site_admin": false
+  },
+  "assets": [
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/519444842",
+    "id": 519444842,
+    "node_id": "RA_kwDOR5XYUM4e9hlq",
+    "name": "bootloader.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 18672,
+    "download_count": 2,
+    "created_at": "2026-08-18T12:47:07Z",
+    "updated_at": "2026-08-18T12:47:08Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/dev-20260818-124704/bootloader.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   },
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/519444845",
+    "id": 519444845,
+    "node_id": "RA_kwDOR5XYUM4e9hlt",
+    "name": "firmware.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 6259024,
+    "download_count": 2,
+    "created_at": "2026-08-18T12:47:07Z",
+    "updated_at": "2026-08-18T12:47:08Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/dev-20260818-124704/firmware.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   },
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/519444841",
+    "id": 519444841,
+    "node_id": "RA_kwDOR5XYUM4e9hlp",
+    "name": "partitions.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 3072,
+    "download_count": 2,
+    "created_at": "2026-08-18T12:47:07Z",
+    "updated_at": "2026-08-18T12:47:07Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/dev-20260818-124704/partitions.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   }
+  ],
+  "body": "## Dev Build\n\n| 項目 | 値 |\n|------|-----|\n| コミット | [`375c8e4`](https://github.com/zrn-ns/crosspoint-jp/commit/375c8e4f4e4729a0f50a0eaf560e10282757dedb) |\n| メッセージ | Merge pull request #106 from zrn-ns/fi",
+  "reactions": {
+   "url": "https://api.github.com/x",
+   "total_count": 0,
+   "+1": 0,
+   "-1": 0
+  }
+ },
+ {
+  "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/364235628",
+  "assets_url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/364235628/assets",
+  "html_url": "https://github.com/zrn-ns/crosspoint-jp/releases/tag/v0.1.16",
+  "id": 364235628,
+  "node_id": "RE_kwDOR5XYUM4Vtcts",
+  "tag_name": "v0.1.16",
+  "target_commitish": "master",
+  "name": "CrossPoint Reader JP v0.1.16",
+  "draft": false,
+  "prerelease": false,
+  "created_at": "2026-08-03T13:19:01Z",
+  "published_at": "2026-08-03T13:27:17Z",
+  "author": {
+   "login": "github-actions[bot]",
+   "id": 41898282,
+   "node_id": "MDM6Qm90NDE4OTgyODI=",
+   "type": "Bot",
+   "site_admin": false
+  },
+  "assets": [
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/500090672",
+    "id": 500090672,
+    "node_id": "RA_kwDOR5XYUM4dzscw",
+    "name": "bootloader.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 18672,
+    "download_count": 28,
+    "created_at": "2026-08-03T13:27:16Z",
+    "updated_at": "2026-08-03T13:27:16Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/v0.1.16/bootloader.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   },
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/500090673",
+    "id": 500090673,
+    "node_id": "RA_kwDOR5XYUM4dzscx",
+    "name": "firmware.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 6255376,
+    "download_count": 253,
+    "created_at": "2026-08-03T13:27:16Z",
+    "updated_at": "2026-08-03T13:27:17Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/v0.1.16/firmware.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   },
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/500090674",
+    "id": 500090674,
+    "node_id": "RA_kwDOR5XYUM4dzscy",
+    "name": "partitions.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 3072,
+    "download_count": 28,
+    "created_at": "2026-08-03T13:27:16Z",
+    "updated_at": "2026-08-03T13:27:16Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/v0.1.16/partitions.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   }
+  ],
+  "body": "## CrossPoint Reader JP v0.1.16\n\n### 📦 ファームウェア\n\n| ファイル | 言語 |\n|---------|------|\n| `firmware.bin` | 日本語 / English |\n\n### 📥 インストール方法\n\n1. USB-C でデバイスをPCに接続\n2. `firmware.bin` をダウンロードし、フラッシュツールで書き込み\n\n\n## ",
+  "reactions": {
+   "url": "https://api.github.com/x",
+   "total_count": 0,
+   "+1": 0,
+   "-1": 0
+  }
+ },
+ {
+  "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/364549973",
+  "assets_url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/364549973/assets",
+  "html_url": "https://github.com/zrn-ns/crosspoint-jp/releases/tag/dev-20260803-235626",
+  "id": 364549973,
+  "node_id": "RE_kwDOR5XYUM4VupdV",
+  "tag_name": "dev-20260803-235626",
+  "target_commitish": "master",
+  "name": "Dev Build 2026-08-03 23:56:26",
+  "draft": false,
+  "prerelease": true,
+  "created_at": "2026-08-03T23:48:35Z",
+  "published_at": "2026-08-03T23:56:27Z",
+  "author": {
+   "login": "github-actions[bot]",
+   "id": 41898282,
+   "node_id": "MDM6Qm90NDE4OTgyODI=",
+   "type": "Bot",
+   "site_admin": false
+  },
+  "assets": [
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/500676051",
+    "id": 500676051,
+    "node_id": "RA_kwDOR5XYUM4d17XT",
+    "name": "bootloader.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 18672,
+    "download_count": 1,
+    "created_at": "2026-08-03T23:56:28Z",
+    "updated_at": "2026-08-03T23:56:28Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/dev-20260803-235626/bootloader.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   },
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/500676053",
+    "id": 500676053,
+    "node_id": "RA_kwDOR5XYUM4d17XV",
+    "name": "firmware.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 6257056,
+    "download_count": 3,
+    "created_at": "2026-08-03T23:56:28Z",
+    "updated_at": "2026-08-03T23:56:29Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/dev-20260803-235626/firmware.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   },
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/500676052",
+    "id": 500676052,
+    "node_id": "RA_kwDOR5XYUM4d17XU",
+    "name": "partitions.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 3072,
+    "download_count": 1,
+    "created_at": "2026-08-03T23:56:28Z",
+    "updated_at": "2026-08-03T23:56:28Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/dev-20260803-235626/partitions.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   }
+  ],
+  "body": "## Dev Build\n\n| 項目 | 値 |\n|------|-----|\n| コミット | [`cc2d6ed`](https://github.com/zrn-ns/crosspoint-jp/commit/cc2d6ed10745b551b663c7b27bb747581aeab69c) |\n| メッセージ | Merge pull request #102 from zrn-ns/fe",
+  "reactions": {
+   "url": "https://api.github.com/x",
+   "total_count": 0,
+   "+1": 0,
+   "-1": 0
+  }
+ },
+ {
+  "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/364231210",
+  "assets_url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/364231210/assets",
+  "html_url": "https://github.com/zrn-ns/crosspoint-jp/releases/tag/dev-20260803-132059",
+  "id": 364231210,
+  "node_id": "RE_kwDOR5XYUM4Vtboq",
+  "tag_name": "dev-20260803-132059",
+  "target_commitish": "master",
+  "name": "Dev Build 2026-08-03 13:20:59",
+  "draft": false,
+  "prerelease": true,
+  "created_at": "2026-08-03T13:13:22Z",
+  "published_at": "2026-08-03T13:21:00Z",
+  "author": {
+   "login": "github-actions[bot]",
+   "id": 41898282,
+   "node_id": "MDM6Qm90NDE4OTgyODI=",
+   "type": "Bot",
+   "site_admin": false
+  },
+  "assets": [
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/500085268",
+    "id": 500085268,
+    "node_id": "RA_kwDOR5XYUM4dzrIU",
+    "name": "bootloader.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 18672,
+    "download_count": 2,
+    "created_at": "2026-08-03T13:21:02Z",
+    "updated_at": "2026-08-03T13:21:02Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/dev-20260803-132059/bootloader.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   },
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/500085270",
+    "id": 500085270,
+    "node_id": "RA_kwDOR5XYUM4dzrIW",
+    "name": "firmware.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 6255440,
+    "download_count": 2,
+    "created_at": "2026-08-03T13:21:02Z",
+    "updated_at": "2026-08-03T13:21:03Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/dev-20260803-132059/firmware.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   },
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/500085269",
+    "id": 500085269,
+    "node_id": "RA_kwDOR5XYUM4dzrIV",
+    "name": "partitions.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 3072,
+    "download_count": 2,
+    "created_at": "2026-08-03T13:21:02Z",
+    "updated_at": "2026-08-03T13:21:02Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/dev-20260803-132059/partitions.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   }
+  ],
+  "body": "## Dev Build\n\n| 項目 | 値 |\n|------|-----|\n| コミット | [`b6a82cc`](https://github.com/zrn-ns/crosspoint-jp/commit/b6a82cc5f4c215ed2acca37364e868f570af060f) |\n| メッセージ | Merge pull request #101 from zrn-ns/fe",
+  "reactions": {
+   "url": "https://api.github.com/x",
+   "total_count": 0,
+   "+1": 0,
+   "-1": 0
+  }
+ },
+ {
+  "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/363791634",
+  "assets_url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/363791634/assets",
+  "html_url": "https://github.com/zrn-ns/crosspoint-jp/releases/tag/dev-20260802-131118",
+  "id": 363791634,
+  "node_id": "RE_kwDOR5XYUM4VrwUS",
+  "tag_name": "dev-20260802-131118",
+  "target_commitish": "master",
+  "name": "Dev Build 2026-08-02 13:11:18",
+  "draft": false,
+  "prerelease": true,
+  "created_at": "2026-08-02T13:02:23Z",
+  "published_at": "2026-08-02T13:11:19Z",
+  "author": {
+   "login": "github-actions[bot]",
+   "id": 41898282,
+   "node_id": "MDM6Qm90NDE4OTgyODI=",
+   "type": "Bot",
+   "site_admin": false
+  },
+  "assets": [
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/498913466",
+    "id": 498913466,
+    "node_id": "RA_kwDOR5XYUM4dvNC6",
+    "name": "bootloader.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 18672,
+    "download_count": 2,
+    "created_at": "2026-08-02T13:11:20Z",
+    "updated_at": "2026-08-02T13:11:20Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/dev-20260802-131118/bootloader.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   },
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/498913465",
+    "id": 498913465,
+    "node_id": "RA_kwDOR5XYUM4dvNC5",
+    "name": "firmware.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 6251808,
+    "download_count": 4,
+    "created_at": "2026-08-02T13:11:20Z",
+    "updated_at": "2026-08-02T13:11:21Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/dev-20260802-131118/firmware.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   },
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/498913464",
+    "id": 498913464,
+    "node_id": "RA_kwDOR5XYUM4dvNC4",
+    "name": "partitions.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 3072,
+    "download_count": 2,
+    "created_at": "2026-08-02T13:11:20Z",
+    "updated_at": "2026-08-02T13:11:20Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/dev-20260802-131118/partitions.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   }
+  ],
+  "body": "## Dev Build\n\n| 項目 | 値 |\n|------|-----|\n| コミット | [`e312bad`](https://github.com/zrn-ns/crosspoint-jp/commit/e312bad5582b85862d6516ffb9d993adc2a5ed2a) |\n| メッセージ | Merge pull request #100 from zrn-ns/fe",
+  "reactions": {
+   "url": "https://api.github.com/x",
+   "total_count": 0,
+   "+1": 0,
+   "-1": 0
+  }
+ },
+ {
+  "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/363732155",
+  "assets_url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/363732155/assets",
+  "html_url": "https://github.com/zrn-ns/crosspoint-jp/releases/tag/dev-20260802-080012",
+  "id": 363732155,
+  "node_id": "RE_kwDOR5XYUM4Vrhy7",
+  "tag_name": "dev-20260802-080012",
+  "target_commitish": "master",
+  "name": "Dev Build 2026-08-02 08:00:12",
+  "draft": false,
+  "prerelease": true,
+  "created_at": "2026-08-02T07:51:33Z",
+  "published_at": "2026-08-02T08:00:13Z",
+  "author": {
+   "login": "github-actions[bot]",
+   "id": 41898282,
+   "node_id": "MDM6Qm90NDE4OTgyODI=",
+   "type": "Bot",
+   "site_admin": false
+  },
+  "assets": [
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/498702861",
+    "id": 498702861,
+    "node_id": "RA_kwDOR5XYUM4duZoN",
+    "name": "bootloader.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 18672,
+    "download_count": 2,
+    "created_at": "2026-08-02T08:00:14Z",
+    "updated_at": "2026-08-02T08:00:14Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/dev-20260802-080012/bootloader.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   },
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/498702860",
+    "id": 498702860,
+    "node_id": "RA_kwDOR5XYUM4duZoM",
+    "name": "firmware.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 6250112,
+    "download_count": 2,
+    "created_at": "2026-08-02T08:00:14Z",
+    "updated_at": "2026-08-02T08:00:15Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/dev-20260802-080012/firmware.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   },
+   {
+    "url": "https://api.github.com/repos/zrn-ns/crosspoint-jp/releases/assets/498702859",
+    "id": 498702859,
+    "node_id": "RA_kwDOR5XYUM4duZoL",
+    "name": "partitions.bin",
+    "label": "",
+    "content_type": "application/octet-stream",
+    "state": "uploaded",
+    "size": 3072,
+    "download_count": 1,
+    "created_at": "2026-08-02T08:00:14Z",
+    "updated_at": "2026-08-02T08:00:14Z",
+    "browser_download_url": "https://github.com/zrn-ns/crosspoint-jp/releases/download/dev-20260802-080012/partitions.bin",
+    "uploader": {
+     "login": "github-actions[bot]",
+     "id": 41898282,
+     "type": "Bot",
+     "site_admin": false
+    }
+   }
+  ],
+  "body": "## Dev Build\n\n| 項目 | 値 |\n|------|-----|\n| コミット | [`da4edd4`](https://github.com/zrn-ns/crosspoint-jp/commit/da4edd492881119a534a8a7c66d839b01a988670) |\n| メッセージ | Merge pull request #98 from zrn-ns/fea",
+  "reactions": {
+   "url": "https://api.github.com/x",
+   "total_count": 0,
+   "+1": 0,
+   "-1": 0
+  }
+ }
+]

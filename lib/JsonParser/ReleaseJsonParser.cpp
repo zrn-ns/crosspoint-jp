@@ -15,39 +15,63 @@ void safeCopy(char* dst, size_t dstSize, const char* src, size_t srcLen) {
 
 ReleaseJsonParser::ReleaseJsonParser()
     : parser(JsonCallbacks{this, sOnKey, sOnString, sOnNumber, sOnBool, sOnNull, sOnObjectStart, sOnObjectEnd,
-                           sOnArrayStart, sOnArrayEnd}) {
+                           sOnArrayStart, sOnArrayEnd}),
+      handler(nullptr),
+      handlerCtx(nullptr) {
   reset();
 }
 
+void ReleaseJsonParser::setHandler(ReleaseHandler h, void* ctx) {
+  handler = h;
+  handlerCtx = ctx;
+}
+
 void ReleaseJsonParser::reset() {
+  resetStream();
+  releasesSeen = 0;
+}
+
+void ReleaseJsonParser::resetStream() {
   parser.reset();
   position = Position::TOP_LEVEL;
   lastKey = LastKey::NONE;
   depth = 0;
   assetDepth = 0;
-  tagName[0] = '\0';
-  firmwareUrl[0] = '\0';
-  firmwareSize = 0;
-  tagFound = false;
-  firmwareFound = false;
+  assetsStrayDepth = 0;
+  keyDepth = 0;
+  beginRelease();
+}
+
+void ReleaseJsonParser::feed(const char* data, size_t len) { parser.feed(data, len); }
+
+void ReleaseJsonParser::beginRelease() {
+  currentTag[0] = '\0';
+  currentFwUrl[0] = '\0';
+  currentFwSize = 0;
+  currentFwFound = false;
   currentAssetName[0] = '\0';
   currentAssetUrl[0] = '\0';
   currentAssetSize = 0;
 }
 
-void ReleaseJsonParser::feed(const char* data, size_t len) { parser.feed(data, len); }
-
-bool ReleaseJsonParser::foundTag() const { return tagFound; }
-bool ReleaseJsonParser::foundFirmware() const { return firmwareFound; }
-const char* ReleaseJsonParser::getTagName() const { return tagName; }
-const char* ReleaseJsonParser::getFirmwareUrl() const { return firmwareUrl; }
-size_t ReleaseJsonParser::getFirmwareSize() const { return firmwareSize; }
+void ReleaseJsonParser::endRelease() {
+  releasesSeen++;
+  // A release without a firmware.bin asset (sd-fonts, a notes-only release) is
+  // not installable, so it never reaches the caller.
+  if (handler && currentFwFound && currentTag[0] != '\0') {
+    handler(handlerCtx, currentTag, currentFwUrl, currentFwSize);
+  }
+  beginRelease();
+}
 
 void ReleaseJsonParser::commitAsset() {
-  if (strcmp(currentAssetName, "firmware.bin") == 0) {
-    memcpy(firmwareUrl, currentAssetUrl, sizeof(firmwareUrl));
-    firmwareSize = currentAssetSize;
-    firmwareFound = true;
+  // The URL is required: a token longer than StreamingJsonParser's buffer is
+  // dropped rather than truncated, which would otherwise mark the release
+  // installable with an empty download URL.
+  if (strcmp(currentAssetName, "firmware.bin") == 0 && currentAssetUrl[0] != '\0') {
+    memcpy(currentFwUrl, currentAssetUrl, sizeof(currentFwUrl));
+    currentFwSize = currentAssetSize;
+    currentFwFound = true;
   }
   currentAssetName[0] = '\0';
   currentAssetUrl[0] = '\0';
@@ -61,7 +85,7 @@ void ReleaseJsonParser::sOnKey(void* ctx, const char* key, size_t len) {
 
   switch (self->position) {
     case Position::TOP_LEVEL:
-      if (self->depth == 1) {
+      if (self->depth == self->keyDepth) {
         if (len == 8 && memcmp(key, "tag_name", 8) == 0)
           self->lastKey = LastKey::TAG_NAME;
         else if (len == 6 && memcmp(key, "assets", 6) == 0)
@@ -92,10 +116,8 @@ void ReleaseJsonParser::sOnString(void* ctx, const char* value, size_t len) {
 
   switch (self->lastKey) {
     case LastKey::TAG_NAME:
-      if (self->position == Position::TOP_LEVEL && self->depth == 1) {
-        safeCopy(self->tagName, sizeof(self->tagName), value, len);
-        self->tagFound = true;
-      }
+      if (self->position == Position::TOP_LEVEL && self->depth == self->keyDepth)
+        safeCopy(self->currentTag, sizeof(self->currentTag), value, len);
       break;
     case LastKey::ASSET_NAME:
       if (self->position == Position::IN_ASSET_OBJECT && self->assetDepth == 1)
@@ -131,7 +153,10 @@ void ReleaseJsonParser::sOnObjectStart(void* ctx) {
 
   switch (self->position) {
     case Position::TOP_LEVEL:
+      // First structural token is an object -> the body is a single release.
+      if (self->keyDepth == 0) self->keyDepth = 1;
       self->depth++;
+      if (self->depth == self->keyDepth) self->beginRelease();
       self->lastKey = LastKey::NONE;
       break;
     case Position::IN_ASSETS_ARRAY:
@@ -154,7 +179,10 @@ void ReleaseJsonParser::sOnObjectEnd(void* ctx) {
 
   switch (self->position) {
     case Position::TOP_LEVEL:
-      if (self->depth > 0) self->depth--;
+      if (self->depth > 0) {
+        if (self->depth == self->keyDepth) self->endRelease();
+        self->depth--;
+      }
       break;
     case Position::IN_ASSET_OBJECT:
       self->assetDepth--;
@@ -174,18 +202,25 @@ void ReleaseJsonParser::sOnArrayStart(void* ctx) {
 
   switch (self->position) {
     case Position::TOP_LEVEL:
-      if (self->lastKey == LastKey::ASSETS && self->depth == 1) {
+      // First structural token is an array -> the body is a list of releases,
+      // so their keys sit one level deeper than in the single-object form.
+      if (self->keyDepth == 0) self->keyDepth = 2;
+      if (self->lastKey == LastKey::ASSETS && self->depth == self->keyDepth) {
         self->position = Position::IN_ASSETS_ARRAY;
       } else {
         self->depth++;
       }
       self->lastKey = LastKey::NONE;
       break;
+    case Position::IN_ASSETS_ARRAY:
+      // Not an asset object; consume it symmetrically so the assets array does
+      // not close early. sOnArrayEnd unwinds this counter before leaving.
+      self->assetsStrayDepth++;
+      self->lastKey = LastKey::NONE;
+      break;
     case Position::IN_ASSET_OBJECT:
       self->assetDepth++;
       self->lastKey = LastKey::NONE;
-      break;
-    default:
       break;
   }
 }
@@ -198,7 +233,11 @@ void ReleaseJsonParser::sOnArrayEnd(void* ctx) {
       if (self->depth > 0) self->depth--;
       break;
     case Position::IN_ASSETS_ARRAY:
-      self->position = Position::TOP_LEVEL;
+      if (self->assetsStrayDepth > 0) {
+        self->assetsStrayDepth--;
+      } else {
+        self->position = Position::TOP_LEVEL;
+      }
       break;
     case Position::IN_ASSET_OBJECT:
       self->assetDepth--;

@@ -258,6 +258,11 @@ class CrossPointSettings {
   // Debug display on sleep screen (shows time info)
   uint8_t debugDisplay = 0;
 
+  // OTA update channel. Nested: RC also accepts releases, DEV also accepts both.
+  // Values must stay in sync with OtaUpdater::Channel.
+  enum OTA_CHANNEL { OTA_CHANNEL_STABLE = 0, OTA_CHANNEL_RC = 1, OTA_CHANNEL_DEV = 2, OTA_CHANNEL_COUNT };
+  uint8_t otaChannel = OTA_CHANNEL_STABLE;
+
   ~CrossPointSettings() = default;
 
   // Get singleton instance
