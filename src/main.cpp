@@ -28,6 +28,7 @@
 #include "MappedInputManager.h"
 #include "OpdsServerStore.h"
 #include "OrientationHelper.h"
+#include "OtaRollback.h"
 #include "RecentBooksStore.h"
 #include "SdCardFontSystem.h"
 #include "activities/Activity.h"
@@ -370,6 +371,13 @@ void setup() {
 
   // First serial output only here to avoid timing inconsistencies for power button press duration verification
   LOG_DBG("MAIN", "Starting CrossPoint version " CROSSPOINT_VERSION);
+  // markCurrentAppValid() より前に控えておく。setup() の最後で VALID にして
+  // しまうと、あとから「override が効いていたか」を確かめる術が無くなる。
+  // OTA/SD更新の直後の初回起動なら PENDING_VERIFY になる。VALID しか出ないなら
+  // verifyRollbackLater() の override が効いておらず、initArduino() が既に
+  // 確認を済ませてしまっている（scripts/check_rollback_hook.py も参照）。
+  ota_rollback::captureBootState();
+  LOG_INF("BOOT", "Running %s, ota state %s", ota_rollback::runningPartitionLabel(), ota_rollback::bootStateName());
 
   setupDisplayAndFonts();
 
@@ -414,7 +422,21 @@ void setup() {
     }
   }
 
-  appendPowerLog("WAKE ");
+  // 前回の起動が自分自身の確認まで到達できず、ブートローダが旧アプリに戻した場合。
+  // ユーザーには「アップデートしたのにバージョンが戻っている」としか見えないので、
+  // 痕跡を残して後から追えるようにする。
+  if (ota_rollback::didRollBack()) {
+    LOG_INF("BOOT", "Previous boot did not confirm itself; rolled back to %s", ota_rollback::runningPartitionLabel());
+    appendPowerLog("RLBK ");
+  }
+
+  // 起動時の ota_state を残す。実機ではシリアルが取れないことが多く、SDカードを
+  // 抜いてこのログを読むのが一番確実な確認手段になる。
+  {
+    char wakeEvent[48];
+    snprintf(wakeEvent, sizeof(wakeEvent), "WAKE  ota=%s", ota_rollback::bootStateName());
+    appendPowerLog(wakeEvent);
+  }
 
   RECENT_BOOKS.loadFromFile();
 
@@ -438,6 +460,12 @@ void setup() {
     APP_STATE.saveToFile();
     activityManager.goToReader(path);
   }
+
+  // ここまで来たら「このファームは起動できる」と確定してよい。フォント読み込み、
+  // 設定と APP_STATE のパース、アクティビティ生成を全て通過している。
+  // waitForPowerRelease() はボタンを離すまでブロックするので、その前に記録する。
+  // 押しっぱなしのまま電源を切られると確認が残らず、次回起動で戻ってしまう。
+  ota_rollback::markCurrentAppValid();
 
   // Ensure we're not still holding the power button before leaving setup
   waitForPowerRelease();

@@ -111,6 +111,17 @@ jobs:
           path: .pio/build/default/firmware.bin
           if-no-files-found: error
 
+  # OTAアップデートチャネルの選択ポリシー (src/network/ReleaseVersion.h) と
+  # ReleaseJsonParser のホストテスト。実機と同じ関数を検証している。
+  # ここが壊れると症状が「端末が自分自身を延々と再インストールする」なので、
+  # 必須チェックに含めている。git履歴・タグ・PlatformIO は不要。
+  ota-channel-test:
+    name: OTA Channel Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - run: ./test/run_ota_channel_test.sh
+
   # This job is used as the PR required actions check, allows for changes to other steps in the future without breaking
   # PR requirements.
   test-status:
@@ -119,6 +130,7 @@ jobs:
       - build
       - clang-format
       - cppcheck
+      - ota-channel-test
     if: always()
     runs-on: ubuntu-latest
     steps:

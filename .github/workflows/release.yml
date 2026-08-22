@@ -40,7 +40,16 @@ jobs:
       # platformio.ini に version を書き戻すステップは不要になった。
       # scripts/git_branch.py が git tag から直接 CROSSPOINT_VERSION を決める。
 
+      # ビルド開始時刻を CROSSPOINT_BUILD_TIME として埋める。正式/RC リリースは
+      # タグにタイムスタンプを持たないため、OTA で Dev Build と時系列比較する
+      # にはバイナリ側にキーが必要になる (src/BuildInfo.h 参照)。
+      - name: Stamp build time
+        id: buildtime
+        run: echo "value=$(date -u +%Y%m%d-%H%M%S)" >> "$GITHUB_OUTPUT"
+
       - name: Build CrossPoint
+        env:
+          CROSSPOINT_BUILD_TIME: ${{ steps.buildtime.outputs.value }}
         run: |
           set -euo pipefail
           pio run -e gh_release

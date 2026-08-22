@@ -41,7 +41,27 @@ jobs:
       - name: Install PlatformIO Core
         run: uv pip install --system -U https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip
 
+      # ビルドより前に実行する。TIMESTAMP はタグ名 (dev-<stamp>) と
+      # ファームウェアに埋め込む CROSSPOINT_BUILD_TIME の両方の出所であり、
+      # この2つがバイト単位で一致することが「端末が自分自身を更新候補と
+      # みなさない」ための条件になっている (src/BuildInfo.h 参照)。
+      - name: Generate release metadata
+        id: meta
+        run: |
+          TIMESTAMP="$(date -u +%Y%m%d-%H%M%S)"
+          DISPLAY_TIME="$(date -u +'%Y-%m-%d %H:%M:%S')"
+          SHORT_SHA="${GITHUB_SHA::7}"
+          COMMIT_MSG="$(git log -1 --pretty=%s)"
+
+          echo "build_time=${TIMESTAMP}" >> "$GITHUB_OUTPUT"
+          echo "tag_name=dev-${TIMESTAMP}" >> "$GITHUB_OUTPUT"
+          echo "release_name=Dev Build ${DISPLAY_TIME}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "commit_msg=${COMMIT_MSG}" >> "$GITHUB_OUTPUT"
+
       - name: Build CrossPoint
+        env:
+          CROSSPOINT_BUILD_TIME: ${{ steps.meta.outputs.build_time }}
         run: |
           set -euo pipefail
           pio run -e gh_release
@@ -59,19 +79,6 @@ jobs:
           cp "${firmware}" firmware.bin
           cp "${bootloader}" bootloader.bin
           cp "${partitions}" partitions.bin
-
-      - name: Generate release metadata
-        id: meta
-        run: |
-          TIMESTAMP="$(date -u +%Y%m%d-%H%M%S)"
-          DISPLAY_TIME="$(date -u +'%Y-%m-%d %H:%M:%S')"
-          SHORT_SHA="${GITHUB_SHA::7}"
-          COMMIT_MSG="$(git log -1 --pretty=%s)"
-
-          echo "tag_name=dev-${TIMESTAMP}" >> "$GITHUB_OUTPUT"
-          echo "release_name=Dev Build ${DISPLAY_TIME}" >> "$GITHUB_OUTPUT"
-          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
-          echo "commit_msg=${COMMIT_MSG}" >> "$GITHUB_OUTPUT"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
