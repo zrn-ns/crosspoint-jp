@@ -5,22 +5,21 @@
 namespace {
 using ButtonIndex = uint8_t;
 
-struct SideLayoutMap {
-  ButtonIndex pageBack;
-  ButtonIndex pageForward;
+// 側面ボタンの物理的な並び。`first` が並びの先頭（画面上で前・手前方向）、
+// `second` が末尾（次方向）。ADC のチャンネル名と物理位置は一致しないので、
+// 生の HalGPIO::BTN_UP / BTN_DOWN をこの構造体の外で直接使ってはならない。
+//
+//   X4: 右端に縦2つ。first = 物理上 = BTN_DOWN(5)、second = 物理下 = BTN_UP(4)。
+//   X3: 左右の端に1つずつ。first = 左 = BTN_UP(4)、second = 右 = BTN_DOWN(5)。
+//
+// X3 側は実機で検証済み。X4 側は cjk-fork の b2c06f4c（on-device 検証と記載）と
+// Issue #104 の報告症状（NEXT_PREV 設定で物理上=次ページ）が一致する。
+struct SidePair {
+  ButtonIndex first;
+  ButtonIndex second;
 };
-
-// Order matches CrossPointSettings::SIDE_BUTTON_LAYOUT.
-// X4: BTN_DOWN(5) is physically UPPER, BTN_UP(4) is physically LOWER.
-// X3: BTN_UP(4) is physically UPPER, BTN_DOWN(5) is physically LOWER (normal).
-constexpr SideLayoutMap kSideLayoutsX4[] = {
-    {HalGPIO::BTN_DOWN, HalGPIO::BTN_UP},  // PREV_NEXT: top(DOWN)=prev, bottom(UP)=next
-    {HalGPIO::BTN_UP, HalGPIO::BTN_DOWN},  // NEXT_PREV
-};
-constexpr SideLayoutMap kSideLayoutsX3[] = {
-    {HalGPIO::BTN_UP, HalGPIO::BTN_DOWN},  // PREV_NEXT: top(UP)=prev, bottom(DOWN)=next
-    {HalGPIO::BTN_DOWN, HalGPIO::BTN_UP},  // NEXT_PREV
-};
+constexpr SidePair kSideX4{HalGPIO::BTN_DOWN, HalGPIO::BTN_UP};
+constexpr SidePair kSideX3{HalGPIO::BTN_UP, HalGPIO::BTN_DOWN};
 
 // Mirror a front button hardware index (0<->3, 1<->2) for inverted orientation.
 // Physical buttons reverse left-to-right when the device is held upside down.
@@ -29,10 +28,27 @@ constexpr ButtonIndex mirrorFront(ButtonIndex idx) { return 3 - idx; }
 
 bool MappedInputManager::mapButton(const Button button, bool (HalGPIO::*fn)(uint8_t) const) const {
   const auto sideLayout = static_cast<CrossPointSettings::SIDE_BUTTON_LAYOUT>(SETTINGS.sideButtonLayout);
-  const auto& side = gpio.deviceIsX3() ? kSideLayoutsX3[sideLayout] : kSideLayoutsX4[sideLayout];
+  const bool isX3 = gpio.deviceIsX3();
+  const SidePair& sideHw = isX3 ? kSideX3 : kSideX4;
   const bool inverted = effectiveOrientation == Orientation::PortraitInverted;
   const bool landscapeCW = effectiveOrientation == Orientation::LandscapeClockwise;
   const bool landscapeCCW = effectiveOrientation == Orientation::LandscapeCounterClockwise;
+
+  // 画面から見た並び。上下反転時は物理位置が入れ替わる。
+  const ButtonIndex sideFirst = inverted ? sideHw.second : sideHw.first;
+  const ButtonIndex sideSecond = inverted ? sideHw.first : sideHw.second;
+
+  // 値の増減方向。X3 は横並びなので「右＝増」、X4 は縦並びなので「上＝増」。
+  // リストのカーソル移動は両機種とも「先頭側＝前の項目」で一致するので、
+  // 増減だけが X3 で Up/Down と逆向きになる。
+  const ButtonIndex sideIncrease = isX3 ? sideSecond : sideFirst;
+  const ButtonIndex sideDecrease = isX3 ? sideFirst : sideSecond;
+
+  // ページ送りだけは読書方向の好み（sideButtonLayout）で極性を反転できる。
+  // ここは反転前の物理インデックスを使い、向き補正は case 側でまとめて行う。
+  const bool prevNext = sideLayout == CrossPointSettings::PREV_NEXT;
+  const ButtonIndex pageBackHw = prevNext ? sideHw.first : sideHw.second;
+  const ButtonIndex pageForwardHw = prevNext ? sideHw.second : sideHw.first;
 
   switch (button) {
     case Button::Back:
@@ -54,11 +70,14 @@ bool MappedInputManager::mapButton(const Button button, bool (HalGPIO::*fn)(uint
       if (landscapeCCW) return (gpio.*fn)(SETTINGS.frontButtonLeft);
       return (gpio.*fn)(SETTINGS.frontButtonRight);
     case Button::Up:
-      // Side buttons remain fixed for Up/Down.
-      // Inverted: swap physical Up/Down.
-      return (gpio.*fn)(inverted ? HalGPIO::BTN_DOWN : HalGPIO::BTN_UP);
+      // 側面ボタンの並びの先頭側。リストでは「前の項目」に相当する。
+      return (gpio.*fn)(sideFirst);
     case Button::Down:
-      return (gpio.*fn)(inverted ? HalGPIO::BTN_UP : HalGPIO::BTN_DOWN);
+      return (gpio.*fn)(sideSecond);
+    case Button::ValueIncrease:
+      return (gpio.*fn)(sideIncrease);
+    case Button::ValueDecrease:
+      return (gpio.*fn)(sideDecrease);
     case Button::Power:
       // Power button bypasses remapping.
       return (gpio.*fn)(HalGPIO::BTN_POWER);
@@ -66,11 +85,11 @@ bool MappedInputManager::mapButton(const Button button, bool (HalGPIO::*fn)(uint
       // Reader page navigation uses side buttons and can be swapped via settings.
       // Inverted: side buttons swap physical position.
       // CW: side buttons move to bottom, Down(left)/Up(right), swap needed.
-      if (inverted || landscapeCW) return (gpio.*fn)(side.pageForward);
-      return (gpio.*fn)(side.pageBack);
+      if (inverted || landscapeCW) return (gpio.*fn)(pageForwardHw);
+      return (gpio.*fn)(pageBackHw);
     case Button::PageForward:
-      if (inverted || landscapeCW) return (gpio.*fn)(side.pageBack);
-      return (gpio.*fn)(side.pageForward);
+      if (inverted || landscapeCW) return (gpio.*fn)(pageBackHw);
+      return (gpio.*fn)(pageForwardHw);
   }
 
   return false;
