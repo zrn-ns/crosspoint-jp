@@ -52,8 +52,10 @@ void LineSpacingSelectionActivity::loop() {
 
   buttonNavigator.onPressAndContinuous({MappedInputManager::Button::Left}, [this] { adjustValue(-kSmallStep); });
   buttonNavigator.onPressAndContinuous({MappedInputManager::Button::Right}, [this] { adjustValue(kSmallStep); });
-  buttonNavigator.onPressAndContinuous({MappedInputManager::Button::Up}, [this] { adjustValue(kLargeStep); });
-  buttonNavigator.onPressAndContinuous({MappedInputManager::Button::Down}, [this] { adjustValue(-kLargeStep); });
+  buttonNavigator.onPressAndContinuous({MappedInputManager::Button::ValueIncrease},
+                                       [this] { adjustValue(kLargeStep); });
+  buttonNavigator.onPressAndContinuous({MappedInputManager::Button::ValueDecrease},
+                                       [this] { adjustValue(-kLargeStep); });
 }
 
 void LineSpacingSelectionActivity::render(RenderLock&&) {

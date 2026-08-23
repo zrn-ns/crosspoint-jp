@@ -4,7 +4,23 @@
 
 class MappedInputManager {
  public:
-  enum class Button { Back, Confirm, Left, Right, Up, Down, Power, PageBack, PageForward };
+  // Up/Down は「側面ボタンの並びの先頭側／末尾側」を指す論理ボタン。
+  // X4 は縦2つ並びなので上／下、X3 は左右1つずつなので左／右に対応する。
+  // ValueIncrease/ValueDecrease はスライダー等の値増減用。並びが縦か横かで
+  // 「増える側」が変わる（縦なら上、横なら右）ため Up/Down とは別に持つ。
+  enum class Button {
+    Back,
+    Confirm,
+    Left,
+    Right,
+    Up,
+    Down,
+    ValueIncrease,
+    ValueDecrease,
+    Power,
+    PageBack,
+    PageForward
+  };
   enum class Orientation { Portrait, PortraitInverted, LandscapeClockwise, LandscapeCounterClockwise };
 
   struct Labels {
