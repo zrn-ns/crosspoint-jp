@@ -51,8 +51,10 @@ void EpubReaderPercentSelectionActivity::loop() {
   buttonNavigator.onPressAndContinuous({MappedInputManager::Button::Left}, [this] { adjustPercent(-kSmallStep); });
   buttonNavigator.onPressAndContinuous({MappedInputManager::Button::Right}, [this] { adjustPercent(kSmallStep); });
 
-  buttonNavigator.onPressAndContinuous({MappedInputManager::Button::Up}, [this] { adjustPercent(kLargeStep); });
-  buttonNavigator.onPressAndContinuous({MappedInputManager::Button::Down}, [this] { adjustPercent(-kLargeStep); });
+  buttonNavigator.onPressAndContinuous({MappedInputManager::Button::ValueIncrease},
+                                       [this] { adjustPercent(kLargeStep); });
+  buttonNavigator.onPressAndContinuous({MappedInputManager::Button::ValueDecrease},
+                                       [this] { adjustPercent(-kLargeStep); });
 }
 
 void EpubReaderPercentSelectionActivity::render(RenderLock&&) {
