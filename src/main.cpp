@@ -397,12 +397,12 @@ void setup() {
       break;
   }
 
-  // Recovery firmware mode: 起動時に電源+左側面上ボタンの同時押しで
+  // Recovery firmware mode: 起動時に電源+側面ボタン（並びの先頭側）の同時押しで
   // SD カード経由のファーム更新画面へ直行する。USB フラッシュがロック
   // された端末（特に X3）で他 FW へ戻すための救済経路。
   //
-  // ボタン位置: X3 は BTN_UP が物理的に上側面上、X4 は BTN_DOWN が
-  // 物理的に上側面上（MappedInputManager.cpp:14-23 参照）。
+  // ボタン位置: 側面ボタンの並びの先頭側を使う。X3 は左側面の BTN_UP、
+  // X4 は右側面の上側（BTN_DOWN）。MappedInputManager.cpp の SidePair 参照。
   bool recoveryFirmwareMode = false;
   if (wakeupReason == HalGPIO::WakeupReason::PowerButton) {
     // isPressed() needs ~half a second to settle after boot.
@@ -414,7 +414,7 @@ void setup() {
     const uint8_t recoveryButton = gpio.deviceIsX3() ? HalGPIO::BTN_UP : HalGPIO::BTN_DOWN;
     if (gpio.isPressed(recoveryButton)) {
       recoveryFirmwareMode = true;
-      LOG_INF("MAIN", "Recovery firmware mode (side-upper + POWER held at boot)");
+      LOG_INF("MAIN", "Recovery firmware mode (side-first + POWER held at boot)");
     }
   }
 
