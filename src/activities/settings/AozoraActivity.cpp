@@ -840,22 +840,28 @@ void AozoraActivity::loop() {
       return;
     }
 
-    buttonNavigator_.onNextRelease([this] {
+    // カーソル移動は前面ボタン（↑/↓）のみに割り当てる。側面ボタンはページ送り
+    // 専用なので、ButtonNavigator の onNext/onPrevious（側面 Up/Down を含む）は
+    // ここでは使えない。使うと1回の押下でカーソル移動とページ取得が同時に走り、
+    // ページ取得側が selectedIndex_ を 0 に戻すためカーソル移動が消える。#104
+    buttonNavigator_.onRelease({MappedInputManager::Button::Right}, [this] {
       if (selectedIndex_ < static_cast<int>(works_.size()) - 1) {
         selectedIndex_++;
         requestUpdate();
       }
     });
 
-    buttonNavigator_.onPreviousRelease([this] {
+    buttonNavigator_.onRelease({MappedInputManager::Button::Left}, [this] {
       if (selectedIndex_ > 0) {
         selectedIndex_--;
         requestUpdate();
       }
     });
 
-    // ページ送り（右ボタン=次ページ、左ボタン=前ページ）
-    if (mappedInput.wasPressed(MappedInputManager::Button::PageForward)) {
+    // ページ送りは側面ボタンの物理的な並び順に従う（先頭側=前ページ、末尾側=次
+    // ページ）。この一覧は横書きなので、読書方向の設定（sideButtonLayout）では
+    // なく画面の向きに合わせる。X4 なら上=前/下=次、X3 なら左=前/右=次。
+    if (mappedInput.wasPressed(MappedInputManager::Button::Down)) {
       if (worksOffset_ + WORKS_PAGE_SIZE < worksTotal_) {
         worksOffset_ += WORKS_PAGE_SIZE;
         {
@@ -875,7 +881,7 @@ void AozoraActivity::loop() {
       }
     }
 
-    if (mappedInput.wasPressed(MappedInputManager::Button::PageBack)) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Up)) {
       if (worksOffset_ > 0) {
         worksOffset_ = (worksOffset_ >= WORKS_PAGE_SIZE) ? worksOffset_ - WORKS_PAGE_SIZE : 0;
         {
