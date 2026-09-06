@@ -7,6 +7,8 @@
 
 #pragma once
 
+#include <FsHelpers.h>
+
 #include <memory>
 #include <string>
 #include <vector>
@@ -29,7 +31,7 @@ class Xtc {
  public:
   explicit Xtc(std::string filepath, const std::string& cacheDir) : filepath(std::move(filepath)), loaded(false) {
     // Create cache key based on filepath (same as Epub)
-    cachePath = cacheDir + "/xtc_" + std::to_string(std::hash<std::string>{}(this->filepath));
+    cachePath = cacheDir + "/xtc_" + std::to_string(FsHelpers::pathHash(this->filepath));
   }
   ~Xtc() = default;
 
