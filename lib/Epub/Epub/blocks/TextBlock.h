@@ -45,10 +45,12 @@ class TextBlock final : public Block {
   bool isEmpty() override { return words.empty(); }
   size_t wordCount() const { return words.size(); }
   // given a renderer works out where to break the words into lines
+  // renderer は非 const で受ける（インライン画像の描画が ImageBlock 経由で GfxRenderer の
+  // 状態を触るため。呼び出し元の PageLine::render は元々非 const）。
   // viewportX / viewportWidth はビューポート（余白を除いた描画領域）の左端 x と幅。
   // 横書きルビの行頭・行末での突出をビューポート内に抑えるために使う。
   // viewportWidth が 0 のときはクランプしない。
-  void render(const GfxRenderer& renderer, int fontId, int x, int y, int viewportWidth = 0, int viewportX = 0) const;
+  void render(GfxRenderer& renderer, int fontId, int x, int y, int viewportWidth = 0, int viewportX = 0) const;
   void collectCodepoints(std::vector<uint32_t>& out, size_t max) const;
   BlockType getType() override { return TEXT_BLOCK; }
   bool serialize(FsFile& file) const;

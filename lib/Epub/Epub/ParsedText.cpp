@@ -11,6 +11,7 @@
 #include <limits>
 #include <vector>
 
+#include "InlineImage.h"
 #include "SectionBuildPerf.h"
 #include "hyphenation/Hyphenator.h"
 
@@ -292,6 +293,7 @@ void ParsedText::layoutVerticalColumns(const GfxRenderer& renderer, const int fo
     SECTION_PERF_COUNT(advanceCalls);
     std::string allText;
     for (const auto& w : words) {
+      if (InlineImage::isInlineImage(w)) continue;  // 画像語に対応するグリフは無い
       allText += w;
       allText += ' ';
     }
@@ -305,6 +307,7 @@ void ParsedText::layoutVerticalColumns(const GfxRenderer& renderer, const int fo
   // Cannot use a hardcoded reference char ("一") because it may not be in the advance table.
   int cjkCharAdvance = 0;
   for (size_t i = 0; i < words.size() && cjkCharAdvance == 0; i++) {
+    if (InlineImage::isInlineImage(words[i])) continue;  // 画像は文字送りの基準にしない
     auto vb =
         (i < wordVerticalBehaviors.size()) ? wordVerticalBehaviors[i] : VerticalTextUtils::VerticalBehavior::Upright;
     if (vb == VerticalTextUtils::VerticalBehavior::Upright) {
@@ -320,6 +323,16 @@ void ParsedText::layoutVerticalColumns(const GfxRenderer& renderer, const int fo
   const int cjkSpacing = cjkCharAdvance * sp / 100;
 
   for (size_t i = 0; i < words.size(); i++) {
+    // インライン画像は文字ではないので、送り量は画像の高さそのもの（＋通常の字間）
+    {
+      std::string imagePath;
+      int imageWidth = 0;
+      int imageHeight = 0;
+      if (InlineImage::decode(words[i], imagePath, imageWidth, imageHeight)) {
+        wordHeights.push_back(static_cast<uint16_t>(imageHeight + cjkSpacing));
+        continue;
+      }
+    }
     auto vb =
         (i < wordVerticalBehaviors.size()) ? wordVerticalBehaviors[i] : VerticalTextUtils::VerticalBehavior::Upright;
     uint16_t baseHeight;

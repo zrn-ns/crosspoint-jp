@@ -9,6 +9,7 @@
 #include <expat.h>
 
 #include "../../Epub.h"
+#include "../InlineImage.h"
 #include "../Page.h"
 #include "../SectionBuildPerf.h"
 #include "../blocks/TableRowBlock.h"
@@ -508,6 +509,36 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
                   LOG_DBG("EHP", "Display size: %dx%d (scale %.2f)", displayWidth, displayHeight, scale);
                 }
 
+                // 縦書きで、1 文字ぶん程度の小さい画像（外字の代用など）は、
+                // ブロックとして置かずに本文の「語」として流す。ブロックにすると段落が
+                // そこで分断され、画像だけが本文と無関係な位置に置かれる（Issue #107）。
+                // 本来は CSS の display で判定すべきだが、パーサはその情報を持たないので
+                // 大きさ（縦横とも行高の 2 倍以内）で代用する。横書きは従来どおりブロック。
+                if (self->verticalMode && self->currentTextBlock) {
+                  const int lineHeight = self->renderer.getLineHeight(self->fontId);
+                  const int inlineMaxSide = lineHeight * 2;
+                  if (displayWidth <= inlineMaxSide && displayHeight <= inlineMaxSide) {
+                    // 列に収める都合で、幅が列幅を超える画像はアスペクト比を保って列幅に縮める
+                    // （列間隔は列幅の 1/4 しかなく、はみ出すと両隣の列の文字に重なる）
+                    const int columnWidth = static_cast<int>(lineHeight * self->lineCompression);
+                    if (columnWidth > 0 && displayWidth > columnWidth) {
+                      displayHeight =
+                          static_cast<int>(displayHeight * (static_cast<float>(columnWidth) / displayWidth) + 0.5f);
+                      if (displayHeight < 1) displayHeight = 1;
+                      displayWidth = columnWidth;
+                    }
+                    if (self->partWordBufferIndex > 0) {
+                      self->flushPartWordBuffer();
+                    }
+                    self->currentTextBlock->addWord(InlineImage::encode(cachedImagePath, displayWidth, displayHeight),
+                                                    EpdFontFamily::REGULAR,
+                                                    VerticalTextUtils::VerticalBehavior::Upright);
+                    LOG_DBG("EHP", "Inline image: %dx%d", displayWidth, displayHeight);
+                    self->depth += 1;
+                    return;
+                  }
+                }
+
                 // Flush any pending text block so it appears before the image
                 if (self->partWordBufferIndex > 0) {
                   self->flushPartWordBuffer();
@@ -515,6 +546,57 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
                 if (self->currentTextBlock && !self->currentTextBlock->isEmpty()) {
                   const BlockStyle parentBlockStyle = self->currentTextBlock->getBlockStyle();
                   self->startNewTextBlock(parentBlockStyle);
+                }
+
+                // Create ImageBlock and add to page
+                auto imageBlock = std::make_shared<ImageBlock>(cachedImagePath, displayWidth, displayHeight);
+                if (!imageBlock) {
+                  LOG_ERR("EHP", "Failed to create ImageBlock");
+                  return;
+                }
+
+                if (self->verticalMode) {
+                  // 縦書き: ブロック画像は列と同じく右から左へ並べ、幅ぶんの列を消費する。
+                  // 横書きの「行送り方向に積み、行内方向は中央」に対応させ、
+                  // 行送り方向（x）は現在の列位置に右端を合わせ、行内方向（y）は中央に置く。
+                  const int lineHeight = self->renderer.getLineHeight(self->fontId) * self->lineCompression;
+                  const int columnWidth = lineHeight;
+                  const int columnSpacing = columnWidth / 4;
+                  if (!self->currentPage) {
+                    self->currentPage.reset(new Page());
+                    if (!self->currentPage) {
+                      LOG_ERR("EHP", "Failed to create initial page");
+                      return;
+                    }
+                    self->currentPageNextX = self->viewportWidth - columnWidth;
+                  }
+                  // 現在の列の右端。残りの幅に収まらなければ改ページ
+                  int rightEdge = self->currentPageNextX + columnWidth;
+                  if (!self->currentPage->elements.empty() && displayWidth > rightEdge) {
+                    self->completePageFn(std::move(self->currentPage));
+                    self->completedPageCount++;
+                    self->currentPage.reset(new Page());
+                    if (!self->currentPage) {
+                      LOG_ERR("EHP", "Failed to create new page");
+                      return;
+                    }
+                    rightEdge = self->viewportWidth;
+                  }
+                  int xPos = rightEdge - displayWidth;
+                  if (xPos < 0) xPos = 0;
+                  const int yPos = (self->viewportHeight - displayHeight) / 2;
+                  auto pageImage = std::make_shared<PageImage>(imageBlock, static_cast<int16_t>(xPos),
+                                                               static_cast<int16_t>(yPos > 0 ? yPos : 0));
+                  if (!pageImage) {
+                    LOG_ERR("EHP", "Failed to create PageImage");
+                    return;
+                  }
+                  self->currentPage->elements.push_back(pageImage);
+                  // 次の列は画像の左（列間隔ぶん空ける）。負になれば addLineToPage が改ページする
+                  self->currentPageNextX = xPos - columnSpacing - columnWidth;
+
+                  self->depth += 1;
+                  return;
                 }
 
                 // Create page for image - only break if image won't fit remaining space
@@ -537,12 +619,6 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
                   self->currentPageNextY = 0;
                 }
 
-                // Create ImageBlock and add to page
-                auto imageBlock = std::make_shared<ImageBlock>(cachedImagePath, displayWidth, displayHeight);
-                if (!imageBlock) {
-                  LOG_ERR("EHP", "Failed to create ImageBlock");
-                  return;
-                }
                 int xPos = (self->viewportWidth - displayWidth) / 2;
                 auto pageImage = std::make_shared<PageImage>(imageBlock, xPos, self->currentPageNextY);
                 if (!pageImage) {
