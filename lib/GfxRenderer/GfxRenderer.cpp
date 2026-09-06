@@ -407,12 +407,8 @@ int GfxRenderer::getTextWidth(const int fontId, const char* text, const EpdFontF
 
         // First check built-in CJK UI font (Flash access is fast)
         if (CjkUiFont20::hasCjkUiGlyph(cp)) {
-          uint8_t advanceWidth = CjkUiFont20::getCjkUiGlyphWidth(cp);
-          // Match the spacing reduction applied during rendering in drawText
-          if (advanceWidth >= 20) {
-            advanceWidth = 18;
-          }
-          width += advanceWidth;
+          // Same rule as renderBuiltinCjkGlyph(): advance by the glyph's actual width
+          width += CjkUiFont20::getCjkUiGlyphWidth(cp);
           hasChar = true;
         }
 
@@ -516,9 +512,8 @@ int GfxRenderer::getTextWidth(const int fontId, const char* text, const EpdFontF
         if (actualWidth > 0) {
           // Character is in UI font: use actual proportional width.
           // This path is rendered by renderChar() -> renderBuiltinCjkGlyph(), which
-          // advances by the glyph's actual width. Do NOT apply the 20->18 reduction
-          // used by the fontMap-less drawText path: measuring 18px while drawing 20px
-          // under-measures CJK UI text (2px per full-width char), so centered text
+          // advances by the glyph's actual width. Measuring anything else (e.g. a
+          // 20->18 "spacing reduction") under-measures CJK UI text, so centered text
           // drifts right and truncatedText() lets it overflow the screen.
           width += actualWidth;
         } else if (isCjkCodepoint(cp)) {
@@ -611,15 +606,11 @@ void GfxRenderer::drawText(const int fontId, const int x, const int y, const cha
         // First check built-in CJK UI font (Flash access is fast)
         if (CjkUiFont20::hasCjkUiGlyph(cp)) {
           const uint8_t* bitmap = CjkUiFont20::getCjkUiGlyph(cp);
-          uint8_t advanceWidth = CjkUiFont20::getCjkUiGlyphWidth(cp);
+          // Same rule as renderBuiltinCjkGlyph(): advance by the glyph's actual width
+          const uint8_t advanceWidth = CjkUiFont20::getCjkUiGlyphWidth(cp);
           const uint8_t height = CjkUiFont20::CJK_UI_FONT_HEIGHT;
           const uint8_t bytesPerRow = CjkUiFont20::CJK_UI_FONT_BYTES_PER_ROW;
           const uint8_t glyphWidth = CjkUiFont20::CJK_UI_FONT_WIDTH;
-
-          // Reduce spacing for CJK characters
-          if (advanceWidth >= 20) {
-            advanceWidth = 18;
-          }
 
           for (uint8_t glyphY = 0; glyphY < height; glyphY++) {
             for (uint8_t glyphX = 0; glyphX < glyphWidth; glyphX++) {
