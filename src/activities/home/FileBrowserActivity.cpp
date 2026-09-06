@@ -1,6 +1,5 @@
 #include "FileBrowserActivity.h"
 
-#include <Epub.h>
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <HalStorage.h>
@@ -14,6 +13,7 @@
 #include <variant>
 
 #include "../util/ConfirmationActivity.h"
+#include "BookFileHelper.h"
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
 #include "ReadingStatusHelper.h"
@@ -233,14 +233,6 @@ void FileBrowserActivity::onExit() {
   files.clear();
 }
 
-void FileBrowserActivity::clearFileMetadata(const std::string& fullPath) {
-  // Only clear cache for .epub files
-  if (FsHelpers::hasEpubExtension(fullPath)) {
-    Epub(fullPath, "/.crosspoint").clearCache();
-    LOG_DBG("FileBrowser", "Cleared metadata cache for: %s", fullPath.c_str());
-  }
-}
-
 void FileBrowserActivity::loop() {
   // Long press BACK (1s+) goes to root folder
   // but Long press BACK (1s+) from ReaderActivity sends us here with the MappedInput already set.
@@ -274,36 +266,15 @@ void FileBrowserActivity::loop() {
       if (cleanBasePath.back() != '/') cleanBasePath += "/";
       const std::string fullPath = cleanBasePath + (isDirectory ? entry.substr(0, entry.length() - 1) : entry);
 
-      auto handler = [this, fullPath, isDirectory, entry](const ActivityResult& res) {
+      auto handler = [this, fullPath, isDirectory](const ActivityResult& res) {
         if (!res.isCancelled) {
           // Right ボタン → 削除
-          LOG_DBG("FileBrowser", "Attempting to delete: %s", fullPath.c_str());
-          if (!isDirectory) clearFileMetadata(fullPath);
-          const bool ok = isDirectory ? Storage.removeDir(fullPath.c_str()) : Storage.remove(fullPath.c_str());
-          if (ok) {
-            LOG_DBG("FileBrowser", "Deleted successfully");
-          } else {
-            LOG_ERR("FileBrowser", "Failed to delete file: %s", fullPath.c_str());
-            return;
-          }
+          if (!BookFileHelper::remove(fullPath, isDirectory)) return;
         } else if (std::holds_alternative<MenuResult>(res.data)) {
           const int code = std::get<MenuResult>(res.data).action;
           if (code == ConfirmationActivity::RESULT_NEVER) {
             // Left ボタン → アーカイブ（/Archived/ に移動）
-            std::string filename = isDirectory ? entry.substr(0, entry.length() - 1) : entry;
-            std::string destPath = "/Archived/" + filename;
-            Storage.mkdir("/Archived");
-            // 同名ファイルが存在する場合は先に削除
-            if (Storage.exists(destPath.c_str())) {
-              isDirectory ? Storage.removeDir(destPath.c_str()) : Storage.remove(destPath.c_str());
-            }
-            if (!isDirectory) clearFileMetadata(fullPath);
-            if (Storage.rename(fullPath.c_str(), destPath.c_str())) {
-              LOG_DBG("FileBrowser", "Archived to: %s", destPath.c_str());
-            } else {
-              LOG_ERR("FileBrowser", "Failed to archive: %s", fullPath.c_str());
-              return;
-            }
+            if (!BookFileHelper::archive(fullPath, isDirectory)) return;
           } else if (code == ConfirmationActivity::RESULT_MIDDLE) {
             // Confirm ボタン → 既読にする
             if (isDirectory) return;

@@ -11,9 +11,6 @@
 
 class FileBrowserActivity final : public Activity {
  private:
-  // Deletion
-  void clearFileMetadata(const std::string& fullPath);
-
   ButtonNavigator buttonNavigator;
 
   size_t selectorIndex = 0;
