@@ -204,8 +204,13 @@ OtaUpdater::OtaUpdaterError OtaUpdater::installUpdate(ProgressCallback onProgres
     return INTERNAL_UPDATE_ERROR;
   }
 
+  // OTA_SIZE_UNKNOWN だと app パーティション全域 (約 6.8MB) を事前消去する。
+  // イメージサイズは checkForUpdate() でリリースのアセット情報から判明して
+  // いるので、それを渡して消去範囲を実サイズ分に絞る (#89)。消去中はフラッシュ
+  // キャッシュが止まるため、その時間が直接短くなる。サイズ不明なら従来どおり。
+  const size_t eraseSize = otaSize > 0 ? otaSize : static_cast<size_t>(OTA_SIZE_UNKNOWN);
   esp_ota_handle_t otaHandle = 0;
-  esp_err_t esp_err = esp_ota_begin(updatePartition, OTA_SIZE_UNKNOWN, &otaHandle);
+  esp_err_t esp_err = esp_ota_begin(updatePartition, eraseSize, &otaHandle);
   if (esp_err != ESP_OK) {
     LOG_ERR("OTA", "esp_ota_begin failed: %s", esp_err_to_name(esp_err));
     char buf[96];
@@ -229,6 +234,13 @@ OtaUpdater::OtaUpdaterError OtaUpdater::installUpdate(ProgressCallback onProgres
   const bool fetchOk = HttpDownloader::fetchUrl(
       otaUrl,
       [&](const uint8_t* data, size_t len) {
+        // 消去済み領域は otaSize 分しかない。アセット情報より大きい本体が
+        // 流れてきたら未消去領域への書き込みになるので、その前に止める。
+        if (otaSize > 0 && processedSize + len > otaSize) {
+          writeErr = ESP_ERR_INVALID_SIZE;
+          flashOk = false;
+          return false;
+        }
         writeErr = esp_ota_write(otaHandle, data, len);
         if (writeErr != ESP_OK) {
           flashOk = false;
