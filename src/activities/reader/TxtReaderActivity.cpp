@@ -29,7 +29,8 @@ void TxtReaderActivity::onEnter() {
     return;
   }
 
-  ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
+  // Screen orientation (renderer + input) is applied by ActivityManager via
+  // OrientationHelper before onEnter(), so no explicit setOrientation here.
 
   txt->setupCacheDir();
 
@@ -47,8 +48,8 @@ void TxtReaderActivity::onEnter() {
 void TxtReaderActivity::onExit() {
   Activity::onExit();
 
-  // Reset orientation back to portrait for the rest of the UI
-  renderer.setOrientation(GfxRenderer::Orientation::Portrait);
+  // 次のアクティビティの向きは ActivityManager が Pop / Replace 時に適用するので、
+  // ここでは戻さない（EpubReaderActivity::onExit と同じ）。
 
   pageOffsets.clear();
   currentPageLines.clear();

@@ -180,7 +180,7 @@ void EpubReaderActivity::onEnter() {
   // ルビフォントIDはrender()内でフォントロード後に設定
 
   // Screen orientation (both renderer and input) is already set by
-  // enterNewActivity() → OrientationHelper::applyOrientation() before onEnter().
+  // ActivityManager → OrientationHelper::applyOrientation() before onEnter().
 
   epub->setupCacheDir();
 
@@ -251,8 +251,9 @@ void EpubReaderActivity::onEnter() {
 void EpubReaderActivity::onExit() {
   Activity::onExit();
 
-  // Reset orientation back to portrait for the rest of the UI
-  renderer.setOrientation(GfxRenderer::Orientation::Portrait);
+  // 次のアクティビティの向き（renderer と入力の両方）は ActivityManager が
+  // Pop / Replace 時に OrientationHelper で適用するので、ここでは戻さない。
+  // renderer だけ Portrait に戻すと入力側の向きが残留する（#120）。
 
   APP_STATE.readerActivityLoadCount = 0;
   APP_STATE.saveToFile();
