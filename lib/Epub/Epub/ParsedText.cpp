@@ -170,6 +170,20 @@ void ParsedText::setRubyForWordAt(size_t index, const std::string& ruby) {
   rubyTexts[index] = ruby;
 }
 
+// [start, end) の語に対応するルビを取り出す。
+// rubyTexts は setRubyForWordAt() 時点の words.size() までしか伸びないため、
+// その後 addWord() された語の分は短い。範囲全体を一括判定すると
+// 末尾に語が追加された最終行（縦書きは最終列）だけルビが全て落ちるので、
+// 存在する分だけコピーし残りは空文字列で埋める。
+std::vector<std::string> ParsedText::copyRubyRange(const size_t start, const size_t end) const {
+  std::vector<std::string> out(end - start);
+  if (rubyTexts.size() > start) {
+    const size_t avail = std::min(rubyTexts.size(), end) - start;
+    std::copy(rubyTexts.begin() + start, rubyTexts.begin() + start + avail, out.begin());
+  }
+  return out;
+}
+
 // Consumes data to minimize memory usage
 void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fontId, const uint16_t viewportWidth,
                                        const std::function<void(std::shared_ptr<TextBlock>)>& processLine,
@@ -379,12 +393,7 @@ void ParsedText::layoutVerticalColumns(const GfxRenderer& renderer, const int fo
     std::vector<int16_t> colXpos;
     std::vector<EpdFontFamily::Style> colStyles(wordStyles.begin() + start, wordStyles.begin() + end);
     const size_t count = end - start;
-    std::vector<std::string> colRubyTexts;
-    if (rubyTexts.size() >= end) {
-      colRubyTexts.assign(rubyTexts.begin() + start, rubyTexts.begin() + end);
-    } else {
-      colRubyTexts.resize(count);
-    }
+    std::vector<std::string> colRubyTexts = copyRubyRange(start, end);
     colYpos.reserve(count);
     colXpos.resize(count, 0);
 
@@ -719,12 +728,7 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
   std::vector<std::string> lineWords(std::make_move_iterator(words.begin() + lastBreakAt),
                                      std::make_move_iterator(words.begin() + lineBreak));
   std::vector<EpdFontFamily::Style> lineWordStyles(wordStyles.begin() + lastBreakAt, wordStyles.begin() + lineBreak);
-  std::vector<std::string> lineRubyTexts;
-  if (rubyTexts.size() >= lineBreak) {
-    lineRubyTexts.assign(rubyTexts.begin() + lastBreakAt, rubyTexts.begin() + lineBreak);
-  } else {
-    lineRubyTexts.resize(lineWordCount);
-  }
+  std::vector<std::string> lineRubyTexts = copyRubyRange(lastBreakAt, lineBreak);
 
   for (auto& word : lineWords) {
     if (containsSoftHyphen(word)) {
