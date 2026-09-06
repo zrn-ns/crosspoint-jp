@@ -1042,6 +1042,12 @@ macOS/Linux の SDL2 ウィンドウで動かせる。**UI・レイアウト・�
 ```bash
 brew install sdl2                                   # 初回のみ
 pio run -e simulator                                # X4。X3 は simulator_x3
+# 普段はランナーを使う（SD の組み立て・実行・BMP→PNG・ログ要約まで一括）
+deno run -A scripts/sim_run.ts --build --shot 1500:home
+deno run -A scripts/sim_run.ts --sd-font BIZUDGothic --open /Books/ja_vertical.epub \
+    --script '2500:LEFT' --shot 2000:confirm --shot 8000:page
+
+# 手動で動かす場合
 CROSSPOINT_SIM_SD=<SDの中身のディレクトリ> .pio/build/simulator/program
 
 # ボタン操作とスクリーンショットの自動化（ms:ACTION;… / ms:path.bmp;…）
