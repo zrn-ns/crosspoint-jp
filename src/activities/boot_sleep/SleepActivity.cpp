@@ -23,11 +23,14 @@
 void SleepActivity::onEnter() {
   Activity::onEnter();
 
-  // Show popup with reader orientation only when going to sleep from reader
+  // Show popup with reader orientation only when going to sleep from reader.
+  // ActivityManager は Sleep 進入時に UI の向き（Portrait/Inverted）を適用済みなので、
+  // ポップアップ後は Portrait 固定ではなくその向きに戻す（UI 反転時のスリープ画面のため）。
   if (APP_STATE.lastSleepFromReader) {
+    const auto uiOrientation = renderer.getOrientation();
     ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
     GUI.drawPopup(renderer, tr(STR_ENTERING_SLEEP));
-    renderer.setOrientation(GfxRenderer::Orientation::Portrait);
+    renderer.setOrientation(uiOrientation);
   } else {
     GUI.drawPopup(renderer, tr(STR_ENTERING_SLEEP));
   }
