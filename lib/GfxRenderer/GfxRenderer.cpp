@@ -514,11 +514,12 @@ int GfxRenderer::getTextWidth(const int fontId, const char* text, const EpdFontF
         uint8_t actualWidth = CjkUiFont20::getCjkUiGlyphWidth(cp);
 
         if (actualWidth > 0) {
-          // Character is in UI font: use actual proportional width
-          // Match the spacing reduction applied during rendering in drawText
-          if (actualWidth >= 20) {
-            actualWidth = 18;
-          }
+          // Character is in UI font: use actual proportional width.
+          // This path is rendered by renderChar() -> renderBuiltinCjkGlyph(), which
+          // advances by the glyph's actual width. Do NOT apply the 20->18 reduction
+          // used by the fontMap-less drawText path: measuring 18px while drawing 20px
+          // under-measures CJK UI text (2px per full-width char), so centered text
+          // drifts right and truncatedText() lets it overflow the screen.
           width += actualWidth;
         } else if (isCjkCodepoint(cp)) {
           // CJK character not in UI font: try UI external font, then reader
