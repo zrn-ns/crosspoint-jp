@@ -13,6 +13,7 @@
 #include <Logging.h>
 #include <esp_system.h>
 
+#include "BookFileHelper.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "EpubReaderChapterSelectionActivity.h"
@@ -384,7 +385,7 @@ void EpubReaderActivity::loop() {
   if (currentSpineIndex > 0 && currentSpineIndex >= epub->getSpineItemsCount()) {
     const bool forwardTriggered = verticalMode ? prevTriggered : nextTriggered;
     if (forwardTriggered) {
-      onGoHome();
+      showFinishedBookPrompt();
     } else {
       currentSpineIndex = epub->getSpineItemsCount() - 1;
       nextPageNumber = UINT16_MAX;
@@ -756,6 +757,68 @@ void EpubReaderActivity::pageTurn(bool isForwardTurn) {
   }
   lastPageTurnTime = millis();
   requestUpdate();
+}
+
+// 読了画面で先送りされたときの確認 (#47)。「閉じる」で従来どおりホームへ、
+// 「アーカイブ」で /Archived/ へ移動、「削除」は再確認を挟んでから消す。
+// 「戻る」で読了画面に留まる（さらに戻ると最終ページへ）。
+void EpubReaderActivity::showFinishedBookPrompt() {
+  if (!epub) return;
+  startActivityForResult(
+      std::make_unique<ConfirmationActivity>(renderer, mappedInput, epub->getTitle(), tr(STR_FINISHED_BOOK_PROMPT),
+                                             tr(STR_ARCHIVE), tr(STR_CLOSE_BOOK), tr(STR_BACK), tr(STR_DELETE)),
+      [this](const ActivityResult& res) {
+        if (!res.isCancelled) {
+          // Right → 閉じる
+          onGoHome();
+          return;
+        }
+        const auto* menu = std::get_if<MenuResult>(&res.data);
+        if (!menu) {
+          // Back → 読了画面に留まる
+          requestUpdate();
+          return;
+        }
+        if (menu->action == ConfirmationActivity::RESULT_NEVER) {
+          // Left → アーカイブ
+          finishBookFile(/*remove=*/false);
+          return;
+        }
+        if (menu->action == ConfirmationActivity::RESULT_MIDDLE) {
+          // Confirm → 削除。取り消せない操作なので一段挟む
+          startActivityForResult(std::make_unique<ConfirmationActivity>(renderer, mappedInput, epub->getTitle(),
+                                                                        tr(STR_DELETE_BOOK_PROMPT), "", tr(STR_DELETE)),
+                                 [this](const ActivityResult& confirm) {
+                                   if (confirm.isCancelled) {
+                                     requestUpdate();
+                                     return;
+                                   }
+                                   finishBookFile(/*remove=*/true);
+                                 });
+          return;
+        }
+        requestUpdate();
+      });
+}
+
+// 読了した本をアーカイブまたは削除してホームへ戻る。失敗しても本は開いたままに
+// せず、ホームへ戻す（読了画面に戻っても再試行以外にできることがない）。
+void EpubReaderActivity::finishBookFile(bool remove) {
+  if (!epub) return;
+  const std::string path = epub->getPath();
+  {
+    // キャッシュ削除・ファイル移動中にレンダリングが走らないようにする
+    RenderLock lock(*this);
+    section.reset();
+    const bool ok = remove ? BookFileHelper::remove(path, /*isDirectory=*/false)
+                           : BookFileHelper::archive(path, /*isDirectory=*/false);
+    if (!ok) {
+      LOG_ERR("ERS", "Failed to %s finished book: %s", remove ? "delete" : "archive", path.c_str());
+    }
+  }
+  // 次回起動時に消えたパスを開こうとしないようにする。onExit() が保存する。
+  APP_STATE.openEpubPath = "";
+  onGoHome();
 }
 
 // TODO: Failure handling
