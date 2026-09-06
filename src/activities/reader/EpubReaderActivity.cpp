@@ -1,5 +1,6 @@
 #include "EpubReaderActivity.h"
 
+#include <Epub/InlineImage.h>
 #include <Epub/Page.h>
 #include <Epub/blocks/TextBlock.h>
 #include <FontCacheManager.h>
@@ -601,6 +602,7 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
               if (line.getBlock()) {
                 const auto& words = line.getBlock()->getWords();
                 for (const auto& w : words) {
+                  if (InlineImage::isInlineImage(w)) continue;  // 縦書きのインライン画像語は本文ではない
                   if (!fullText.empty()) fullText += " ";
                   fullText += w;
                 }

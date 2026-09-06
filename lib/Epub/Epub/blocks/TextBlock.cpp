@@ -6,6 +6,9 @@
 #include <Utf8.h>
 #include <VerticalTextUtils.h>
 
+#include "../InlineImage.h"
+#include "ImageBlock.h"
+
 int TextBlock::rubyFontId = 0;
 
 void TextBlock::collectCodepoints(std::vector<uint32_t>& out, size_t max) const {
@@ -14,6 +17,7 @@ void TextBlock::collectCodepoints(std::vector<uint32_t>& out, size_t max) const 
   }
 
   for (const auto& word : words) {
+    if (InlineImage::isInlineImage(word)) continue;  // 画像語に対応するグリフは無い
     const unsigned char* ptr = reinterpret_cast<const unsigned char*>(word.c_str());
     uint32_t cp;
     while ((cp = utf8NextCodepoint(&ptr))) {
@@ -42,7 +46,7 @@ bool TextBlock::hasRuby() const {
   return false;
 }
 
-void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int x, const int y,
+void TextBlock::render(GfxRenderer& renderer, const int fontId, const int x, const int y,
                        const int viewportWidth) const {
   // Validate iterator bounds before rendering
   if (words.size() != wordXpos.size() || words.size() != wordStyles.size()) {
@@ -76,6 +80,32 @@ void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int 
 
   for (size_t i = 0; i < words.size(); i++) {
     const EpdFontFamily::Style currentStyle = wordStyles[i];
+
+    // インライン画像（本文中に 1 文字ぶんの大きさで置かれた外字など）。
+    // パーサは縦書きのときだけこの語を作る（ChapterHtmlSlimParser の <img> 処理）。
+    if (InlineImage::isInlineImage(words[i])) {
+      std::string imagePath;
+      int imageWidth = 0;
+      int imageHeight = 0;
+      if (isVertical && i < wordYpos.size() && InlineImage::decode(words[i], imagePath, imageWidth, imageHeight)) {
+        const int wx = x + wordXpos[i];
+        const int wy = y + wordYpos[i];
+        // 列の幅に対して中央に寄せる。パーサが幅を列幅以内に縮めているが、安全網として
+        // 画面内に収める（ImageBlock::render は画面外だと描画自体を捨てる）
+        int imageX = wx + (columnWidth - imageWidth) / 2;
+        const int maxX = renderer.getScreenWidth() - imageWidth;
+        if (imageX > maxX) imageX = maxX;
+        if (imageX < 0) imageX = 0;
+        ImageBlock(imagePath, static_cast<int16_t>(imageWidth), static_cast<int16_t>(imageHeight))
+            .render(renderer, imageX, wy);
+        // 画像語に付いたルビ（<ruby><img/><rt>…</rt></ruby>）は通常の縦書きルビと同じ位置に描く
+        if (rubyFontId != 0 && i < rubyTexts.size() && !rubyTexts[i].empty()) {
+          renderer.drawTextVertical(rubyFontId, wx + columnWidth + 2, wy, rubyTexts[i].c_str(), true,
+                                    EpdFontFamily::REGULAR);
+        }
+      }
+      continue;
+    }
 
     if (isVertical && i < wordYpos.size()) {
       // 縦書きモード: VerticalBehaviorに応じて描画方法を分岐

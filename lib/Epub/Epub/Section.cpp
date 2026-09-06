@@ -14,7 +14,10 @@
 
 namespace {
 // Version 31: ruby text data added to TextBlock serialization.
-constexpr uint8_t SECTION_FILE_VERSION = 32;
+// Version 34: 縦書きの本文中画像をインライン語／列を消費するブロックとして配置（#107）。
+//             バイナリ構造は不変だがレイアウト結果が変わるので再生成させる。
+//             （33 は U+3000 保持の PR が使うため、マージ順に関わらず重複しないよう 34 にする）
+constexpr uint8_t SECTION_FILE_VERSION = 34;
 // Minimum free heap required before attempting to build section pages.
 // Section building involves heavy allocations (Page, TextBlock, PageLine, etc.)
 // and on ESP32 without C++ exceptions, allocation failure calls abort().
