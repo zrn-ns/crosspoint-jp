@@ -3,6 +3,7 @@
 #include <HalPowerManager.h>
 
 #include "OpdsServerStore.h"
+#include "OrientationHelper.h"
 #include "SdCardFontGlobals.h"
 #include "boot_sleep/BootActivity.h"
 #include "boot_sleep/SleepActivity.h"
@@ -87,6 +88,12 @@ void ActivityManager::loop() {
         currentActivity = std::move(stackActivities.back());
         stackActivities.pop_back();
         LOG_DBG("ACT", "Popped from activity stack, new size = %zu", stackActivities.size());
+
+        // 前面に戻るアクティビティの画面・入力の向きを適用する。各アクティビティは
+        // supportsLandscape() で「設定どおりの横向きを使う」か「Portrait/Inverted に留まる」かを
+        // 決めるので、Portrait の UI サブアクティビティから横向きのリーダーへ戻るときも
+        // ここで正しく回転する。
+        OrientationHelper::applyOrientation(renderer, mappedInput, currentActivity.get());
         // Handle result if necessary
         if (currentActivity->resultHandler) {
           LOG_DBG("ACT", "Handling result for popped activity");
@@ -127,6 +134,13 @@ void ActivityManager::loop() {
       pendingAction = PendingAction::None;
       currentActivity = std::move(pendingActivity);
 
+      // onEnter と初回描画が正しい向きを見るように、onEnter の前に画面・入力の向きを適用する。
+      // 横向きのリーダーから push された UI サブアクティビティは Portrait/Inverted になり、
+      // pop で戻るときに上の経路でリーダーの向きに戻る。
+      // RenderLock を保持したまま行う（適用は enum の代入だけでロックを取らない）。
+      // unlock 後に行うと、残っていた描画通知でレンダータスクが旧向きのまま 1 フレーム描き得る。
+      OrientationHelper::applyOrientation(renderer, mappedInput, currentActivity.get());
+
       lock.unlock();  // onEnter may acquire its own lock
       currentActivity->onEnter();
 
@@ -163,6 +177,8 @@ void ActivityManager::replaceActivity(std::unique_ptr<Activity>&& newActivity) {
   } else {
     // No current activity, safe to launch immediately
     currentActivity = std::move(newActivity);
+    // 起動直後（Boot）も含め、初回描画の前に向きを適用する
+    OrientationHelper::applyOrientation(renderer, mappedInput, currentActivity.get());
     currentActivity->onEnter();
   }
 }

@@ -94,6 +94,13 @@ uint8_t usedStyleMask(const std::vector<EpdFontFamily::Style>& wordStyles) {
   return mask;
 }
 
+// 段落（ブロック）の先頭が全角スペース（U+3000）で始まるか。
+// 青空文庫などのテキストは行頭の全角スペースで字下げを表現しているので、
+// その段落には自動の一行目インデントを重ねない（二重字下げの防止）。
+bool startsWithIdeographicSpace(const std::vector<std::string>& words) {
+  return !words.empty() && words.front().compare(0, 3, "\xe3\x80\x80") == 0;
+}
+
 // Check if a word is a single CJK character (used for zero-spacing between adjacent CJK words)
 bool isSingleCjkWord(const std::string& word) {
   if (word.empty()) return false;
@@ -221,8 +228,10 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
 
   // CJK fallback: when firstLineIndent is ON but CSS doesn't define text-indent,
   // calculate a 1-character CJK indent width and inject it as textIndent for layout.
-  // Skip when textIndent is explicitly negative (hanging indent for <li> bullets).
+  // Skip when textIndent is explicitly negative (hanging indent for <li> bullets),
+  // and when the paragraph already starts with an ideographic space (explicit indent).
   if (firstLineIndent && blockStyle.textIndent == 0 && !blockStyle.textIndentDefined &&
+      !startsWithIdeographicSpace(words) &&
       (blockStyle.alignment == CssTextAlign::Justify || blockStyle.alignment == CssTextAlign::Left)) {
     const int cjkCharWidth = renderer.getTextWidth(fontId, "\xe5\xad\x97", EpdFontFamily::REGULAR);
     blockStyle.textIndent = static_cast<int16_t>(cjkCharWidth > 0 ? cjkCharWidth : spaceWidth * 3);
@@ -348,6 +357,7 @@ void ParsedText::layoutVerticalColumns(const GfxRenderer& renderer, const int fo
   // Compute first-line indent for vertical mode (same conditions as horizontal).
   int verticalIndent = 0;
   if (firstLineIndent && blockStyle.textIndent == 0 && !blockStyle.textIndentDefined &&
+      !startsWithIdeographicSpace(words) &&
       (blockStyle.alignment == CssTextAlign::Justify || blockStyle.alignment == CssTextAlign::Left)) {
     verticalIndent = cjkCharAdvance > 0 ? cjkCharAdvance : lineHeight;
   }
@@ -526,8 +536,9 @@ void ParsedText::applyParagraphIndent() {
     return;
   }
 
-  if (firstLineIndent || blockStyle.textIndentDefined) {
-    // Indent is applied as pixel offset during layout (firstLineIndent toggle or CSS text-indent).
+  if (firstLineIndent || blockStyle.textIndentDefined || startsWithIdeographicSpace(words)) {
+    // Indent is applied as pixel offset during layout (firstLineIndent toggle or CSS text-indent),
+    // or the paragraph already carries an explicit ideographic-space indent.
   } else if (blockStyle.alignment == CssTextAlign::Justify || blockStyle.alignment == CssTextAlign::Left) {
     // No indent configured - use EmSpace fallback for visual indent
     words.front().insert(0, "\xe2\x80\x83");

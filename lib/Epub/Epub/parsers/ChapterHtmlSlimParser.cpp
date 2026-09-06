@@ -1021,16 +1021,11 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
       continue;
     }
 
-    // Treat ideographic space (U+3000) as whitespace - flush buffer and skip
-    if (cp == 0x3000) {
-      if (self->partWordBufferIndex > 0) {
-        self->flushPartWordBuffer();
-      }
-      self->nextWordContinues = false;
-      i += charLen;
-      continue;
-    }
-
+    // 全角スペース（U+3000）は捨てずに CJK 1 文字の「語」として流す（下の分岐で処理）。
+    // 日本語組版では字下げ（行頭の全角スペース）や「第一章　題名」の区切りとして
+    // 意味を持つ空白であり、ASCII 空白のように折りたたむと消えてしまう。
+    // フォント側に U+3000 のグリフ（空白・全角送り）があることが前提で、
+    // SD カードフォント（fontconvert_sdcard.py の cjk 範囲）と内蔵 CJK UI フォントは持っている。
     if (isCjkCodepointForSplit(cp)) {
       // CJK character: flush any buffered content first
       if (self->partWordBufferIndex > 0) {
