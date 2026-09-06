@@ -14,7 +14,9 @@
 
 namespace {
 // Version 31: ruby text data added to TextBlock serialization.
-constexpr uint8_t SECTION_FILE_VERSION = 32;
+// Version 33: U+3000（全角スペース）を語として保持し、段落頭の U+3000 では自動インデントを
+//             重ねない。バイナリ構造は不変だがレイアウト結果が変わるので再生成させる。
+constexpr uint8_t SECTION_FILE_VERSION = 33;
 // Minimum free heap required before attempting to build section pages.
 // Section building involves heavy allocations (Page, TextBlock, PageLine, etc.)
 // and on ESP32 without C++ exceptions, allocation failure calls abort().
