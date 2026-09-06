@@ -19,11 +19,13 @@ class BookMetadataCache {
 
   struct SpineEntry {
     std::string href;
-    size_t cumulativeSize;
+    // book.bin にそのまま書き出すフィールドは固定幅にする（size_t は ESP32 では 32bit だが
+    // ホストビルドでは 64bit になり、ファイル形式が食い違う）。docs/file-formats.md の u32 と対応。
+    uint32_t cumulativeSize;
     int16_t tocIndex;
 
     SpineEntry() : cumulativeSize(0), tocIndex(-1) {}
-    SpineEntry(std::string href, const size_t cumulativeSize, const int16_t tocIndex)
+    SpineEntry(std::string href, const uint32_t cumulativeSize, const int16_t tocIndex)
         : href(std::move(href)), cumulativeSize(cumulativeSize), tocIndex(tocIndex) {}
   };
 
@@ -45,7 +47,7 @@ class BookMetadataCache {
 
  private:
   std::string cachePath;
-  size_t lutOffset;
+  uint32_t lutOffset;  // book.bin 上の u32 と同じ幅
   uint16_t spineCount;
   uint16_t tocCount;
   bool loaded;

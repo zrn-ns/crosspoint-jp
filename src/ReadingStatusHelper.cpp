@@ -20,8 +20,7 @@ ReadingStatus getReadingStatus(const std::string& filepath, const std::string& c
   }
 
   // progress.bin パスを構築
-  std::string progressPath =
-      cacheDir + "/" + prefix + std::to_string(std::hash<std::string>{}(filepath)) + "/progress.bin";
+  std::string progressPath = cacheDir + "/" + prefix + std::to_string(FsHelpers::pathHash(filepath)) + "/progress.bin";
 
   FsFile f;
   if (!Storage.openFileForRead("RSH", progressPath, f)) {
@@ -60,7 +59,7 @@ bool markAsFinished(const std::string& filepath, const std::string& cacheDir) {
     return false;
   }
 
-  const std::string hash = std::to_string(std::hash<std::string>{}(filepath));
+  const std::string hash = std::to_string(FsHelpers::pathHash(filepath));
   const std::string bookDir = cacheDir + "/" + prefix + hash;
   const std::string progressPath = bookDir + "/progress.bin";
 

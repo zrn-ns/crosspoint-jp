@@ -1,5 +1,6 @@
 #pragma once
 
+#include <FsHelpers.h>
 #include <Print.h>
 
 #include <memory>
@@ -39,7 +40,7 @@ class Epub {
  public:
   explicit Epub(std::string filepath, const std::string& cacheDir) : filepath(std::move(filepath)) {
     // create a cache key based on the filepath
-    cachePath = cacheDir + "/epub_" + std::to_string(std::hash<std::string>{}(this->filepath));
+    cachePath = cacheDir + "/epub_" + std::to_string(FsHelpers::pathHash(this->filepath));
   }
   ~Epub() = default;
   std::string& getBasePath() { return contentBasePath; }
