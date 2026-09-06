@@ -42,8 +42,8 @@ bool TextBlock::hasRuby() const {
   return false;
 }
 
-void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int x, const int y,
-                       const int viewportWidth) const {
+void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int x, const int y, const int viewportWidth,
+                       const int viewportX) const {
   // Validate iterator bounds before rendering
   if (words.size() != wordXpos.size() || words.size() != wordStyles.size()) {
     LOG_ERR("TXB", "Render skipped: size mismatch (words=%u, xpos=%u, styles=%u)\n", (uint32_t)words.size(),
@@ -124,7 +124,15 @@ void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int 
       if (rubyFontId != 0 && i < rubyTexts.size() && !rubyTexts[i].empty()) {
         const int baseWidth = renderer.getTextAdvanceX(effectiveFontId, words[i].c_str(), currentStyle);
         const int rubyWidth = renderer.getTextWidth(rubyFontId, rubyTexts[i].c_str(), EpdFontFamily::REGULAR);
-        const int rubyX = wordXpos[i] + x + (baseWidth - rubyWidth) / 2;
+        // 親文字の中央に置く（中付き）。ルビが親文字より長いときは前後の文字にかぶせる
+        // （JLREQ の「ルビの突出」）が、行頭・行末ではビューポートの外に出て欠けるので、
+        // 行の範囲内に収まるように寄せる。
+        int rubyX = wordXpos[i] + x + (baseWidth - rubyWidth) / 2;
+        if (viewportWidth > 0) {
+          const int maxX = viewportX + viewportWidth - rubyWidth;
+          if (rubyX > maxX) rubyX = maxX;
+          if (rubyX < viewportX) rubyX = viewportX;
+        }
         const int rubyY = y - renderer.getLineHeight(rubyFontId) - 1;
         renderer.drawText(rubyFontId, rubyX, rubyY, rubyTexts[i].c_str(), true, EpdFontFamily::REGULAR);
       }

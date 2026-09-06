@@ -5,7 +5,7 @@
 
 void PageLine::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
                       const int viewportWidth) {
-  block->render(renderer, fontId, xPos + xOffset, yPos + yOffset, viewportWidth);
+  block->render(renderer, fontId, xPos + xOffset, yPos + yOffset, viewportWidth, xOffset);
 }
 
 void PageLine::collectCodepoints(std::vector<uint32_t>& out, size_t max) const {
