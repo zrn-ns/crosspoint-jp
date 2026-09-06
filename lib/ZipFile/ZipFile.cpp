@@ -18,6 +18,15 @@ namespace {
 constexpr uint16_t ZIP_METHOD_STORED = 0;
 constexpr uint16_t ZIP_METHOD_DEFLATED = 8;
 
+// Read little-endian integers byte by byte. The ESP32-C3 (RISC-V, -mstrict-align)
+// faults on unaligned multi-byte loads, so never dereference a uint8_t* cast to
+// uint16_t* / uint32_t*.
+constexpr uint16_t readLE16(const uint8_t* p) { return static_cast<uint16_t>(p[0] | (p[1] << 8)); }
+constexpr uint32_t readLE32(const uint8_t* p) {
+  return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) | (static_cast<uint32_t>(p[2]) << 16) |
+         (static_cast<uint32_t>(p[3]) << 24);
+}
+
 // RAII zip: opens the zip if not already open, closes on destruction only if
 // it performed the open.  Removes the wasOpen/close boilerplate from every method.
 class ScopedOpenClose final {
@@ -204,14 +213,13 @@ long ZipFile::getDataOffset(const FileStatSlim& fileStat) {
     return -1;
   }
 
-  if (pLocalHeader[0] + (pLocalHeader[1] << 8) + (pLocalHeader[2] << 16) + (pLocalHeader[3] << 24) !=
-      0x04034b50 /* ZIP local file header signature */) {
+  if (readLE32(pLocalHeader) != 0x04034b50 /* ZIP local file header signature */) {
     LOG_ERR("ZIP", "Not a valid zip file header");
     return -1;
   }
 
-  const uint16_t filenameLength = pLocalHeader[26] + (pLocalHeader[27] << 8);
-  const uint16_t extraOffset = pLocalHeader[28] + (pLocalHeader[29] << 8);
+  const uint16_t filenameLength = readLE16(&pLocalHeader[26]);
+  const uint16_t extraOffset = readLE16(&pLocalHeader[28]);
   return fileOffset + localHeaderSize + filenameLength + extraOffset;
 }
 
@@ -245,7 +253,7 @@ bool ZipFile::loadZipDetails() {
   int foundOffset = -1;
   for (int i = scanRange - 22; i >= 0; i--) {
     constexpr uint32_t signature = 0x06054b50;
-    if (*reinterpret_cast<uint32_t*>(&buffer[i]) == signature) {
+    if (readLE32(&buffer[i]) == signature) {
       foundOffset = i;
       break;
     }
@@ -261,8 +269,8 @@ bool ZipFile::loadZipDetails() {
   // Relative positions within EOCD:
   // Offset 10: Total number of entries (2 bytes)
   // Offset 16: Offset of start of central directory with respect to the starting disk number (4 bytes)
-  zipDetails.totalEntries = *reinterpret_cast<uint16_t*>(&buffer[foundOffset + 10]);
-  zipDetails.centralDirOffset = *reinterpret_cast<uint32_t*>(&buffer[foundOffset + 16]);
+  zipDetails.totalEntries = readLE16(&buffer[foundOffset + 10]);
+  zipDetails.centralDirOffset = readLE32(&buffer[foundOffset + 16]);
   zipDetails.isSet = true;
 
   free(buffer);
