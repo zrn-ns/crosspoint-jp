@@ -1033,3 +1033,30 @@ git merge upstream/<新バージョンタグ>
 - ExternalFontのLRUハッシュテーブルはトゥームストーン方式で修正済みだが、`_accessCounter`のuint32_tオーバーフローは未対応
 - `ParsedText`の行分割がDP最適からgreedy方式に変更済み（Latin justification品質が若干低下）
 - シリアルモニタがデバイス動作中に切断されることがある（ESP32-C3 USB Serial/JTAG の制約）
+## ホストシミュレータ（本家 crosspoint-simulator のフォーク）
+
+実機に書き込まずに、ファームウェア全体（Home・ファイル一覧・設定・リーダー・WebServer）を
+macOS/Linux の SDL2 ウィンドウで動かせる。**UI・レイアウト・フォント・向きの確認は、
+フラッシュする前にまずこれで行う。** `platformio.ini` の `[env:simulator]` / `[env:simulator_x3]`。
+
+```bash
+brew install sdl2                                   # 初回のみ
+pio run -e simulator                                # X4。X3 は simulator_x3
+CROSSPOINT_SIM_SD=<SDの中身のディレクトリ> .pio/build/simulator/program
+
+# ボタン操作とスクリーンショットの自動化（ms:ACTION;… / ms:path.bmp;…）
+# キー: BACK ENTER LEFT RIGHT UP DOWN POWER SLEEP QUIT
+CROSSPOINT_SIM_SD=./sd \
+CROSSPOINT_SIM_INPUT_SCRIPT='1500:ENTER;3000:ENTER;4600:ENTER;6000:LEFT;12000:QUIT' \
+CROSSPOINT_SIM_SCREENSHOTS='5500:./qa/confirm.bmp;11000:./qa/page.bmp' \
+.pio/build/simulator/program
+```
+
+- HAL は `lib/hal` を丸ごと `lib_ignore` し、`zrn-ns/crosspoint-simulator`（`crosspoint-jp` ブランチ）の実装に差し替える。
+  **`lib/hal` の公開 API を足したり変えたら、同じ形のスタブをそのフォークにも足す**（リンクエラーで気付ける）。
+  本家に返せる差分（ESP-IDF/Arduino のエミュレーション不足）とフォーク固有の HAL スタブはコミットを分けている
+- `-DCROSSPOINT_SIM=1` で `FsHelpers::pathHash` が実機と同じ 32bit MurmurHash2 になり、実機 SD の
+  `.crosspoint/epub_<n>/` キャッシュをそのまま読める
+- 検証できないもの: ヒープ枯渇（`CROSSPOINT_SIM_FREE_HEAP` で疑似値は与えられる）・スタック・RISC-V アラインメント・パネル波形
+- ファイル形式に書き出すフィールドは `size_t` / `long` を使わない（ホストでは 64bit になり形式がずれる。
+  `BookMetadataCache::lutOffset` で実際に起きた）
