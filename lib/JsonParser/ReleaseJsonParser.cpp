@@ -69,7 +69,9 @@ void ReleaseJsonParser::commitAsset() {
   // dropped rather than truncated, which would otherwise mark the release
   // installable with an empty download URL.
   if (strcmp(currentAssetName, "firmware.bin") == 0 && currentAssetUrl[0] != '\0') {
-    memcpy(currentFwUrl, currentAssetUrl, sizeof(currentFwUrl));
+    // 両配列は同じ長さだが、NUL 終端以降の未初期化領域まで丸ごとコピーする
+    // のは未定義動作なので、文字列としての長さだけを写す (#88)。
+    safeCopy(currentFwUrl, sizeof(currentFwUrl), currentAssetUrl, strlen(currentAssetUrl));
     currentFwSize = currentAssetSize;
     currentFwFound = true;
   }
