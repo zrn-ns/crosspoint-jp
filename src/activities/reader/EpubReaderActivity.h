@@ -56,6 +56,9 @@ class EpubReaderActivity final : public Activity {
   void toggleAutoPageTurn(uint8_t selectedPageTurnOption);
   void pageTurn(bool isForwardTurn);
   void pregenerateCache();
+  // 読了画面から先へ進んだときの確認ダイアログと、その結果の処理 (#47)
+  void showFinishedBookPrompt();
+  void finishBookFile(bool remove);
 
   // Footnote navigation
   void navigateToHref(const std::string& href, bool savePosition = false);
