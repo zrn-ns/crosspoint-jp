@@ -435,6 +435,20 @@ void setup() {
   return;
 #endif
 
+  if (recoveryFirmwareMode) {
+    // 表示とフォントが揃ったら即リカバリ画面へ (#116)。APP_STATE / RECENT_BOOKS の
+    // 読み込みや時刻復元はここより後ろにあり、壊れたファームはそこで落ちることが
+    // ある。救済経路がそれらに依存しないよう、通常起動の処理には一切入らない。
+    // フォント初期化そのものが落ちる場合はこの前倒しでも救えない（既知の限界）。
+    activityManager.replaceActivity(
+        std::make_unique<SdFirmwareUpdateActivity>(renderer, mappedInputManager, /*recoveryMode=*/true));
+    // 従来どおりリカバリ画面に到達した時点で確認済みにする。ここで確認しないと、
+    // 誤ってリカバリに入っただけの正常なファームが次回起動でロールバックされる。
+    ota_rollback::markCurrentAppValid();
+    waitForPowerRelease();
+    return;
+  }
+
   activityManager.goToBoot();
 
   APP_STATE.loadFromFile();
@@ -489,11 +503,7 @@ void setup() {
 
   RECENT_BOOKS.loadFromFile();
 
-  if (recoveryFirmwareMode) {
-    // Skip normal home/reader routing: jump straight into the SD firmware picker.
-    activityManager.replaceActivity(
-        std::make_unique<SdFirmwareUpdateActivity>(renderer, mappedInputManager, /*recoveryMode=*/true));
-  } else if (HalSystem::isRebootFromPanic()) {
+  if (HalSystem::isRebootFromPanic()) {
     // If we rebooted from a panic, go to crash report screen to show the panic info
     activityManager.goToCrashReport();
   } else if (APP_STATE.openEpubPath.empty() || !APP_STATE.lastSleepFromReader ||
