@@ -14,13 +14,10 @@ int EpubReaderChapterSelectionActivity::getPageItems() const {
   constexpr int lineHeight = 30;
 
   const int screenHeight = renderer.getScreenHeight();
-  const auto orientation = renderer.getOrientation();
-  // In inverted portrait, the button hints are drawn near the logical top.
-  // Reserve vertical space so list items do not collide with the hints.
-  const bool isPortraitInverted = orientation == GfxRenderer::Orientation::PortraitInverted;
-  const int hintGutterHeight = isPortraitInverted ? 50 : 0;
-  const int startY = 60 + hintGutterHeight;
-  const int availableHeight = screenHeight - startY - lineHeight;
+  // ボタンヒントの占める辺（縦持ちは下端、反転は上端）を避けた高さで行数を決める
+  const auto insets = GUI.getButtonHintInsets(renderer);
+  const int startY = 60 + insets.top;
+  const int availableHeight = screenHeight - startY - insets.bottom;
   // Clamp to at least one item to avoid division by zero and empty paging.
   return std::max(1, availableHeight / lineHeight);
 }
@@ -90,18 +87,11 @@ void EpubReaderChapterSelectionActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
   const auto pageWidth = renderer.getScreenWidth();
-  const auto orientation = renderer.getOrientation();
-  // Landscape orientation: reserve a horizontal gutter for button hints.
-  const bool isLandscapeCw = orientation == GfxRenderer::Orientation::LandscapeClockwise;
-  const bool isLandscapeCcw = orientation == GfxRenderer::Orientation::LandscapeCounterClockwise;
-  // Inverted portrait: reserve vertical space for hints at the top.
-  const bool isPortraitInverted = orientation == GfxRenderer::Orientation::PortraitInverted;
-  const int hintGutterWidth = (isLandscapeCw || isLandscapeCcw) ? 30 : 0;
-  // Landscape CW places hints on the left edge; CCW keeps them on the right.
-  const int contentX = isLandscapeCw ? hintGutterWidth : 0;
-  const int contentWidth = pageWidth - hintGutterWidth;
-  const int hintGutterHeight = isPortraitInverted ? 50 : 0;
-  const int contentY = hintGutterHeight;
+  // ボタンヒントが占める辺（縦持ちは下端、反転は上端、横向きは短辺側）を避ける
+  const auto insets = GUI.getButtonHintInsets(renderer);
+  const int contentX = insets.left;
+  const int contentWidth = pageWidth - insets.left - insets.right;
+  const int contentY = insets.top;
   const int pageItems = getPageItems();
   const int totalItems = getTotalItems();
 

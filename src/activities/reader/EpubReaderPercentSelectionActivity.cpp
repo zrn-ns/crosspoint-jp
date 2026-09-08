@@ -60,21 +60,28 @@ void EpubReaderPercentSelectionActivity::loop() {
 void EpubReaderPercentSelectionActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
-  const auto metrics = UITheme::getInstance().getMetrics();
-  const bool isPortraitInverted = renderer.getOrientation() == GfxRenderer::Orientation::PortraitInverted;
-  const int hintGutterHeight = isPortraitInverted ? (metrics.buttonHintsHeight + metrics.verticalSpacing) : 0;
+  // ボタンヒントが占める辺（縦持ちは下端、反転は上端、横向きは短辺側）を避ける
+  const auto insets = GUI.getButtonHintInsets(renderer);
+  const int contentX = insets.left;
+  const int contentWidth = renderer.getScreenWidth() - insets.left - insets.right;
+  const int hintGutterHeight = insets.top;
+
+  // 中央揃えはヒント領域を除いたコンテンツ幅に対して行う
+  auto drawCentered = [&](const int fontId, const int y, const char* text, const EpdFontFamily::Style style) {
+    const int x = contentX + (contentWidth - renderer.getTextWidth(fontId, text, style)) / 2;
+    renderer.drawText(fontId, x, y, text, true, style);
+  };
 
   // Title and numeric percent value.
-  renderer.drawCenteredText(UI_12_FONT_ID, 15 + hintGutterHeight, tr(STR_GO_TO_PERCENT), true, EpdFontFamily::BOLD);
+  drawCentered(UI_12_FONT_ID, 15 + hintGutterHeight, tr(STR_GO_TO_PERCENT), EpdFontFamily::BOLD);
 
   const std::string percentText = std::to_string(percent) + "%";
-  renderer.drawCenteredText(UI_12_FONT_ID, 90 + hintGutterHeight, percentText.c_str(), true, EpdFontFamily::BOLD);
+  drawCentered(UI_12_FONT_ID, 90 + hintGutterHeight, percentText.c_str(), EpdFontFamily::BOLD);
 
   // Draw slider track.
-  const int screenWidth = renderer.getScreenWidth();
   constexpr int barWidth = 360;
   constexpr int barHeight = 16;
-  const int barX = (screenWidth - barWidth) / 2;
+  const int barX = contentX + (contentWidth - barWidth) / 2;
   const int barY = 140 + hintGutterHeight;
 
   renderer.drawRect(barX, barY, barWidth, barHeight);
@@ -90,7 +97,7 @@ void EpubReaderPercentSelectionActivity::render(RenderLock&&) {
   renderer.fillRect(knobX, barY - 4, 4, barHeight + 8, true);
 
   // Hint text for step sizes.
-  renderer.drawCenteredText(SMALL_FONT_ID, barY + 30, tr(STR_PERCENT_STEP_HINT), true);
+  drawCentered(SMALL_FONT_ID, barY + 30, tr(STR_PERCENT_STEP_HINT), EpdFontFamily::REGULAR);
 
   // Button hints follow the current front button layout.
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_SELECT), "-", "+");

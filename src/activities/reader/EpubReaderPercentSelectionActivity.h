@@ -16,6 +16,8 @@ class EpubReaderPercentSelectionActivity final : public Activity {
   void loop() override;
   void render(RenderLock&&) override;
   bool isReaderActivity() const override { return true; }
+  // リーダーの向き（横向き含む）を継承する
+  bool supportsLandscape() const override { return true; }
 
  private:
   // Current percent value (0-100) shown on the slider.
