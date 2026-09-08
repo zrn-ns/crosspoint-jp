@@ -507,29 +507,34 @@ std::string FontDownloadActivity::formatSize(size_t bytes) {
 
 void FontDownloadActivity::render(RenderLock&&) {
   const auto& metrics = UITheme::getInstance().getMetrics();
-  const auto pageWidth = renderer.getScreenWidth();
-  const auto pageHeight = renderer.getScreenHeight();
+  // ボタンヒントの領域を除いた矩形を基準にする（横向きでは短辺側の帯を避ける）
+  const Rect area = UITheme::getContentArea(renderer);
+  const int areaBottom = area.y + area.height;
+  // 中央揃えはヒント領域を除いた幅で行う
+  auto drawCentered = [&](const int y, const char* text, const EpdFontFamily::Style style = EpdFontFamily::REGULAR) {
+    const int x = area.x + (area.width - renderer.getTextWidth(UI_10_FONT_ID, text, style)) / 2;
+    renderer.drawText(UI_10_FONT_ID, x, y, text, true, style);
+  };
 
   renderer.clearScreen();
 
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_FONT_DOWNLOAD));
+  GUI.drawHeader(renderer, Rect{area.x, area.y + metrics.topPadding, area.width, metrics.headerHeight},
+                 tr(STR_FONT_DOWNLOAD));
 
   const auto lineHeight = renderer.getLineHeight(UI_10_FONT_ID);
-  const auto contentTop = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
-  const auto centerY = (pageHeight - lineHeight) / 2;
+  const int contentTop = area.y + metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
+  const int centerY = area.y + (area.height - lineHeight) / 2;
 
   if (state_ == LOADING_MANIFEST) {
-    renderer.drawCenteredText(UI_10_FONT_ID, centerY, tr(STR_LOADING_FONT_LIST));
+    drawCentered(centerY, tr(STR_LOADING_FONT_LIST));
   } else if (state_ == FAMILY_LIST) {
     if (families_.empty()) {
-      renderer.drawCenteredText(UI_10_FONT_ID, centerY, tr(STR_NO_FONTS_AVAILABLE));
+      drawCentered(centerY, tr(STR_NO_FONTS_AVAILABLE));
       const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
       GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     } else {
       GUI.drawList(
-          renderer,
-          Rect{0, contentTop, pageWidth, pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing},
-          listItemCount(), selectedIndex_,
+          renderer, Rect{area.x, contentTop, area.width, areaBottom - contentTop}, listItemCount(), selectedIndex_,
           [this](int index) -> std::string {
             if (index == 0) {
               return std::string(tr(STR_DOWNLOAD_ALL)) + " (" + formatSize(totalUninstalledSize()) + ")";
@@ -560,17 +565,17 @@ void FontDownloadActivity::render(RenderLock&&) {
 
     if (isDownloadAllSelected()) {
       std::string confirmText = std::string(tr(STR_DOWNLOAD_ALL)) + "?";
-      renderer.drawCenteredText(UI_10_FONT_ID, y, confirmText.c_str());
+      drawCentered(y, confirmText.c_str());
       y += lineHeight + metrics.verticalSpacing;
 
       size_t totalFiles = 0;
       for (const auto& f : families_) {
         if (!f.installed) totalFiles += f.fileCount;
       }
-      renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, y,
+      renderer.drawText(UI_10_FONT_ID, area.x + metrics.contentSidePadding, y,
                         (std::string(tr(STR_FILES_LABEL)) + std::to_string(totalFiles)).c_str());
       y += lineHeight + metrics.verticalSpacing;
-      renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, y,
+      renderer.drawText(UI_10_FONT_ID, area.x + metrics.contentSidePadding, y,
                         (std::string(tr(STR_SIZE_LABEL)) + formatSize(totalUninstalledSize())).c_str());
       const auto labels = mappedInput.mapLabels(tr(STR_CANCEL), tr(STR_CONFIRM), "", "");
       GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
@@ -578,12 +583,12 @@ void FontDownloadActivity::render(RenderLock&&) {
       const auto& family = families_[familyIndexFromList(selectedIndex_)];
       std::string confirmText = (family.installed ? std::string(tr(STR_REDOWNLOAD)) : std::string(tr(STR_DOWNLOAD))) +
                                 " " + family.name + "?";
-      renderer.drawCenteredText(UI_10_FONT_ID, y, confirmText.c_str());
+      drawCentered(y, confirmText.c_str());
       y += lineHeight + metrics.verticalSpacing;
-      renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, y,
+      renderer.drawText(UI_10_FONT_ID, area.x + metrics.contentSidePadding, y,
                         (std::string(tr(STR_FILES_LABEL)) + std::to_string(family.fileCount)).c_str());
       y += lineHeight + metrics.verticalSpacing;
-      renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, y,
+      renderer.drawText(UI_10_FONT_ID, area.x + metrics.contentSidePadding, y,
                         (std::string(tr(STR_SIZE_LABEL)) + formatSize(family.totalSize)).c_str());
 
       // Delete lives on this screen rather than the list: the list's Left/Right
@@ -598,14 +603,13 @@ void FontDownloadActivity::render(RenderLock&&) {
     const ManifestFamily* family = selectedFamily();
     const char* familyName = family != nullptr ? family->name : "";
 
-    renderer.drawCenteredText(UI_10_FONT_ID, y, (std::string(tr(STR_DELETE)) + " " + familyName + "?").c_str(), true,
-                              EpdFontFamily::BOLD);
+    drawCentered(y, (std::string(tr(STR_DELETE)) + " " + familyName + "?").c_str(), EpdFontFamily::BOLD);
     y += lineHeight + metrics.verticalSpacing;
     if (family != nullptr) {
-      renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, y,
+      renderer.drawText(UI_10_FONT_ID, area.x + metrics.contentSidePadding, y,
                         (std::string(tr(STR_FILES_LABEL)) + std::to_string(family->fileCount)).c_str());
       y += lineHeight + metrics.verticalSpacing;
-      renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, y,
+      renderer.drawText(UI_10_FONT_ID, area.x + metrics.contentSidePadding, y,
                         (std::string(tr(STR_SIZE_LABEL)) + formatSize(family->totalSize)).c_str());
     }
 
@@ -616,7 +620,7 @@ void FontDownloadActivity::render(RenderLock&&) {
 
     std::string statusText = std::string(tr(STR_DOWNLOADING)) + " " + family.name + " (" +
                              std::to_string(currentFileIndex_ + 1) + "/" + std::to_string(currentFileTotal_) + ")";
-    renderer.drawCenteredText(UI_10_FONT_ID, centerY - lineHeight, statusText.c_str());
+    drawCentered(centerY - lineHeight, statusText.c_str());
 
     float progress = 0;
     if (fileTotal_ > 0) {
@@ -624,26 +628,24 @@ void FontDownloadActivity::render(RenderLock&&) {
     }
 
     int barY = centerY + metrics.verticalSpacing;
-    GUI.drawProgressBar(
-        renderer,
-        Rect{metrics.contentSidePadding, barY, pageWidth - metrics.contentSidePadding * 2, metrics.progressBarHeight},
-        static_cast<int>(progress * 100), 100);
+    GUI.drawProgressBar(renderer,
+                        Rect{area.x + metrics.contentSidePadding, barY, area.width - metrics.contentSidePadding * 2,
+                             metrics.progressBarHeight},
+                        static_cast<int>(progress * 100), 100);
 
     int percentY = barY + metrics.progressBarHeight + metrics.verticalSpacing;
-    renderer.drawCenteredText(UI_10_FONT_ID, percentY,
-                              (std::to_string(static_cast<int>(progress * 100)) + "%").c_str());
+    drawCentered(percentY, (std::to_string(static_cast<int>(progress * 100)) + "%").c_str());
   } else if (state_ == COMPLETE) {
-    renderer.drawCenteredText(UI_10_FONT_ID, centerY, I18N.get(completeMessage_), true, EpdFontFamily::BOLD);
+    drawCentered(centerY, I18N.get(completeMessage_), EpdFontFamily::BOLD);
     const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else if (state_ == ERROR) {
-    renderer.drawCenteredText(UI_10_FONT_ID, centerY - lineHeight, tr(STR_FONT_INSTALL_FAILED), true,
-                              EpdFontFamily::BOLD);
+    drawCentered(centerY - lineHeight, tr(STR_FONT_INSTALL_FAILED), EpdFontFamily::BOLD);
     if (!errorMessage_.empty()) {
-      renderer.drawCenteredText(UI_10_FONT_ID, centerY + metrics.verticalSpacing, errorMessage_.c_str());
+      drawCentered(centerY + metrics.verticalSpacing, errorMessage_.c_str());
     }
     if (!errorDetail_.empty()) {
-      renderer.drawCenteredText(UI_10_FONT_ID, centerY + metrics.verticalSpacing + lineHeight, errorDetail_.c_str());
+      drawCentered(centerY + metrics.verticalSpacing + lineHeight, errorDetail_.c_str());
     }
     const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
@@ -657,7 +659,7 @@ void FontDownloadActivity::render(RenderLock&&) {
     char dbg[48];
     snprintf(dbg, sizeof(dbg), "heap=%dK blk=%dK", static_cast<int>(ESP.getFreeHeap() / 1024),
              static_cast<int>(ESP.getMaxAllocHeap() / 1024));
-    renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, pageHeight - lineHeight * 2, dbg);
+    renderer.drawText(UI_10_FONT_ID, area.x + metrics.contentSidePadding, areaBottom - lineHeight, dbg);
   }
 
   renderer.displayBuffer();

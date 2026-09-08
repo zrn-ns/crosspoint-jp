@@ -92,17 +92,20 @@ void OpdsServerListActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
   const auto& metrics = UITheme::getInstance().getMetrics();
-  const auto pageWidth = renderer.getScreenWidth();
-  const auto pageHeight = renderer.getScreenHeight();
+  // ボタンヒント領域を除いたコンテンツ矩形（横向きではヒントが短辺側に来る）
+  const Rect area = UITheme::getContentArea(renderer);
 
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_OPDS_SERVERS));
+  GUI.drawHeader(renderer, Rect{area.x, area.y + metrics.topPadding, area.width, metrics.headerHeight},
+                 tr(STR_OPDS_SERVERS));
 
-  const int contentTop = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
-  const int contentHeight = pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing * 2;
+  const int contentTop = area.y + metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
+  const int contentHeight = area.y + area.height - contentTop - metrics.verticalSpacing;
   const int itemCount = getItemCount();
 
   if (itemCount == 0) {
-    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2, tr(STR_NO_SERVERS));
+    const char* text = tr(STR_NO_SERVERS);
+    renderer.drawText(UI_10_FONT_ID, area.x + (area.width - renderer.getTextWidth(UI_10_FONT_ID, text)) / 2,
+                      renderer.getScreenHeight() / 2, text);
   } else {
     const auto& servers = OPDS_STORE.getServers();
     const auto serverCount = static_cast<int>(servers.size());
@@ -110,7 +113,7 @@ void OpdsServerListActivity::render(RenderLock&&) {
     // Primary label: server name (falling back to URL if unnamed).
     // Secondary label: server URL (shown as subtitle when name is set).
     GUI.drawList(
-        renderer, Rect{0, contentTop, pageWidth, contentHeight}, itemCount, selectedIndex,
+        renderer, Rect{area.x, contentTop, area.width, contentHeight}, itemCount, selectedIndex,
         [&servers, serverCount](int index) {
           if (index < serverCount) {
             const auto& server = servers[index];

@@ -66,7 +66,11 @@ void BmpViewerActivity::onEnter() {
     } else {
       // Handle file parsing error
       renderer.clearScreen();
-      renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2, "Invalid BMP File");
+      // ヒント領域を除いた矩形の中央に置く（横向きではヒントが短辺側に来る）
+      const Rect area = UITheme::getContentArea(renderer);
+      renderer.drawText(UI_10_FONT_ID,
+                        area.x + (area.width - renderer.getTextWidth(UI_10_FONT_ID, "Invalid BMP File")) / 2,
+                        area.y + area.height / 2, "Invalid BMP File");
       const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
       GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
       renderer.displayBuffer(HalDisplay::HALF_REFRESH);
@@ -76,7 +80,10 @@ void BmpViewerActivity::onEnter() {
   } else {
     // Handle file open error
     renderer.clearScreen();
-    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2, "Could not open file");
+    const Rect area = UITheme::getContentArea(renderer);
+    renderer.drawText(UI_10_FONT_ID,
+                      area.x + (area.width - renderer.getTextWidth(UI_10_FONT_ID, "Could not open file")) / 2,
+                      area.y + area.height / 2, "Could not open file");
     const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);

@@ -26,6 +26,8 @@ class OpdsBookBrowserActivity final : public Activity {
   void render(RenderLock&&) override;
 
  private:
+  // 1 ページに収まる行数。画面高さ（ヒント領域を除く）から求める（横向きは 480 で行数が減る）
+  int getPageItems() const;
   ButtonNavigator buttonNavigator;
   BrowserState state = BrowserState::LOADING;
   std::vector<OpdsEntry> entries;
