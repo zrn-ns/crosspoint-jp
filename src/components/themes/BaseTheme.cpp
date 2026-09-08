@@ -192,6 +192,11 @@ void BaseTheme::drawButtonHints(GfxRenderer& renderer, const char* btn1, const c
 }
 
 void BaseTheme::drawSideButtonHints(const GfxRenderer& renderer, const char* topBtn, const char* bottomBtn) const {
+  // 側面ボタンは長辺側にあり、横向きでは画面の上下端（本文の真上）に相当する。
+  // 縦持ち前提の y 位置で描くと横向きでは画面外か本文と重なるので、横向きでは描かない。
+  if (HintOrientationScope::isLandscape(renderer.getOrientation())) {
+    return;
+  }
   const int screenWidth = renderer.getScreenWidth();
   constexpr int buttonWidth = BaseMetrics::values.sideButtonHintsWidth;  // Width on screen (height when rotated)
   constexpr int buttonHeight = 80;                                       // Height on screen (width when rotated)
