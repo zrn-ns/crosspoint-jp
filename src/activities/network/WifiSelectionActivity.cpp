@@ -7,6 +7,7 @@
 #include <WiFi.h>
 #include <esp_sntp.h>
 
+#include <algorithm>
 #include <map>
 
 #include "MappedInputManager.h"
@@ -574,10 +575,12 @@ void WifiSelectionActivity::renderNetworkList() const {
   }
 
   // 凡例はコンテンツ領域の下端に置く（縦持ちでは従来と同じ位置: ヒントの直上）
-  GUI.drawHelpText(
-      renderer,
-      Rect{area.x, area.y + area.height + metrics.verticalSpacing - metrics.contentSidePadding - 15, area.width, 20},
-      tr(STR_NETWORK_LEGEND));
+  GUI.drawHelpText(renderer,
+                   Rect{area.x,
+                        std::min(area.y + area.height + metrics.verticalSpacing - metrics.contentSidePadding - 15,
+                                 area.y + area.height - renderer.getLineHeight(SMALL_FONT_ID)),
+                        area.width, 20},
+                   tr(STR_NETWORK_LEGEND));
 
   const bool hasSavedPassword = !networks.empty() && networks[selectedNetworkIndex].hasSavedPassword;
   const char* forgetLabel = hasSavedPassword ? tr(STR_FORGET_BUTTON) : "";

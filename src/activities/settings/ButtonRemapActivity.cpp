@@ -3,6 +3,8 @@
 #include <GfxRenderer.h>
 #include <I18n.h>
 
+#include <algorithm>
+
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
 #include "components/UITheme.h"
@@ -130,10 +132,12 @@ void ButtonRemapActivity::render(RenderLock&&) {
 
   // Temporary warning banner for duplicates.
   if (!errorMessage.empty()) {
-    GUI.drawHelpText(
-        renderer,
-        Rect{area.x, area.y + area.height + metrics.verticalSpacing - metrics.contentSidePadding - 15, area.width, 20},
-        errorMessage.c_str());
+    GUI.drawHelpText(renderer,
+                     Rect{area.x,
+                          std::min(area.y + area.height + metrics.verticalSpacing - metrics.contentSidePadding - 15,
+                                   area.y + area.height - renderer.getLineHeight(SMALL_FONT_ID)),
+                          area.width, 20},
+                     errorMessage.c_str());
   }
 
   // Provide side button actions at the bottom of the screen (split across two lines).
