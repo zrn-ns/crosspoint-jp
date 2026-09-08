@@ -9,6 +9,7 @@
 #include <Utf8.h>
 #include <Xtc.h>
 
+#include <algorithm>
 #include <cstring>
 #include <vector>
 
@@ -215,25 +216,41 @@ void HomeActivity::loop() {
 
 void HomeActivity::render(RenderLock&&) {
   const auto& metrics = UITheme::getInstance().getMetrics();
-  const auto pageWidth = renderer.getScreenWidth();
-  const auto pageHeight = renderer.getScreenHeight();
+  // ボタンヒントの領域（縦持ちは下端、横向きは短辺側）を除いた矩形を基準にする
+  const Rect area = UITheme::getContentArea(renderer);
 
   renderer.clearScreen();
   bool bufferRestored = coverBufferStored && restoreCoverBuffer();
 
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.homeTopPadding}, nullptr);
+  GUI.drawHeader(renderer, Rect{area.x, area.y + metrics.topPadding, area.width, metrics.homeTopPadding}, nullptr);
+
+  // レイアウト: 縦持ちは表紙タイルの下にメニューを積む。横向き（高さ 480）では
+  // 両方を縦に積むと収まらないので、左に表紙・右にメニューの 2 段組みにする。
+  const bool twoColumn = area.width > area.height;
+  const int contentTop = area.y + metrics.homeTopPadding;
+  Rect coverRect;
+  Rect menuRect;
+  if (twoColumn) {
+    const int contentHeight = area.y + area.height - contentTop - metrics.verticalSpacing;
+    const int coverWidth = area.width / 2;
+    coverRect = Rect{area.x, contentTop, coverWidth, std::min(contentHeight, metrics.homeCoverTileHeight)};
+    menuRect = Rect{area.x + coverWidth, contentTop, area.width - coverWidth, contentHeight};
+  } else {
+    coverRect = Rect{area.x, contentTop, area.width, metrics.homeCoverTileHeight};
+    const int menuTop = contentTop + metrics.homeCoverTileHeight + metrics.verticalSpacing;
+    menuRect = Rect{area.x, menuTop, area.width, area.y + area.height - menuTop - metrics.verticalSpacing};
+  }
 
   // Record the tile rect so storeCoverBuffer (called from the theme) knows
   // which sub-region of the framebuffer to snapshot. ~16 KB in Portrait
   // instead of the 48 KB full framebuffer the previous bind captured.
-  coverRectX = 0;
-  coverRectY = metrics.homeTopPadding;
-  coverRectW = pageWidth;
-  coverRectH = metrics.homeCoverTileHeight;
+  coverRectX = coverRect.x;
+  coverRectY = coverRect.y;
+  coverRectW = coverRect.width;
+  coverRectH = coverRect.height;
 
-  GUI.drawRecentBookCover(renderer, Rect{0, metrics.homeTopPadding, pageWidth, metrics.homeCoverTileHeight},
-                          recentBooks, recentBookStatuses, selectorIndex, coverRendered, coverBufferStored,
-                          bufferRestored, std::bind(&HomeActivity::storeCoverBuffer, this));
+  GUI.drawRecentBookCover(renderer, coverRect, recentBooks, recentBookStatuses, selectorIndex, coverRendered,
+                          coverBufferStored, bufferRestored, std::bind(&HomeActivity::storeCoverBuffer, this));
 
   // Build menu items dynamically
   std::vector<const char*> menuItems = {tr(STR_BROWSE_FILES), tr(STR_MENU_RECENT_BOOKS), tr(STR_FILE_TRANSFER),
@@ -254,11 +271,7 @@ void HomeActivity::render(RenderLock&&) {
   }
 
   GUI.drawButtonMenu(
-      renderer,
-      Rect{0, metrics.homeTopPadding + metrics.homeCoverTileHeight + metrics.verticalSpacing, pageWidth,
-           pageHeight - (metrics.headerHeight + metrics.homeTopPadding + metrics.verticalSpacing * 2 +
-                         metrics.buttonHintsHeight)},
-      static_cast<int>(menuItems.size()), selectorIndex - recentBooks.size(),
+      renderer, menuRect, static_cast<int>(menuItems.size()), selectorIndex - recentBooks.size(),
       [&menuItems](int index) { return std::string(menuItems[index]); },
       [&menuIcons](int index) { return menuIcons[index]; });
 
