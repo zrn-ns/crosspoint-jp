@@ -4,6 +4,7 @@
 #include <HalGPIO.h>
 #include <I18n.h>
 
+#include <algorithm>
 #include <cstdio>
 
 #include "CrossPointSettings.h"
@@ -90,15 +91,11 @@ void XtcReaderMenuActivity::loop() {
 void XtcReaderMenuActivity::render(RenderLock&&) {
   renderer.clearScreen();
   const auto pageWidth = renderer.getScreenWidth();
-  const auto orientation = renderer.getOrientation();
-  const bool isLandscapeCw = orientation == GfxRenderer::Orientation::LandscapeClockwise;
-  const bool isLandscapeCcw = orientation == GfxRenderer::Orientation::LandscapeCounterClockwise;
-  const bool isPortraitInverted = orientation == GfxRenderer::Orientation::PortraitInverted;
-  const int hintGutterWidth = (isLandscapeCw || isLandscapeCcw) ? 30 : 0;
-  const int contentX = isLandscapeCw ? hintGutterWidth : 0;
-  const int contentWidth = pageWidth - hintGutterWidth;
-  const int hintGutterHeight = isPortraitInverted ? 50 : 0;
-  const int contentY = hintGutterHeight;
+  // ボタンヒントが占める辺（縦持ちは下端、反転は上端、横向きは短辺側）を避ける
+  const auto insets = GUI.getButtonHintInsets(renderer);
+  const int contentX = insets.left;
+  const int contentWidth = pageWidth - insets.left - insets.right;
+  const int contentY = insets.top;
 
   // タイトル
   const std::string truncTitle =
@@ -121,10 +118,15 @@ void XtcReaderMenuActivity::render(RenderLock&&) {
   // メニュー項目
   const int startY = 75 + contentY;
   constexpr int lineHeight = 30;
+  // 画面高さに収まる行数だけ描き、選択項目を含むページを表示する（EpubReaderMenuActivity と同じ）
+  const int availableHeight = renderer.getScreenHeight() - startY - insets.bottom;
+  const int pageItems = std::max(1, availableHeight / lineHeight);
+  const int pageStart = selectedIndex / pageItems * pageItems;
+  const int pageEnd = std::min(static_cast<int>(menuItems.size()), pageStart + pageItems);
 
-  for (size_t i = 0; i < menuItems.size(); ++i) {
-    const int displayY = startY + (i * lineHeight);
-    const bool isSelected = (static_cast<int>(i) == selectedIndex);
+  for (int i = pageStart; i < pageEnd; ++i) {
+    const int displayY = startY + ((i - pageStart) * lineHeight);
+    const bool isSelected = (i == selectedIndex);
 
     if (isSelected) {
       renderer.fillRect(contentX, displayY, contentWidth - 1, lineHeight, true);

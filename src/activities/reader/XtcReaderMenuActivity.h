@@ -18,6 +18,8 @@ class XtcReaderMenuActivity final : public Activity {
   void onEnter() override;
   void onExit() override;
   void loop() override;
+  // リーダーの向き（横向き含む）を継承する
+  bool supportsLandscape() const override { return true; }
   void render(RenderLock&&) override;
 
  private:

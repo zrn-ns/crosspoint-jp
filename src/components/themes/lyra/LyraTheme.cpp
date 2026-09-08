@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "../HintOrientationScope.h"
 #include "RecentBooksStore.h"
 #include "components/UITheme.h"
 #include "components/icons/book.h"
@@ -369,6 +370,8 @@ void LyraTheme::drawList(const GfxRenderer& renderer, Rect rect, int itemCount, 
 
 void LyraTheme::drawButtonHints(GfxRenderer& renderer, const char* btn1, const char* btn2, const char* btn3,
                                 const char* btn4) const {
+  // 横向きでもボタンの物理位置（縦持ちの下端）に描く
+  const HintOrientationScope orientationScope(renderer);
   const int pageHeight = renderer.getScreenHeight();
   const bool placeAtTop = renderer.getOrientation() == GfxRenderer::Orientation::PortraitInverted;
   const bool roundTop = !placeAtTop;

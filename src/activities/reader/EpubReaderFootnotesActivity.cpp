@@ -53,18 +53,11 @@ void EpubReaderFootnotesActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
   const auto pageWidth = renderer.getScreenWidth();
-  const auto orientation = renderer.getOrientation();
-  // Landscape orientation: reserve a horizontal gutter for button hints.
-  const bool isLandscapeCw = orientation == GfxRenderer::Orientation::LandscapeClockwise;
-  const bool isLandscapeCcw = orientation == GfxRenderer::Orientation::LandscapeCounterClockwise;
-  // Inverted portrait: reserve vertical space for hints at the top.
-  const bool isPortraitInverted = orientation == GfxRenderer::Orientation::PortraitInverted;
-  const int hintGutterWidth = (isLandscapeCw || isLandscapeCcw) ? 30 : 0;
-  // Landscape CW places hints on the left edge; CCW keeps them on the right.
-  const int contentX = isLandscapeCw ? hintGutterWidth : 0;
-  const int contentWidth = pageWidth - hintGutterWidth;
-  const int hintGutterHeight = isPortraitInverted ? 50 : 0;
-  const int contentY = hintGutterHeight;
+  // ボタンヒントが占める辺（縦持ちは下端、反転は上端、横向きは短辺側）を避ける
+  const auto insets = GUI.getButtonHintInsets(renderer);
+  const int contentX = insets.left;
+  const int contentWidth = pageWidth - insets.left - insets.right;
+  const int contentY = insets.top;
 
   // Manual centering to honor content gutters.
   const int titleX =
@@ -80,19 +73,21 @@ void EpubReaderFootnotesActivity::render(RenderLock&&) {
   }
 
   constexpr int lineHeight = 36;
-  const int screenWidth = renderer.getScreenWidth();
+  constexpr int listTop = 60;
   const int marginLeft = contentX + 20;
 
-  const int visibleCount = std::max(1, (renderer.getScreenHeight() - contentY) / lineHeight);
+  // 見出しとヒント領域を除いた高さに収まる行数だけ描く
+  const int visibleCount = std::max(1, (renderer.getScreenHeight() - listTop - contentY - insets.bottom) / lineHeight);
   if (selectedIndex < scrollOffset) scrollOffset = selectedIndex;
   if (selectedIndex >= scrollOffset + visibleCount) scrollOffset = selectedIndex - visibleCount + 1;
 
   for (int i = scrollOffset; i < static_cast<int>(footnotes.size()) && i < scrollOffset + visibleCount; i++) {
-    const int y = 60 + contentY + (i - scrollOffset) * lineHeight;
+    const int y = listTop + contentY + (i - scrollOffset) * lineHeight;
     const bool isSelected = (i == selectedIndex);
 
     if (isSelected) {
-      renderer.fillRect(0, y, screenWidth, lineHeight, true);
+      // ヒント領域には重ねない
+      renderer.fillRect(contentX, y, contentWidth, lineHeight, true);
     }
 
     // Show footnote number and abbreviated href

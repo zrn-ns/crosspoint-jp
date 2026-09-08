@@ -4,6 +4,7 @@
 #include <HalGPIO.h>
 #include <I18n.h>
 
+#include <algorithm>
 #include <cstdio>
 
 #include "CrossPointSettings.h"
@@ -120,20 +121,11 @@ void EpubReaderMenuActivity::loop() {
 void EpubReaderMenuActivity::render(RenderLock&&) {
   renderer.clearScreen();
   const auto pageWidth = renderer.getScreenWidth();
-  const auto orientation = renderer.getOrientation();
-  // Landscape orientation: button hints are drawn along a vertical edge, so we
-  // reserve a horizontal gutter to prevent overlap with menu content.
-  const bool isLandscapeCw = orientation == GfxRenderer::Orientation::LandscapeClockwise;
-  const bool isLandscapeCcw = orientation == GfxRenderer::Orientation::LandscapeCounterClockwise;
-  // Inverted portrait: button hints appear near the logical top, so we reserve
-  // vertical space to keep the header and list clear.
-  const bool isPortraitInverted = orientation == GfxRenderer::Orientation::PortraitInverted;
-  const int hintGutterWidth = (isLandscapeCw || isLandscapeCcw) ? 30 : 0;
-  // Landscape CW places hints on the left edge; CCW keeps them on the right.
-  const int contentX = isLandscapeCw ? hintGutterWidth : 0;
-  const int contentWidth = pageWidth - hintGutterWidth;
-  const int hintGutterHeight = isPortraitInverted ? 50 : 0;
-  const int contentY = hintGutterHeight;
+  // ボタンヒントが占める辺（縦持ちは下端、反転は上端、横向きは短辺側）を避ける
+  const auto insets = GUI.getButtonHintInsets(renderer);
+  const int contentX = insets.left;
+  const int contentWidth = pageWidth - insets.left - insets.right;
+  const int contentY = insets.top;
 
   // Title
   const std::string truncTitle =
@@ -155,10 +147,16 @@ void EpubReaderMenuActivity::render(RenderLock&&) {
   // Menu Items
   const int startY = 75 + contentY;
   constexpr int lineHeight = 30;
+  // 横向き（高さ 480）では全項目が収まらないので、選択項目を含むページだけを描く。
+  // 縦持ちでは全項目が 1 ページに入り、従来と同じ見え方になる。
+  const int availableHeight = renderer.getScreenHeight() - startY - insets.bottom;
+  const int pageItems = std::max(1, availableHeight / lineHeight);
+  const int pageStart = selectedIndex / pageItems * pageItems;
+  const int pageEnd = std::min(static_cast<int>(menuItems.size()), pageStart + pageItems);
 
-  for (size_t i = 0; i < menuItems.size(); ++i) {
-    const int displayY = startY + (i * lineHeight);
-    const bool isSelected = (static_cast<int>(i) == selectedIndex);
+  for (int i = pageStart; i < pageEnd; ++i) {
+    const int displayY = startY + ((i - pageStart) * lineHeight);
+    const bool isSelected = (i == selectedIndex);
 
     if (isSelected) {
       // Highlight only the content area so we don't paint over hint gutters.

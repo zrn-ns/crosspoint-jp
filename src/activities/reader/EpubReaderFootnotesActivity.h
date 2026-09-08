@@ -20,6 +20,8 @@ class EpubReaderFootnotesActivity final : public Activity {
   void loop() override;
   void render(RenderLock&&) override;
   bool isReaderActivity() const override { return true; }
+  // リーダーの向き（横向き含む）を継承する
+  bool supportsLandscape() const override { return true; }
 
  private:
   const std::vector<FootnoteEntry>& footnotes;
