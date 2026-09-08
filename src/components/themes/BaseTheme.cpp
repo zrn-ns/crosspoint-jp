@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <string>
 
+#include "HintOrientationScope.h"
 #include "I18n.h"
 #include "RecentBooksStore.h"
 #include "components/UITheme.h"
@@ -138,8 +139,33 @@ void BaseTheme::drawProgressBar(const GfxRenderer& renderer, Rect rect, const si
   renderer.drawCenteredText(UI_10_FONT_ID, rect.y + rect.height + 15, percentText.c_str());
 }
 
+ButtonHintInsets BaseTheme::getButtonHintInsets(const GfxRenderer& renderer) const {
+  const auto& metrics = UITheme::getInstance().getMetrics();
+  const int reserved = metrics.buttonHintsHeight + metrics.verticalSpacing;
+  ButtonHintInsets insets;
+  switch (renderer.getOrientation()) {
+    case GfxRenderer::Orientation::PortraitInverted:
+      insets.top = reserved;
+      break;
+    case GfxRenderer::Orientation::LandscapeClockwise:
+      // 縦持ちの下端（ボタン側）が左に来る
+      insets.left = reserved;
+      break;
+    case GfxRenderer::Orientation::LandscapeCounterClockwise:
+      insets.right = reserved;
+      break;
+    case GfxRenderer::Orientation::Portrait:
+    default:
+      insets.bottom = reserved;
+      break;
+  }
+  return insets;
+}
+
 void BaseTheme::drawButtonHints(GfxRenderer& renderer, const char* btn1, const char* btn2, const char* btn3,
                                 const char* btn4) const {
+  // 横向きでもボタンの物理位置（縦持ちの下端）に描く
+  const HintOrientationScope orientationScope(renderer);
   const int pageHeight = renderer.getScreenHeight();
   const bool placeAtTop = renderer.getOrientation() == GfxRenderer::Orientation::PortraitInverted;
   constexpr int buttonWidth = 106;

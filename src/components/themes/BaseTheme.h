@@ -25,6 +25,16 @@ struct TabInfo {
   bool selected;
 };
 
+// ボタンヒントが占める領域ぶんの余白（論理座標）。ヒントは前面ボタンの物理位置に
+// 合わせて描かれるため、向きによって上下左右のどこを空けるべきかが変わる。
+// 縦持ち: 下端（反転時は上端）。横向き: ボタンのある短辺側（CW は左、CCW は右）。
+struct ButtonHintInsets {
+  int top = 0;
+  int bottom = 0;
+  int left = 0;
+  int right = 0;
+};
+
 struct ThemeMetrics {
   int batteryWidth;
   int batteryHeight;
@@ -147,6 +157,9 @@ class BaseTheme {
                                bool showPercentage = true) const;  // Left aligned (reader mode)
   virtual void drawBatteryRight(const GfxRenderer& renderer, Rect rect,
                                 bool showPercentage = true) const;  // Right aligned (UI headers)
+  // drawButtonHints() が占める領域を、コンテンツ側が避けるための余白を返す。
+  // buttonHintsHeight + verticalSpacing ぶんを、現在の向きに応じた辺に割り当てる。
+  ButtonHintInsets getButtonHintInsets(const GfxRenderer& renderer) const;
   virtual void drawButtonHints(GfxRenderer& renderer, const char* btn1, const char* btn2, const char* btn3,
                                const char* btn4) const;
   virtual void drawSideButtonHints(const GfxRenderer& renderer, const char* topBtn, const char* bottomBtn) const;
