@@ -7,6 +7,7 @@
 #include <WiFi.h>
 #include <esp_task_wdt.h>
 
+#include <algorithm>
 #include <cstddef>
 
 #include "MappedInputManager.h"
@@ -433,6 +434,28 @@ void CrossPointWebServerActivity::renderServerRunning() const {
     // Show IP address as fallback
     renderer.drawText(UI_10_FONT_ID, urlX + QR_CODE_WIDTH + metrics.verticalSpacing, startY + 80, hostnameUrl.c_str());
     renderer.drawText(SMALL_FONT_ID, urlX + QR_CODE_WIDTH + metrics.verticalSpacing, startY + 100, ipUrl.c_str());
+  } else if (area.width >= area.height) {
+    // STA mode, 横向き: 文言 2 行 + QR (198px) + URL 2 行を縦に積むと 480 に収まらないので、
+    // 左に QR、右に文言と URL を置く
+    std::string webInfo = "http://" + connectedIP + "/";
+    std::string hostnameUrl = std::string(tr(STR_OR_HTTP_PREFIX)) + AP_HOSTNAME + ".local/";
+    const int contentHeight = area.y + area.height - startY;
+    const int columnWidth = area.width / 2;
+    const int qrX = area.x + (columnWidth - QR_CODE_WIDTH) / 2;
+    const int qrY = startY + std::max(0, (contentHeight - QR_CODE_HEIGHT) / 2);
+    QrUtils::drawQrCode(renderer, Rect(qrX, qrY, QR_CODE_WIDTH, QR_CODE_HEIGHT), webInfo);
+
+    // 右列: 4 行を QR と同じ高さに揃えて中央に
+    const char* lines[] = {tr(STR_OPEN_URL_HINT), tr(STR_SCAN_QR_HINT), webInfo.c_str(), hostnameUrl.c_str()};
+    const int textX = area.x + columnWidth + metrics.contentSidePadding;
+    const int lineStep = height10 + metrics.verticalSpacing;
+    int textY = qrY + (QR_CODE_HEIGHT - (4 * lineStep - metrics.verticalSpacing)) / 2;
+    for (int i = 0; i < 4; ++i) {
+      const int fontId = (i == 3) ? SMALL_FONT_ID : UI_10_FONT_ID;
+      const auto style = (i < 2) ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
+      renderer.drawText(fontId, textX, textY, lines[i], true, style);
+      textY += lineStep;
+    }
   } else {
     startY += metrics.verticalSpacing * 2;
 
