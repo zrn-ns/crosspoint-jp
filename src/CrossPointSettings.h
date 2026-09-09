@@ -89,9 +89,10 @@ class CrossPointSettings {
   };
 
   // UI orientation (Portrait or Inverted only).
-  // Values match SettingInfo::Enum indices (0, 1) so the stored setting
-  // value equals the enum value directly.
-  enum UI_ORIENTATION { UI_PORTRAIT = 0, UI_INVERTED = 1 };
+  // Values match SettingInfo::Enum indices so the stored setting value equals
+  // the enum value directly. 横向きは後から追加したので末尾に並べ、既存の
+  // 保存値 (0/1) と互換を保つ（ORIENTATION とは並び順が異なる）。
+  enum UI_ORIENTATION { UI_PORTRAIT = 0, UI_INVERTED = 1, UI_LANDSCAPE_CW = 2, UI_LANDSCAPE_CCW = 3 };
 
   // Front button layout options (legacy)
   // Default: Back, Confirm, Left, Right
@@ -248,8 +249,8 @@ class CrossPointSettings {
   uint8_t tiltPageTurn = TILT_OFF;
 
   // CJK-specific settings
-  // UI orientation (Portrait or Inverted only)
-  // 0 = UI_PORTRAIT, 1 = UI_INVERTED
+  // UI orientation (Home / 設定 / 一覧などリーダー以外の画面の向き)
+  // 0 = UI_PORTRAIT, 1 = UI_INVERTED, 2 = UI_LANDSCAPE_CW, 3 = UI_LANDSCAPE_CCW
   uint8_t uiOrientation = UI_PORTRAIT;
   // Invert images in dark mode (1 = invert, 0 = keep original)
   uint8_t invertImages = 0;

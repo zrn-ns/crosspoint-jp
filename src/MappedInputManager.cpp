@@ -140,6 +140,30 @@ MappedInputManager::Labels MappedInputManager::mapLabels(const char* back, const
           labelForHardware(HalGPIO::BTN_LEFT), labelForHardware(HalGPIO::BTN_RIGHT)};
 }
 
+StrId MappedInputManager::sideButtonPositionLabel(const Button button) const {
+  // Button::Up は側面ボタンの並びの先頭側（sideFirst）、Down は後ろ側。
+  // 先頭側の物理位置: X3 は左端、X4 は右端の上。反転時は割当も反転するので、
+  // 画面から見た位置は縦持ちなら向きに関わらず同じになる。
+  // 横向きは端末の回転で辺が移る: CW（時計回り）では 上→右, 右→下, 下→左, 左→上。
+  const bool isUp = button == Button::Up;
+  const bool isX3 = gpio.deviceIsX3();
+  switch (effectiveOrientation) {
+    case Orientation::LandscapeClockwise:
+      // X3: 左端→上, 右端→下。X4: 上→右, 下→左
+      if (isX3) return isUp ? StrId::STR_DIR_UP : StrId::STR_DIR_DOWN;
+      return isUp ? StrId::STR_DIR_RIGHT : StrId::STR_DIR_LEFT;
+    case Orientation::LandscapeCounterClockwise:
+      // X3: 左端→下, 右端→上。X4: 上→左, 下→右
+      if (isX3) return isUp ? StrId::STR_DIR_DOWN : StrId::STR_DIR_UP;
+      return isUp ? StrId::STR_DIR_LEFT : StrId::STR_DIR_RIGHT;
+    case Orientation::Portrait:
+    case Orientation::PortraitInverted:
+    default:
+      if (isX3) return isUp ? StrId::STR_DIR_LEFT : StrId::STR_DIR_RIGHT;
+      return isUp ? StrId::STR_DIR_UP : StrId::STR_DIR_DOWN;
+  }
+}
+
 int MappedInputManager::getPressedFrontButton() const {
   // Scan the raw front buttons in hardware order.
   // This bypasses remapping so the remap activity can capture physical presses.

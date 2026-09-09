@@ -24,8 +24,9 @@ inline MappedInputManager::Orientation toInputOrientation(GfxRenderer::Orientati
 }
 
 // Apply screen orientation based on global settings and activity capabilities.
-// Reader activities use SETTINGS.orientation (supports all 4 directions).
-// UI activities use SETTINGS.uiOrientation (Portrait or Inverted only).
+// Reader activities use SETTINGS.orientation, UI activities use SETTINGS.uiOrientation.
+// Both support all 4 directions; the two settings are independent so the reader can be
+// landscape while menus stay portrait (or vice versa).
 // Also syncs the effective orientation to MappedInputManager so button
 // mapping matches the actual screen direction.
 inline void applyOrientation(GfxRenderer& renderer, MappedInputManager& input, const Activity* activity) {
@@ -51,9 +52,21 @@ inline void applyOrientation(GfxRenderer& renderer, MappedInputManager& input, c
         break;
     }
   } else {
-    // UI: only Portrait or Inverted
-    target = (uiSetting == CrossPointSettings::UI_ORIENTATION::UI_INVERTED) ? GfxRenderer::Orientation::PortraitInverted
-                                                                            : GfxRenderer::Orientation::Portrait;
+    switch (uiSetting) {
+      case CrossPointSettings::UI_ORIENTATION::UI_INVERTED:
+        target = GfxRenderer::Orientation::PortraitInverted;
+        break;
+      case CrossPointSettings::UI_ORIENTATION::UI_LANDSCAPE_CW:
+        target = GfxRenderer::Orientation::LandscapeClockwise;
+        break;
+      case CrossPointSettings::UI_ORIENTATION::UI_LANDSCAPE_CCW:
+        target = GfxRenderer::Orientation::LandscapeCounterClockwise;
+        break;
+      case CrossPointSettings::UI_ORIENTATION::UI_PORTRAIT:
+      default:
+        target = GfxRenderer::Orientation::Portrait;
+        break;
+    }
   }
 
   renderer.setOrientation(target);

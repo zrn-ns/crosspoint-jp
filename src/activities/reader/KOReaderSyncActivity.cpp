@@ -254,10 +254,17 @@ void KOReaderSyncActivity::onExit() {
 }
 
 void KOReaderSyncActivity::render(RenderLock&&) {
-  const auto pageWidth = renderer.getScreenWidth();
+  // ボタンヒントの領域を除いた矩形を基準にする（横向きではヒントが短辺側に来る）。
+  // 各行の y は固定値で、横向きの高さ 480 にも収まる。
+  const Rect area = UITheme::getContentArea(renderer);
+  const auto pageWidth = area.width;
+  const int left = area.x + 20;
 
   renderer.clearScreen();
-  renderer.drawCenteredText(UI_12_FONT_ID, 15, tr(STR_KOREADER_SYNC), true, EpdFontFamily::BOLD);
+  renderer.drawText(
+      UI_12_FONT_ID,
+      area.x + (pageWidth - renderer.getTextWidth(UI_12_FONT_ID, tr(STR_KOREADER_SYNC), EpdFontFamily::BOLD)) / 2, 15,
+      tr(STR_KOREADER_SYNC), true, EpdFontFamily::BOLD);
 
   if (state == NO_CREDENTIALS) {
     renderer.drawCenteredText(UI_10_FONT_ID, 280, tr(STR_NO_CREDENTIALS_MSG), true, EpdFontFamily::BOLD);
@@ -290,45 +297,45 @@ void KOReaderSyncActivity::render(RenderLock&&) {
                              : (std::string(tr(STR_SECTION_PREFIX)) + std::to_string(currentSpineIndex + 1));
 
     // Remote progress - chapter and page
-    renderer.drawText(UI_10_FONT_ID, 20, 160, tr(STR_REMOTE_LABEL), true);
+    renderer.drawText(UI_10_FONT_ID, left, 160, tr(STR_REMOTE_LABEL), true);
     char remoteChapterStr[128];
     snprintf(remoteChapterStr, sizeof(remoteChapterStr), "  %s", remoteChapter.c_str());
-    renderer.drawText(UI_10_FONT_ID, 20, 185, remoteChapterStr);
+    renderer.drawText(UI_10_FONT_ID, left, 185, remoteChapterStr);
     char remotePageStr[64];
     snprintf(remotePageStr, sizeof(remotePageStr), tr(STR_PAGE_OVERALL_FORMAT), remotePosition.pageNumber + 1,
              remoteProgress.percentage * 100);
-    renderer.drawText(UI_10_FONT_ID, 20, 210, remotePageStr);
+    renderer.drawText(UI_10_FONT_ID, left, 210, remotePageStr);
 
     if (!remoteProgress.device.empty()) {
       char deviceStr[64];
       snprintf(deviceStr, sizeof(deviceStr), tr(STR_DEVICE_FROM_FORMAT), remoteProgress.device.c_str());
-      renderer.drawText(UI_10_FONT_ID, 20, 235, deviceStr);
+      renderer.drawText(UI_10_FONT_ID, left, 235, deviceStr);
     }
 
     // Local progress - chapter and page
-    renderer.drawText(UI_10_FONT_ID, 20, 270, tr(STR_LOCAL_LABEL), true);
+    renderer.drawText(UI_10_FONT_ID, left, 270, tr(STR_LOCAL_LABEL), true);
     char localChapterStr[128];
     snprintf(localChapterStr, sizeof(localChapterStr), "  %s", localChapter.c_str());
-    renderer.drawText(UI_10_FONT_ID, 20, 295, localChapterStr);
+    renderer.drawText(UI_10_FONT_ID, left, 295, localChapterStr);
     char localPageStr[64];
     snprintf(localPageStr, sizeof(localPageStr), tr(STR_PAGE_TOTAL_OVERALL_FORMAT), currentPage + 1, totalPagesInSpine,
              localProgress.percentage * 100);
-    renderer.drawText(UI_10_FONT_ID, 20, 320, localPageStr);
+    renderer.drawText(UI_10_FONT_ID, left, 320, localPageStr);
 
     const int optionY = 350;
     const int optionHeight = 30;
 
     // Apply option
     if (selectedOption == 0) {
-      renderer.fillRect(0, optionY - 2, pageWidth - 1, optionHeight);
+      renderer.fillRect(area.x, optionY - 2, pageWidth - 1, optionHeight);
     }
-    renderer.drawText(UI_10_FONT_ID, 20, optionY, tr(STR_APPLY_REMOTE), selectedOption != 0);
+    renderer.drawText(UI_10_FONT_ID, left, optionY, tr(STR_APPLY_REMOTE), selectedOption != 0);
 
     // Upload option
     if (selectedOption == 1) {
-      renderer.fillRect(0, optionY + optionHeight - 2, pageWidth - 1, optionHeight);
+      renderer.fillRect(area.x, optionY + optionHeight - 2, pageWidth - 1, optionHeight);
     }
-    renderer.drawText(UI_10_FONT_ID, 20, optionY + optionHeight, tr(STR_UPLOAD_LOCAL), selectedOption != 1);
+    renderer.drawText(UI_10_FONT_ID, left, optionY + optionHeight, tr(STR_UPLOAD_LOCAL), selectedOption != 1);
 
     // Bottom button hints
     const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));

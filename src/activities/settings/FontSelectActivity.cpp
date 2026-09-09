@@ -134,15 +134,13 @@ void FontSelectActivity::handleSelection() {
 void FontSelectActivity::render() {
   renderer.clearScreen();
 
-  const auto pageWidth = renderer.getScreenWidth();
-  const auto pageHeight = renderer.getScreenHeight();
+  // ボタンヒントの領域（縦持ちは下端、反転は上端、横向きは短辺側）を除いた矩形を基準にする
+  const Rect area = UITheme::getContentArea(renderer);
   auto metrics = UITheme::getInstance().getMetrics();
-  const bool isPortraitInverted = renderer.getOrientation() == GfxRenderer::Orientation::PortraitInverted;
-  const int hintGutterHeight = isPortraitInverted ? (metrics.buttonHintsHeight + metrics.verticalSpacing) : 0;
 
   // Title
   const char* title = (mode == SelectMode::Reader) ? tr(STR_EXT_READER_FONT) : tr(STR_EXT_UI_FONT);
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding + hintGutterHeight, pageWidth, metrics.headerHeight}, title);
+  GUI.drawHeader(renderer, Rect{area.x, area.y + metrics.topPadding, area.width, metrics.headerHeight}, title);
 
   // Current active font index (for the ON marker)
   int currentIndex = 0;
@@ -160,11 +158,11 @@ void FontSelectActivity::render() {
   }
 
   // Font list
-  const int contentTop = metrics.topPadding + hintGutterHeight + metrics.headerHeight + metrics.verticalSpacing;
-  const int contentHeight = pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing;
+  const int contentTop = area.y + metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
+  const int contentHeight = area.y + area.height - contentTop;
 
   GUI.drawList(
-      renderer, Rect{0, contentTop, pageWidth, contentHeight}, totalItems, selectedIndex,
+      renderer, Rect{area.x, contentTop, area.width, contentHeight}, totalItems, selectedIndex,
       [this](int i) -> std::string {
         if (mode == SelectMode::Reader) {
           if (i < kBuiltinReaderFontCount) {

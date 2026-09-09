@@ -26,16 +26,19 @@ void QrDisplayActivity::loop() {
 void QrDisplayActivity::render(RenderLock&&) {
   renderer.clearScreen();
   auto metrics = UITheme::getInstance().getMetrics();
-  const auto pageWidth = renderer.getScreenWidth();
-  const auto pageHeight = renderer.getScreenHeight();
+  // ボタンヒントの領域を除いた矩形を基準にする（横向きではヒントが短辺側に来る）
+  const Rect area = UITheme::getContentArea(renderer);
 
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_DISPLAY_QR), nullptr);
+  GUI.drawHeader(renderer, Rect{area.x, area.y + metrics.topPadding, area.width, metrics.headerHeight},
+                 tr(STR_DISPLAY_QR), nullptr);
 
-  const int availableWidth = pageWidth - 40;
-  const int availableHeight = pageHeight - metrics.topPadding - metrics.headerHeight - metrics.verticalSpacing * 2 - 40;
-  const int startY = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
+  const int availableWidth = area.width - 40;
+  const int startY = area.y + metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
+  // 従来は下端のヒント高さ (40) を引いていた。area.height はヒント領域を含まないので
+  // 上端からの距離と余白ぶんだけ引く
+  const int availableHeight = area.y + area.height - startY - metrics.verticalSpacing;
 
-  const Rect qrBounds(20, startY, availableWidth, availableHeight);
+  const Rect qrBounds(area.x + 20, startY, availableWidth, availableHeight);
   QrUtils::drawQrCode(renderer, qrBounds, textPayload);
 
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");

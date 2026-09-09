@@ -176,24 +176,21 @@ void DirectionSettingsActivity::loop() {
 
 void DirectionSettingsActivity::render(RenderLock&&) {
   renderer.clearScreen();
-  const auto pageWidth = renderer.getScreenWidth();
-  const auto pageHeight = renderer.getScreenHeight();
+  // ボタンヒントの領域（縦持ちは下端、反転は上端、横向きは短辺側）を除いた矩形を基準にする
+  const Rect area = UITheme::getContentArea(renderer);
   const auto& metrics = UITheme::getInstance().getMetrics();
-  const bool isPortraitInverted = renderer.getOrientation() == GfxRenderer::Orientation::PortraitInverted;
-  const int hintGutterHeight = isPortraitInverted ? (metrics.buttonHintsHeight + metrics.verticalSpacing) : 0;
 
   // Header
   const char* title = isVertical ? tr(STR_VERTICAL_SETTINGS) : tr(STR_HORIZONTAL_SETTINGS);
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding + hintGutterHeight, pageWidth, metrics.headerHeight}, title, "");
+  GUI.drawHeader(renderer, Rect{area.x, area.y + metrics.topPadding, area.width, metrics.headerHeight}, title, "");
 
   const int itemCount = static_cast<int>(items.size());
 
   // List
   GUI.drawList(
       renderer,
-      Rect{0, metrics.topPadding + hintGutterHeight + metrics.headerHeight + metrics.verticalSpacing, pageWidth,
-           pageHeight - (metrics.topPadding + hintGutterHeight + metrics.headerHeight + metrics.buttonHintsHeight +
-                         metrics.verticalSpacing * 2)},
+      Rect{area.x, area.y + metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing, area.width,
+           area.height - (metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing)},
       itemCount, selectedIndex, [this](int index) { return std::string(I18N.get(items[index].nameId)); }, nullptr,
       nullptr,
       [this](int i) -> std::string {

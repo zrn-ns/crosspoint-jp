@@ -238,40 +238,46 @@ void SdFirmwareUpdateActivity::loop() {
 
 void SdFirmwareUpdateActivity::render(RenderLock&&) {
   const auto& metrics = UITheme::getInstance().getMetrics();
-  const auto pageWidth = renderer.getScreenWidth();
-  const auto pageHeight = renderer.getScreenHeight();
+  // ボタンヒント領域を除いたコンテンツ矩形（横向きではヒントが短辺側に来る）
+  const Rect area = UITheme::getContentArea(renderer);
+  // ヒント領域を除いた幅で中央揃えする
+  auto drawCentered = [&](const int fontId, const int y, const char* text,
+                          const EpdFontFamily::Style style = EpdFontFamily::REGULAR) {
+    renderer.drawText(fontId, area.x + (area.width - renderer.getTextWidth(fontId, text, style)) / 2, y, text, true,
+                      style);
+  };
 
   renderer.clearScreen();
 
   const char* headerText = recoveryMode ? tr(STR_RECOVERY_MODE) : tr(STR_SD_FIRMWARE_UPDATE);
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, headerText);
+  GUI.drawHeader(renderer, Rect{area.x, area.y + metrics.topPadding, area.width, metrics.headerHeight}, headerText);
 
   const auto lineHeight = renderer.getLineHeight(UI_10_FONT_ID);
-  const auto centerY = (pageHeight - lineHeight) / 2;
+  const auto centerY = (renderer.getScreenHeight() - lineHeight) / 2;
 
   if (state == State::PICKING) {
     if (binFiles.empty()) {
-      renderer.drawCenteredText(UI_10_FONT_ID, centerY, tr(STR_NO_BIN_FILES));
+      drawCentered(UI_10_FONT_ID, centerY, tr(STR_NO_BIN_FILES));
       if (recoveryMode) {
-        renderer.drawCenteredText(UI_10_FONT_ID, centerY + lineHeight + metrics.verticalSpacing,
-                                  tr(STR_RECOVERY_MODE_HINT));
+        drawCentered(UI_10_FONT_ID, centerY + lineHeight + metrics.verticalSpacing, tr(STR_RECOVERY_MODE_HINT));
       }
       const auto labels = mappedInput.mapLabels(recoveryMode ? "" : tr(STR_BACK), "", "", "");
       GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     } else {
-      const int listTop = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
-      const int listHeight = pageHeight - listTop - metrics.buttonHintsHeight - metrics.verticalSpacing;
-      GUI.drawList(renderer,
-                   Rect{metrics.contentSidePadding, listTop, pageWidth - metrics.contentSidePadding * 2, listHeight},
-                   static_cast<int>(binFiles.size()), selectedIndex,
-                   [this](int index) -> std::string { return binFiles[index]; });
+      const int listTop = area.y + metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
+      const int listHeight = area.y + area.height - listTop;
+      GUI.drawList(
+          renderer,
+          Rect{area.x + metrics.contentSidePadding, listTop, area.width - metrics.contentSidePadding * 2, listHeight},
+          static_cast<int>(binFiles.size()), selectedIndex,
+          [this](int index) -> std::string { return binFiles[index]; });
       const auto labels =
           mappedInput.mapLabels(recoveryMode ? "" : tr(STR_BACK), tr(STR_SELECT),
                                 binFiles.size() > 1 ? tr(STR_DIR_UP) : "", binFiles.size() > 1 ? tr(STR_DIR_DOWN) : "");
       GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     }
   } else if (state == State::VALIDATING) {
-    renderer.drawCenteredText(UI_10_FONT_ID, centerY, tr(STR_VALIDATING_FIRMWARE));
+    drawCentered(UI_10_FONT_ID, centerY, tr(STR_VALIDATING_FIRMWARE));
   } else if (state == State::UPDATING) {
     // Throttle redraws to once per percent.
     const unsigned int pct = firmwareSize > 0 ? static_cast<unsigned int>((writtenBytes * 100) / firmwareSize) : 0;
@@ -280,30 +286,30 @@ void SdFirmwareUpdateActivity::render(RenderLock&&) {
     }
     lastRenderedPercent = pct;
 
-    renderer.drawCenteredText(UI_10_FONT_ID, centerY, tr(STR_UPDATING), true, EpdFontFamily::BOLD);
+    drawCentered(UI_10_FONT_ID, centerY, tr(STR_UPDATING), EpdFontFamily::BOLD);
 
     int y = centerY + lineHeight + metrics.verticalSpacing;
-    GUI.drawProgressBar(
-        renderer,
-        Rect{metrics.contentSidePadding, y, pageWidth - metrics.contentSidePadding * 2, metrics.progressBarHeight},
-        static_cast<int>(pct), 100);
+    GUI.drawProgressBar(renderer,
+                        Rect{area.x + metrics.contentSidePadding, y, area.width - metrics.contentSidePadding * 2,
+                             metrics.progressBarHeight},
+                        static_cast<int>(pct), 100);
     y += metrics.progressBarHeight + metrics.verticalSpacing;
     y += lineHeight + metrics.verticalSpacing;
-    renderer.drawCenteredText(UI_10_FONT_ID, y, tr(STR_FIRMWARE_UPDATE_DO_NOT_POWER_OFF));
+    drawCentered(UI_10_FONT_ID, y, tr(STR_FIRMWARE_UPDATE_DO_NOT_POWER_OFF));
   } else if (state == State::SUCCESS) {
-    renderer.drawCenteredText(UI_10_FONT_ID, centerY, tr(STR_UPDATE_COMPLETE), true, EpdFontFamily::BOLD);
-    renderer.drawCenteredText(UI_10_FONT_ID, centerY + lineHeight + metrics.verticalSpacing, tr(STR_RESTARTING_HINT));
+    drawCentered(UI_10_FONT_ID, centerY, tr(STR_UPDATE_COMPLETE), EpdFontFamily::BOLD);
+    drawCentered(UI_10_FONT_ID, centerY + lineHeight + metrics.verticalSpacing, tr(STR_RESTARTING_HINT));
   } else if (state == State::FAILED) {
-    renderer.drawCenteredText(UI_10_FONT_ID, centerY, tr(STR_UPDATE_FAILED), true, EpdFontFamily::BOLD);
+    drawCentered(UI_10_FONT_ID, centerY, tr(STR_UPDATE_FAILED), EpdFontFamily::BOLD);
     if (!errorMessage.empty()) {
-      renderer.drawCenteredText(UI_10_FONT_ID, centerY + lineHeight + metrics.verticalSpacing, errorMessage.c_str());
+      drawCentered(UI_10_FONT_ID, centerY + lineHeight + metrics.verticalSpacing, errorMessage.c_str());
     }
     const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else {
     // CONFIRMING: a sub-activity is on top, nothing to draw here.
     if (recoveryMode) {
-      renderer.drawCenteredText(UI_10_FONT_ID, centerY, tr(STR_RECOVERY_MODE_HINT));
+      drawCentered(UI_10_FONT_ID, centerY, tr(STR_RECOVERY_MODE_HINT));
     }
   }
 

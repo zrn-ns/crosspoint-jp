@@ -17,6 +17,8 @@ constexpr ThemeMetrics values = [] {
 
 class Lyra3CoversTheme : public LyraTheme {
  public:
+  // 横向きでは表紙列の幅が足りず 3 枚だと細くなりすぎるので 2 枚にする
+  int getHomeRecentBooksCount(const GfxRenderer& renderer) const override;
   void drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std::vector<RecentBook>& recentBooks,
                            const std::vector<ReadingStatus>& bookStatuses, const int selectorIndex, bool& coverRendered,
                            bool& coverBufferStored, bool& bufferRestored,

@@ -7,6 +7,7 @@
 #include <WiFi.h>
 #include <esp_task_wdt.h>
 
+#include <algorithm>
 #include <cstddef>
 
 #include "MappedInputManager.h"
@@ -348,20 +349,23 @@ void CrossPointWebServerActivity::render(RenderLock&&) {
   if (state == WebServerActivityState::SERVER_RUNNING || state == WebServerActivityState::AP_STARTING) {
     renderer.clearScreen();
     const auto& metrics = UITheme::getInstance().getMetrics();
-    const auto pageWidth = renderer.getScreenWidth();
-    const auto pageHeight = renderer.getScreenHeight();
+    // ボタンヒント領域を除いたコンテンツ矩形（横向きではヒントが短辺側に来る）
+    const Rect area = UITheme::getContentArea(renderer);
 
-    GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight},
+    GUI.drawHeader(renderer, Rect{area.x, area.y + metrics.topPadding, area.width, metrics.headerHeight},
                    isApMode ? tr(STR_HOTSPOT_MODE) : tr(STR_FILE_TRANSFER), nullptr);
 
     if (state == WebServerActivityState::SERVER_RUNNING) {
-      GUI.drawSubHeader(renderer, Rect{0, metrics.topPadding + metrics.headerHeight, pageWidth, metrics.tabBarHeight},
-                        connectedSSID.c_str());
+      GUI.drawSubHeader(
+          renderer, Rect{area.x, area.y + metrics.topPadding + metrics.headerHeight, area.width, metrics.tabBarHeight},
+          connectedSSID.c_str());
       renderServerRunning();
     } else {
       const auto height = renderer.getLineHeight(UI_10_FONT_ID);
-      const auto top = (pageHeight - height) / 2;
-      renderer.drawCenteredText(UI_10_FONT_ID, top, tr(STR_STARTING_HOTSPOT));
+      const auto top = (renderer.getScreenHeight() - height) / 2;
+      const char* text = tr(STR_STARTING_HOTSPOT);
+      renderer.drawText(UI_10_FONT_ID, area.x + (area.width - renderer.getTextWidth(UI_10_FONT_ID, text)) / 2, top,
+                        text);
     }
     renderer.displayBuffer();
   }
@@ -369,72 +373,124 @@ void CrossPointWebServerActivity::render(RenderLock&&) {
 
 void CrossPointWebServerActivity::renderServerRunning() const {
   const auto& metrics = UITheme::getInstance().getMetrics();
-  const auto pageWidth = renderer.getScreenWidth();
+  // ボタンヒント領域を除いたコンテンツ矩形（横向きではヒントが短辺側に来る）
+  const Rect area = UITheme::getContentArea(renderer);
+  // ヒント領域を除いた幅で中央揃えする
+  auto drawCentered = [&](const int fontId, const int y, const char* text,
+                          const EpdFontFamily::Style style = EpdFontFamily::REGULAR) {
+    renderer.drawText(fontId, area.x + (area.width - renderer.getTextWidth(fontId, text, style)) / 2, y, text, true,
+                      style);
+  };
 
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight},
+  GUI.drawHeader(renderer, Rect{area.x, area.y + metrics.topPadding, area.width, metrics.headerHeight},
                  isApMode ? tr(STR_HOTSPOT_MODE) : tr(STR_FILE_TRANSFER), nullptr);
-  GUI.drawSubHeader(renderer, Rect{0, metrics.topPadding + metrics.headerHeight, pageWidth, metrics.tabBarHeight},
+  GUI.drawSubHeader(renderer,
+                    Rect{area.x, area.y + metrics.topPadding + metrics.headerHeight, area.width, metrics.tabBarHeight},
                     connectedSSID.c_str());
 
-  int startY = metrics.topPadding + metrics.headerHeight + metrics.tabBarHeight + metrics.verticalSpacing * 2;
+  int startY = area.y + metrics.topPadding + metrics.headerHeight + metrics.tabBarHeight + metrics.verticalSpacing * 2;
   int height10 = renderer.getLineHeight(UI_10_FONT_ID);
   if (isApMode) {
-    // AP mode display
-    renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, startY, tr(STR_CONNECT_WIFI_HINT), true,
-                      EpdFontFamily::BOLD);
-    startY += height10 + metrics.verticalSpacing * 2;
+    // AP mode display: 「Wi-Fi 接続用 QR」と「URL 用 QR」の 2 ブロック。
+    // 縦持ちでは縦に積む。横向きは高さ 480 に 2 つの QR (198px) が入らないので、
+    // 左右 2 段組みにする。
+    const bool sideBySide = area.width >= area.height;
+    const int columnWidth = sideBySide ? area.width / 2 : area.width;
+    const int leftX = area.x + metrics.contentSidePadding;
+    const int rightX = area.x + columnWidth + metrics.contentSidePadding;
+    const int blockTop = startY;
 
     // Show QR code for Wifi
+    renderer.drawText(UI_10_FONT_ID, leftX, startY, tr(STR_CONNECT_WIFI_HINT), true, EpdFontFamily::BOLD);
+    startY += height10 + metrics.verticalSpacing * 2;
     const std::string wifiConfig = std::string("WIFI:S:") + connectedSSID + ";;";
-    const Rect qrBoundsWifi(metrics.contentSidePadding, startY, QR_CODE_WIDTH, QR_CODE_HEIGHT);
+    const Rect qrBoundsWifi(leftX, startY, QR_CODE_WIDTH, QR_CODE_HEIGHT);
     QrUtils::drawQrCode(renderer, qrBoundsWifi, wifiConfig);
 
-    // Show network name
-    renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding + QR_CODE_WIDTH + metrics.verticalSpacing, startY + 80,
-                      connectedSSID.c_str());
+    // Show network name（2 段組みでは列幅に QR と並べる余地が無いので QR の下に置く）
+    if (sideBySide) {
+      renderer.drawText(UI_10_FONT_ID, leftX, startY + QR_CODE_HEIGHT + metrics.verticalSpacing / 2,
+                        connectedSSID.c_str());
+    } else {
+      renderer.drawText(UI_10_FONT_ID, leftX + QR_CODE_WIDTH + metrics.verticalSpacing, startY + 80,
+                        connectedSSID.c_str());
+    }
 
-    startY += QR_CODE_HEIGHT + 2 * metrics.verticalSpacing;
+    // 2 つ目のブロックの位置: 2 段組みなら右列の同じ高さ、縦積みなら 1 つ目の下
+    int urlX = leftX;
+    if (sideBySide) {
+      startY = blockTop;
+      urlX = rightX;
+    } else {
+      startY += QR_CODE_HEIGHT + 2 * metrics.verticalSpacing;
+    }
 
     // Show primary URL (hostname)
-    renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, startY, tr(STR_OPEN_URL_HINT), true,
-                      EpdFontFamily::BOLD);
+    renderer.drawText(UI_10_FONT_ID, urlX, startY, tr(STR_OPEN_URL_HINT), true, EpdFontFamily::BOLD);
     startY += height10 + metrics.verticalSpacing * 2;
 
     std::string hostnameUrl = std::string("http://") + AP_HOSTNAME + ".local/";
     std::string ipUrl = tr(STR_OR_HTTP_PREFIX) + connectedIP + "/";
 
     // Show QR code for URL
-    const Rect qrBoundsUrl(metrics.contentSidePadding, startY, QR_CODE_WIDTH, QR_CODE_HEIGHT);
+    const Rect qrBoundsUrl(urlX, startY, QR_CODE_WIDTH, QR_CODE_HEIGHT);
     QrUtils::drawQrCode(renderer, qrBoundsUrl, hostnameUrl);
 
-    // Show IP address as fallback
-    renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding + QR_CODE_WIDTH + metrics.verticalSpacing, startY + 80,
-                      hostnameUrl.c_str());
-    renderer.drawText(SMALL_FONT_ID, metrics.contentSidePadding + QR_CODE_WIDTH + metrics.verticalSpacing, startY + 100,
-                      ipUrl.c_str());
+    // Show IP address as fallback（2 段組みでは QR の下に 2 行で置く）
+    if (sideBySide) {
+      const int textY = startY + QR_CODE_HEIGHT + metrics.verticalSpacing / 2;
+      renderer.drawText(UI_10_FONT_ID, urlX, textY, hostnameUrl.c_str());
+      renderer.drawText(SMALL_FONT_ID, urlX, textY + height10, ipUrl.c_str());
+    } else {
+      renderer.drawText(UI_10_FONT_ID, urlX + QR_CODE_WIDTH + metrics.verticalSpacing, startY + 80,
+                        hostnameUrl.c_str());
+      renderer.drawText(SMALL_FONT_ID, urlX + QR_CODE_WIDTH + metrics.verticalSpacing, startY + 100, ipUrl.c_str());
+    }
+  } else if (area.width >= area.height) {
+    // STA mode, 横向き: 文言 2 行 + QR (198px) + URL 2 行を縦に積むと 480 に収まらないので、
+    // 左に QR、右に文言と URL を置く
+    std::string webInfo = "http://" + connectedIP + "/";
+    std::string hostnameUrl = std::string(tr(STR_OR_HTTP_PREFIX)) + AP_HOSTNAME + ".local/";
+    const int contentHeight = area.y + area.height - startY;
+    const int columnWidth = area.width / 2;
+    const int qrX = area.x + (columnWidth - QR_CODE_WIDTH) / 2;
+    const int qrY = startY + std::max(0, (contentHeight - QR_CODE_HEIGHT) / 2);
+    QrUtils::drawQrCode(renderer, Rect(qrX, qrY, QR_CODE_WIDTH, QR_CODE_HEIGHT), webInfo);
+
+    // 右列: 4 行を QR と同じ高さに揃えて中央に
+    const char* lines[] = {tr(STR_OPEN_URL_HINT), tr(STR_SCAN_QR_HINT), webInfo.c_str(), hostnameUrl.c_str()};
+    const int textX = area.x + columnWidth + metrics.contentSidePadding;
+    const int lineStep = height10 + metrics.verticalSpacing;
+    int textY = qrY + (QR_CODE_HEIGHT - (4 * lineStep - metrics.verticalSpacing)) / 2;
+    for (int i = 0; i < 4; ++i) {
+      const int fontId = (i == 3) ? SMALL_FONT_ID : UI_10_FONT_ID;
+      const auto style = (i < 2) ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
+      renderer.drawText(fontId, textX, textY, lines[i], true, style);
+      textY += lineStep;
+    }
   } else {
     startY += metrics.verticalSpacing * 2;
 
     // STA mode display (original behavior)
     // std::string ipInfo = "IP Address: " + connectedIP;
-    renderer.drawCenteredText(UI_10_FONT_ID, startY, tr(STR_OPEN_URL_HINT), true, EpdFontFamily::BOLD);
+    drawCentered(UI_10_FONT_ID, startY, tr(STR_OPEN_URL_HINT), EpdFontFamily::BOLD);
     startY += height10;
-    renderer.drawCenteredText(UI_10_FONT_ID, startY, tr(STR_SCAN_QR_HINT), true, EpdFontFamily::BOLD);
+    drawCentered(UI_10_FONT_ID, startY, tr(STR_SCAN_QR_HINT), EpdFontFamily::BOLD);
     startY += height10 + metrics.verticalSpacing * 2;
 
     // Show QR code for URL
     std::string webInfo = "http://" + connectedIP + "/";
-    const Rect qrBounds((pageWidth - QR_CODE_WIDTH) / 2, startY, QR_CODE_WIDTH, QR_CODE_HEIGHT);
+    const Rect qrBounds(area.x + (area.width - QR_CODE_WIDTH) / 2, startY, QR_CODE_WIDTH, QR_CODE_HEIGHT);
     QrUtils::drawQrCode(renderer, qrBounds, webInfo);
     startY += QR_CODE_HEIGHT + metrics.verticalSpacing * 2;
 
     // Show web server URL prominently
-    renderer.drawCenteredText(UI_10_FONT_ID, startY, webInfo.c_str(), true);
+    drawCentered(UI_10_FONT_ID, startY, webInfo.c_str());
     startY += height10 + 5;
 
     // Also show hostname URL
     std::string hostnameUrl = std::string(tr(STR_OR_HTTP_PREFIX)) + AP_HOSTNAME + ".local/";
-    renderer.drawCenteredText(SMALL_FONT_ID, startY, hostnameUrl.c_str(), true);
+    drawCentered(SMALL_FONT_ID, startY, hostnameUrl.c_str());
   }
 
   const auto labels = mappedInput.mapLabels(tr(STR_EXIT), "", "", "");
