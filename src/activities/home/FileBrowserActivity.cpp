@@ -394,24 +394,26 @@ std::string getFileExtension(std::string filename) {
 void FileBrowserActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
-  const auto pageWidth = renderer.getScreenWidth();
-  const auto pageHeight = renderer.getScreenHeight();
+  // ボタンヒントの領域を除いた矩形を基準にする（横向きではヒントが短辺側に来る）
+  const Rect area = UITheme::getContentArea(renderer);
+  const auto pageWidth = area.width;
+  const int pageBottom = area.y + area.height;
   const auto& metrics = UITheme::getInstance().getMetrics();
 
   std::string folderName = (basepath == "/") ? tr(STR_SD_CARD) : basepath.substr(basepath.rfind('/') + 1);
   utf8NfcNormalizeKana(folderName);
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, folderName.c_str());
+  GUI.drawHeader(renderer, Rect{area.x, area.y + metrics.topPadding, pageWidth, metrics.headerHeight},
+                 folderName.c_str());
 
   const int pathLineHeight = renderer.getLineHeight(SMALL_FONT_ID);
   const int pathReserved = pathLineHeight + metrics.verticalSpacing;
-  const int contentTop = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
-  const int contentHeight =
-      pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing - pathReserved;
+  const int contentTop = area.y + metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
+  const int contentHeight = pageBottom - contentTop - pathReserved;
   if (files.empty()) {
-    renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, contentTop + 20, tr(STR_NO_FILES_FOUND));
+    renderer.drawText(UI_10_FONT_ID, area.x + metrics.contentSidePadding, contentTop + 20, tr(STR_NO_FILES_FOUND));
   } else {
     GUI.drawList(
-        renderer, Rect{0, contentTop, pageWidth, contentHeight}, files.size(), selectorIndex,
+        renderer, Rect{area.x, contentTop, pageWidth, contentHeight}, files.size(), selectorIndex,
         [this](int index) { return getFileName(files[index]); }, nullptr,
         [this](int index) { return UITheme::getFileIcon(files[index], fileStatuses[index]); },
         [this](int index) { return getFileExtension(files[index]); }, false);
@@ -419,9 +421,9 @@ void FileBrowserActivity::render(RenderLock&&) {
 
   // Full path display
   {
-    const int pathY = pageHeight - metrics.buttonHintsHeight - metrics.verticalSpacing - pathLineHeight;
+    const int pathY = pageBottom - pathLineHeight;
     const int separatorY = pathY - metrics.verticalSpacing / 2;
-    renderer.drawLine(0, separatorY, pageWidth - 1, separatorY, 3, true);
+    renderer.drawLine(area.x, separatorY, area.x + pageWidth - 1, separatorY, 3, true);
     const int pathMaxWidth = pageWidth - metrics.contentSidePadding * 2;
     // Left-truncate so the deepest directory is always visible
     const char* pathStr = basepath.c_str();
@@ -441,7 +443,7 @@ void FileBrowserActivity::render(RenderLock&&) {
       snprintf(leftTruncBuf, sizeof(leftTruncBuf), "%s%s", ellipsis, p);
       pathDisplay = leftTruncBuf;
     }
-    renderer.drawText(SMALL_FONT_ID, metrics.contentSidePadding, pathY, pathDisplay);
+    renderer.drawText(SMALL_FONT_ID, area.x + metrics.contentSidePadding, pathY, pathDisplay);
   }
 
   // Help text

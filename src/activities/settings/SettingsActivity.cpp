@@ -397,14 +397,11 @@ void SettingsActivity::toggleCurrentSetting() {
 void SettingsActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
-  const auto pageWidth = renderer.getScreenWidth();
-  const auto pageHeight = renderer.getScreenHeight();
-
+  // ボタンヒントの領域（縦持ちは下端、反転は上端、横向きは短辺側）を除いた矩形を基準にする
+  const Rect area = UITheme::getContentArea(renderer);
   const auto& metrics = UITheme::getInstance().getMetrics();
-  const bool isPortraitInverted = renderer.getOrientation() == GfxRenderer::Orientation::PortraitInverted;
-  const int hintGutterHeight = isPortraitInverted ? (metrics.buttonHintsHeight + metrics.verticalSpacing) : 0;
 
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding + hintGutterHeight, pageWidth, metrics.headerHeight},
+  GUI.drawHeader(renderer, Rect{area.x, area.y + metrics.topPadding, area.width, metrics.headerHeight},
                  tr(STR_SETTINGS_TITLE), CROSSPOINT_VERSION);
 
   std::vector<TabInfo> tabs;
@@ -413,18 +410,15 @@ void SettingsActivity::render(RenderLock&&) {
     tabs.push_back({I18N.get(categoryNames[i]), selectedCategoryIndex == i});
   }
   GUI.drawTabBar(renderer,
-                 Rect{0, metrics.topPadding + hintGutterHeight + metrics.headerHeight, pageWidth, metrics.tabBarHeight},
+                 Rect{area.x, area.y + metrics.topPadding + metrics.headerHeight, area.width, metrics.tabBarHeight},
                  tabs, selectedSettingIndex == 0);
 
   const auto& settings = *currentSettings;
   GUI.drawList(
       renderer,
-      Rect{
-          0,
-          metrics.topPadding + hintGutterHeight + metrics.headerHeight + metrics.tabBarHeight + metrics.verticalSpacing,
-          pageWidth,
-          pageHeight - (metrics.topPadding + hintGutterHeight + metrics.headerHeight + metrics.tabBarHeight +
-                        metrics.buttonHintsHeight + metrics.verticalSpacing * 2)},
+      Rect{area.x, area.y + metrics.topPadding + metrics.headerHeight + metrics.tabBarHeight + metrics.verticalSpacing,
+           area.width,
+           area.height - (metrics.topPadding + metrics.headerHeight + metrics.tabBarHeight + metrics.verticalSpacing)},
       settingsCount, selectedSettingIndex - 1,
       [&settings](int index) { return std::string(I18N.get(settings[index].nameId)); }, nullptr, nullptr,
       [&settings](int i) {

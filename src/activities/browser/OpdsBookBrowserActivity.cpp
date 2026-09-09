@@ -7,6 +7,8 @@
 #include <OpdsStream.h>
 #include <WiFi.h>
 
+#include <algorithm>
+
 #include "MappedInputManager.h"
 #include "activities/network/WifiSelectionActivity.h"
 #include "activities/util/KeyboardEntryActivity.h"
@@ -17,8 +19,10 @@
 #include "util/UrlUtils.h"
 
 namespace {
-constexpr int PAGE_ITEMS = 23;
-}
+// 一覧の行の開始 y とピッチ。1 ページの行数は getPageItems() で画面高さから決める
+constexpr int LIST_TOP = 60;
+constexpr int LIST_ROW_HEIGHT = 30;
+}  // namespace
 
 void OpdsBookBrowserActivity::onEnter() {
   Activity::onEnter();
@@ -106,28 +110,40 @@ void OpdsBookBrowserActivity::loop() {
         requestUpdate();
       });
       buttonNavigator.onNextContinuous([this] {
-        selectorIndex = ButtonNavigator::nextPageIndex(selectorIndex, entries.size(), PAGE_ITEMS);
+        selectorIndex = ButtonNavigator::nextPageIndex(selectorIndex, entries.size(), getPageItems());
         requestUpdate();
       });
       buttonNavigator.onPreviousContinuous([this] {
-        selectorIndex = ButtonNavigator::previousPageIndex(selectorIndex, entries.size(), PAGE_ITEMS);
+        selectorIndex = ButtonNavigator::previousPageIndex(selectorIndex, entries.size(), getPageItems());
         requestUpdate();
       });
     }
   }
 }
 
+int OpdsBookBrowserActivity::getPageItems() const {
+  const Rect area = UITheme::getContentArea(renderer);
+  return std::max(1, (area.height - LIST_TOP) / LIST_ROW_HEIGHT);
+}
+
 void OpdsBookBrowserActivity::render(RenderLock&&) {
   renderer.clearScreen();
-  const auto pageWidth = renderer.getScreenWidth();
-  const auto pageHeight = renderer.getScreenHeight();
+  // ボタンヒントの領域を除いた矩形を基準にする（横向きではヒントが短辺側に来る）
+  const Rect area = UITheme::getContentArea(renderer);
+  const auto pageWidth = area.width;
+  const int centerY = area.y + area.height / 2;
+  auto drawCentered = [&](const int fontId, const int y, const char* text,
+                          const EpdFontFamily::Style style = EpdFontFamily::REGULAR) {
+    renderer.drawText(fontId, area.x + (pageWidth - renderer.getTextWidth(fontId, text, style)) / 2, y, text, true,
+                      style);
+  };
 
   // Show server name in header if available, otherwise generic title
   const char* headerTitle = server.name.empty() ? tr(STR_OPDS_BROWSER) : server.name.c_str();
-  renderer.drawCenteredText(UI_12_FONT_ID, 15, headerTitle, true, EpdFontFamily::BOLD);
+  drawCentered(UI_12_FONT_ID, area.y + 15, headerTitle, EpdFontFamily::BOLD);
 
   if (state == BrowserState::CHECK_WIFI || state == BrowserState::LOADING) {
-    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2, statusMessage.c_str());
+    drawCentered(UI_10_FONT_ID, centerY, statusMessage.c_str());
     const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
@@ -135,8 +151,8 @@ void OpdsBookBrowserActivity::render(RenderLock&&) {
   }
 
   if (state == BrowserState::ERROR) {
-    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 - 20, tr(STR_ERROR_MSG));
-    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 + 10, errorMessage.c_str());
+    drawCentered(UI_10_FONT_ID, centerY - 20, tr(STR_ERROR_MSG));
+    drawCentered(UI_10_FONT_ID, centerY + 10, errorMessage.c_str());
     const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_RETRY), "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
@@ -144,11 +160,11 @@ void OpdsBookBrowserActivity::render(RenderLock&&) {
   }
 
   if (state == BrowserState::DOWNLOADING) {
-    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 - 40, tr(STR_DOWNLOADING));
+    drawCentered(UI_10_FONT_ID, centerY - 40, tr(STR_DOWNLOADING));
     auto title = renderer.truncatedText(UI_10_FONT_ID, statusMessage.c_str(), pageWidth - 40);
-    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 - 10, title.c_str());
+    drawCentered(UI_10_FONT_ID, centerY - 10, title.c_str());
     if (downloadTotal > 0) {
-      GUI.drawProgressBar(renderer, Rect{50, pageHeight / 2 + 20, pageWidth - 100, 20}, downloadProgress,
+      GUI.drawProgressBar(renderer, Rect{area.x + 50, centerY + 20, pageWidth - 100, 20}, downloadProgress,
                           downloadTotal);
     }
     renderer.displayBuffer();
@@ -162,17 +178,20 @@ void OpdsBookBrowserActivity::render(RenderLock&&) {
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   if (entries.empty()) {
-    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2, tr(STR_NO_ENTRIES));
+    drawCentered(UI_10_FONT_ID, centerY, tr(STR_NO_ENTRIES));
   } else {
-    const auto pageStartIndex = selectorIndex / PAGE_ITEMS * PAGE_ITEMS;
-    renderer.fillRect(0, 60 + (selectorIndex % PAGE_ITEMS) * 30 - 2, pageWidth - 1, 30);
+    const int pageItems = getPageItems();
+    const int listTop = area.y + LIST_TOP;
+    const auto pageStartIndex = selectorIndex / pageItems * pageItems;
+    renderer.fillRect(area.x, listTop + (selectorIndex % pageItems) * LIST_ROW_HEIGHT - 2, pageWidth - 1,
+                      LIST_ROW_HEIGHT);
 
-    for (size_t i = pageStartIndex; i < entries.size() && i < static_cast<size_t>(pageStartIndex + PAGE_ITEMS); i++) {
+    for (size_t i = pageStartIndex; i < entries.size() && i < static_cast<size_t>(pageStartIndex + pageItems); i++) {
       const auto& entry = entries[i];
       std::string displayText = (entry.type == OpdsEntryType::NAVIGATION) ? "> " + entry.title : entry.title;
       if (entry.type == OpdsEntryType::BOOK && !entry.author.empty()) displayText += " - " + entry.author;
       auto item = renderer.truncatedText(UI_10_FONT_ID, displayText.c_str(), pageWidth - 40);
-      renderer.drawText(UI_10_FONT_ID, 20, 60 + (i % PAGE_ITEMS) * 30, item.c_str(),
+      renderer.drawText(UI_10_FONT_ID, area.x + 20, listTop + (i % pageItems) * LIST_ROW_HEIGHT, item.c_str(),
                         i != static_cast<size_t>(selectorIndex));
     }
   }

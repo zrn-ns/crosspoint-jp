@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include "../HintOrientationScope.h"
 #include "RecentBooksStore.h"
 #include "components/UITheme.h"
 #include "components/icons/book_finished24.h"
@@ -20,11 +21,17 @@ constexpr int hPaddingInSelection = 8;
 constexpr int cornerRadius = 6;
 }  // namespace
 
+int Lyra3CoversTheme::getHomeRecentBooksCount(const GfxRenderer& renderer) const {
+  return HintOrientationScope::isLandscape(renderer.getOrientation()) ? 2
+                                                                      : Lyra3CoversMetrics::values.homeRecentBooksCount;
+}
+
 void Lyra3CoversTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std::vector<RecentBook>& recentBooks,
                                            const std::vector<ReadingStatus>& bookStatuses, const int selectorIndex,
                                            bool& coverRendered, bool& coverBufferStored, bool& bufferRestored,
                                            std::function<bool()> storeCoverBuffer) const {
-  const int tileWidth = (rect.width - 2 * Lyra3CoversMetrics::values.contentSidePadding) / 3;
+  const int coverCount = getHomeRecentBooksCount(renderer);
+  const int tileWidth = (rect.width - 2 * Lyra3CoversMetrics::values.contentSidePadding) / coverCount;
   const int tileY = rect.y;
   const bool hasContinueReading = !recentBooks.empty();
 
@@ -33,11 +40,10 @@ void Lyra3CoversTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, con
   // Only load from SD on first render, then use stored buffer
   if (hasContinueReading) {
     if (!coverRendered) {
-      for (int i = 0;
-           i < std::min(static_cast<int>(recentBooks.size()), Lyra3CoversMetrics::values.homeRecentBooksCount); i++) {
+      for (int i = 0; i < std::min(static_cast<int>(recentBooks.size()), coverCount); i++) {
         std::string coverPath = recentBooks[i].coverBmpPath;
         bool hasCover = true;
-        int tileX = Lyra3CoversMetrics::values.contentSidePadding + tileWidth * i;
+        int tileX = rect.x + Lyra3CoversMetrics::values.contentSidePadding + tileWidth * i;
         if (coverPath.empty()) {
           hasCover = false;
         } else {
@@ -83,11 +89,10 @@ void Lyra3CoversTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, con
       coverRendered = coverBufferStored;  // Only consider it rendered if we successfully stored the buffer
     }
 
-    for (int i = 0; i < std::min(static_cast<int>(recentBooks.size()), Lyra3CoversMetrics::values.homeRecentBooksCount);
-         i++) {
+    for (int i = 0; i < std::min(static_cast<int>(recentBooks.size()), coverCount); i++) {
       bool bookSelected = (selectorIndex == i);
 
-      int tileX = Lyra3CoversMetrics::values.contentSidePadding + tileWidth * i;
+      int tileX = rect.x + Lyra3CoversMetrics::values.contentSidePadding + tileWidth * i;
 
       const int maxLineWidth = tileWidth - 2 * hPaddingInSelection;
 

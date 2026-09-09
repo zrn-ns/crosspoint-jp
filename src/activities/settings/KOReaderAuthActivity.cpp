@@ -76,21 +76,28 @@ void KOReaderAuthActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
   const auto& metrics = UITheme::getInstance().getMetrics();
-  const auto pageWidth = renderer.getScreenWidth();
-  const auto pageHeight = renderer.getScreenHeight();
+  // ボタンヒント領域を除いたコンテンツ矩形（横向きではヒントが短辺側に来る）
+  const Rect area = UITheme::getContentArea(renderer);
+  // ヒント領域を除いた幅で中央揃えする
+  auto drawCentered = [&](const int fontId, const int y, const char* text,
+                          const EpdFontFamily::Style style = EpdFontFamily::REGULAR) {
+    renderer.drawText(fontId, area.x + (area.width - renderer.getTextWidth(fontId, text, style)) / 2, y, text, true,
+                      style);
+  };
 
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_KOREADER_AUTH));
+  GUI.drawHeader(renderer, Rect{area.x, area.y + metrics.topPadding, area.width, metrics.headerHeight},
+                 tr(STR_KOREADER_AUTH));
   const auto height = renderer.getLineHeight(UI_10_FONT_ID);
-  const auto top = (pageHeight - height) / 2;
+  const auto top = (renderer.getScreenHeight() - height) / 2;
 
   if (state == AUTHENTICATING) {
-    renderer.drawCenteredText(UI_10_FONT_ID, top, statusMessage.c_str());
+    drawCentered(UI_10_FONT_ID, top, statusMessage.c_str());
   } else if (state == SUCCESS) {
-    renderer.drawCenteredText(UI_10_FONT_ID, top, tr(STR_AUTH_SUCCESS), true, EpdFontFamily::BOLD);
-    renderer.drawCenteredText(UI_10_FONT_ID, top + height + 10, tr(STR_SYNC_READY));
+    drawCentered(UI_10_FONT_ID, top, tr(STR_AUTH_SUCCESS), EpdFontFamily::BOLD);
+    drawCentered(UI_10_FONT_ID, top + height + 10, tr(STR_SYNC_READY));
   } else if (state == FAILED) {
-    renderer.drawCenteredText(UI_10_FONT_ID, top, tr(STR_AUTH_FAILED), true, EpdFontFamily::BOLD);
-    renderer.drawCenteredText(UI_10_FONT_ID, top + height + 10, errorMessage.c_str());
+    drawCentered(UI_10_FONT_ID, top, tr(STR_AUTH_FAILED), EpdFontFamily::BOLD);
+    drawCentered(UI_10_FONT_ID, top + height + 10, errorMessage.c_str());
   }
 
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");

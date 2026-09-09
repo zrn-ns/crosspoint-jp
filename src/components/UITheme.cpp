@@ -60,11 +60,19 @@ int UITheme::getNumberOfItemsPerPage(const GfxRenderer& renderer, bool hasHeader
     reservedHeight += metrics.tabBarHeight;
   }
   if (hasButtonHints) {
-    reservedHeight += metrics.verticalSpacing + metrics.buttonHintsHeight;
+    // ヒントが上下どちらかの辺にあるときだけ高さを取られる（横向きは短辺側なので 0）
+    const auto insets = UITheme::getInstance().getTheme().getButtonHintInsets(renderer);
+    reservedHeight += insets.top + insets.bottom;
   }
   const int availableHeight = renderer.getScreenHeight() - reservedHeight - extraReservedHeight;
   int rowHeight = hasSubtitle ? metrics.listWithSubtitleRowHeight : metrics.listRowHeight;
   return availableHeight / rowHeight;
+}
+
+Rect UITheme::getContentArea(const GfxRenderer& renderer) {
+  const auto insets = UITheme::getInstance().getTheme().getButtonHintInsets(renderer);
+  return Rect{insets.left, insets.top, renderer.getScreenWidth() - insets.left - insets.right,
+              renderer.getScreenHeight() - insets.top - insets.bottom};
 }
 
 std::string UITheme::getCoverThumbPath(std::string coverBmpPath, int coverHeight) {

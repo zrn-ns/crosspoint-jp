@@ -61,22 +61,26 @@ void LineSpacingSelectionActivity::loop() {
 void LineSpacingSelectionActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
-  const auto metrics = UITheme::getInstance().getMetrics();
-  const bool isPortraitInverted = renderer.getOrientation() == GfxRenderer::Orientation::PortraitInverted;
-  const int hintGutterHeight = isPortraitInverted ? (metrics.buttonHintsHeight + metrics.verticalSpacing) : 0;
+  // ボタンヒント領域を除いたコンテンツ矩形。反転では上端、横向きでは短辺側が除かれる
+  const Rect area = UITheme::getContentArea(renderer);
+  // ヒント領域を除いた幅で中央揃えする
+  auto drawCentered = [&](const int fontId, const int y, const char* text,
+                          const EpdFontFamily::Style style = EpdFontFamily::REGULAR) {
+    renderer.drawText(fontId, area.x + (area.width - renderer.getTextWidth(fontId, text, style)) / 2, y, text, true,
+                      style);
+  };
 
-  renderer.drawCenteredText(UI_12_FONT_ID, 15 + hintGutterHeight, tr(STR_LINE_SPACING), true, EpdFontFamily::BOLD);
+  drawCentered(UI_12_FONT_ID, area.y + 15, tr(STR_LINE_SPACING), EpdFontFamily::BOLD);
 
   char valueBuf[16];
   snprintf(valueBuf, sizeof(valueBuf), "%.2fx", static_cast<float>(value) / 100.0f);
   const std::string valueText = valueBuf;
-  renderer.drawCenteredText(UI_12_FONT_ID, 90 + hintGutterHeight, valueText.c_str(), true, EpdFontFamily::BOLD);
+  drawCentered(UI_12_FONT_ID, area.y + 90, valueText.c_str(), EpdFontFamily::BOLD);
 
-  const int screenWidth = renderer.getScreenWidth();
   constexpr int barWidth = 360;
   constexpr int barHeight = 16;
-  const int barX = (screenWidth - barWidth) / 2;
-  const int barY = 140 + hintGutterHeight;
+  const int barX = area.x + (area.width - barWidth) / 2;
+  const int barY = area.y + 140;
 
   renderer.drawRect(barX, barY, barWidth, barHeight);
 
@@ -90,7 +94,7 @@ void LineSpacingSelectionActivity::render(RenderLock&&) {
   const int knobX = barX + 2 + fillWidth - 2;
   renderer.fillRect(knobX, barY - 4, 4, barHeight + 8, true);
 
-  renderer.drawCenteredText(SMALL_FONT_ID, barY + 30, tr(STR_PERCENT_STEP_HINT), true);
+  drawCentered(SMALL_FONT_ID, barY + 30, tr(STR_PERCENT_STEP_HINT));
 
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_SELECT), "-", "+");
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);

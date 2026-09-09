@@ -118,18 +118,23 @@ void StatusBarSettingsActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
   auto metrics = UITheme::getInstance().getMetrics();
-  const auto pageWidth = renderer.getScreenWidth();
-  const auto pageHeight = renderer.getScreenHeight();
-  const bool isPortraitInverted = renderer.getOrientation() == GfxRenderer::Orientation::PortraitInverted;
-  const int hintGutterHeight = isPortraitInverted ? (metrics.buttonHintsHeight + metrics.verticalSpacing) : 0;
+  // ボタンヒント領域を除いたコンテンツ矩形。反転では上端、横向きでは短辺側が除かれる
+  const Rect area = UITheme::getContentArea(renderer);
 
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding + hintGutterHeight, pageWidth, metrics.headerHeight},
+  GUI.drawHeader(renderer, Rect{area.x, area.y + metrics.topPadding, area.width, metrics.headerHeight},
                  tr(STR_CUSTOMISE_STATUS_BAR));
 
-  const int contentTop = metrics.topPadding + hintGutterHeight + metrics.headerHeight + metrics.verticalSpacing;
-  const int contentHeight = pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing * 2;
+  const int contentTop = area.y + metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
+  // プレビューのステータスバーは常に画面下端に描かれる。縦持ちではボタンヒントの上に
+  // 重なる従来配置のまま。横向きは下端がヒントに使われないので、リストがプレビューに
+  // 重ならないようその高さ分を空ける
+  const bool hintsAtBottom = area.y + area.height < renderer.getScreenHeight();
+  const int previewReserve = hintsAtBottom ? 0
+                                           : UITheme::getInstance().getStatusBarHeight() + verticalPreviewPadding +
+                                                 verticalPreviewTextPadding + renderer.getLineHeight(UI_10_FONT_ID);
+  const int contentHeight = area.y + area.height - contentTop - metrics.verticalSpacing - previewReserve;
   GUI.drawList(
-      renderer, Rect{0, contentTop, pageWidth, contentHeight}, static_cast<int>(MENU_ITEMS),
+      renderer, Rect{area.x, contentTop, area.width, contentHeight}, static_cast<int>(MENU_ITEMS),
       static_cast<int>(selectedIndex), [](int index) { return std::string(I18N.get(menuNames[index])); }, nullptr,
       nullptr,
       [this](int index) {
@@ -165,7 +170,8 @@ void StatusBarSettingsActivity::render(RenderLock&&) {
 
   GUI.drawStatusBar(renderer, 75, 8, 32, title, verticalPreviewPadding);
 
-  renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding,
+  // プレビューのステータスバーは drawStatusBar が画面下端に描くので、ラベルも画面高さ基準のまま
+  renderer.drawText(UI_10_FONT_ID, area.x + metrics.contentSidePadding,
                     renderer.getScreenHeight() - UITheme::getInstance().getStatusBarHeight() - verticalPreviewPadding -
                         verticalPreviewTextPadding,
                     tr(STR_PREVIEW));

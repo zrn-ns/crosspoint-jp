@@ -1017,6 +1017,23 @@ void GfxRenderer::fillRoundedRect(const int x, const int y, const int width, con
 }
 
 void GfxRenderer::drawImage(const uint8_t bitmap[], const int x, const int y, const int width, const int height) const {
+  // 縦向き以外では、ビット列をそのまま転送すると画像が物理向きのまま（回転せずに）描かれる。
+  // 文字やアイコンと同じく drawPixel() 経由で描き、レンダラの向き変換を通す。
+  // 起動・スリープのロゴ（120x120）程度なら 1 ピクセルずつでも十分速い。
+  // ビットは 1 = 白、0 = 黒（FreeInkDisplay::blitImage と同じ）。dark mode の反転は drawPixel が行う。
+  // 画像データはパネルの物理向き（縦持ちの論理座標に対して転置）で格納されているので、
+  // drawIcon() と同じ座標変換で論理座標に戻す。
+  if (orientation != Portrait) {
+    const int rowBytes = (width + 7) / 8;
+    for (int row = 0; row < height; row++) {
+      for (int col = 0; col < width; col++) {
+        const bool white = ((bitmap[row * rowBytes + (col / 8)] >> (7 - (col % 8))) & 0x1) != 0;
+        drawPixel(x + width - 1 - row, y + col, !white);
+      }
+    }
+    return;
+  }
+
   int rotatedX = 0;
   int rotatedY = 0;
   rotateCoordinates(orientation, x, y, &rotatedX, &rotatedY, panelWidth, panelHeight);

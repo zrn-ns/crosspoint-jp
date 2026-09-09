@@ -58,13 +58,14 @@ void NetworkModeSelectionActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
   const auto& metrics = UITheme::getInstance().getMetrics();
-  const auto pageWidth = renderer.getScreenWidth();
-  const auto pageHeight = renderer.getScreenHeight();
+  // ボタンヒント領域を除いたコンテンツ矩形（横向きではヒントが短辺側に来る）
+  const Rect area = UITheme::getContentArea(renderer);
 
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_FILE_TRANSFER));
+  GUI.drawHeader(renderer, Rect{area.x, area.y + metrics.topPadding, area.width, metrics.headerHeight},
+                 tr(STR_FILE_TRANSFER));
 
-  const int contentTop = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
-  const int contentHeight = pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing * 2;
+  const int contentTop = area.y + metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
+  const int contentHeight = area.y + area.height - contentTop - metrics.verticalSpacing;
   // Menu items and descriptions
   static constexpr StrId menuItems[MENU_ITEM_COUNT] = {StrId::STR_JOIN_NETWORK, StrId::STR_CALIBRE_WIRELESS,
                                                        StrId::STR_CREATE_HOTSPOT};
@@ -73,7 +74,7 @@ void NetworkModeSelectionActivity::render(RenderLock&&) {
   static constexpr UIIcon menuIcons[MENU_ITEM_COUNT] = {UIIcon::Wifi, UIIcon::Library, UIIcon::Hotspot};
 
   GUI.drawList(
-      renderer, Rect{0, contentTop, pageWidth, contentHeight}, static_cast<int>(MENU_ITEM_COUNT), selectedIndex,
+      renderer, Rect{area.x, contentTop, area.width, contentHeight}, static_cast<int>(MENU_ITEM_COUNT), selectedIndex,
       [](int index) { return std::string(I18N.get(menuItems[index])); },
       [](int index) { return std::string(I18N.get(menuDescs[index])); }, [](int index) { return menuIcons[index]; });
 

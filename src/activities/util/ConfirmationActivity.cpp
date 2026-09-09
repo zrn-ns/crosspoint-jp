@@ -22,7 +22,9 @@ void ConfirmationActivity::onEnter() {
   Activity::onEnter();
 
   lineHeight = renderer.getLineHeight(fontId);
-  const int maxWidth = renderer.getScreenWidth() - (margin * 2);
+  // ボタンヒントの領域を除いた矩形に収める（横向きではヒントが短辺側に来る）
+  const Rect area = UITheme::getContentArea(renderer);
+  const int maxWidth = area.width - (margin * 2);
 
   if (!heading.empty()) {
     safeHeading = renderer.truncatedText(fontId, heading.c_str(), maxWidth, EpdFontFamily::BOLD);
@@ -36,7 +38,7 @@ void ConfirmationActivity::onEnter() {
   if (!safeBody.empty()) totalHeight += lineHeight;
   if (!safeHeading.empty() && !safeBody.empty()) totalHeight += spacing;
 
-  startY = (renderer.getScreenHeight() - totalHeight) / 2;
+  startY = area.y + (area.height - totalHeight) / 2;
 
   requestUpdate(true);
 }
@@ -46,15 +48,21 @@ void ConfirmationActivity::render(RenderLock&& lock) {
 
   int currentY = startY;
   LOG_DBG("CONF", "currentY: %d", currentY);
+  // ヒント領域を除いた幅で中央揃えする
+  const Rect area = UITheme::getContentArea(renderer);
+  auto drawCentered = [&](const int y, const char* text, const EpdFontFamily::Style style) {
+    const int x = area.x + (area.width - renderer.getTextWidth(fontId, text, style)) / 2;
+    renderer.drawText(fontId, x, y, text, true, style);
+  };
   // Draw Heading
   if (!safeHeading.empty()) {
-    renderer.drawCenteredText(fontId, currentY, safeHeading.c_str(), true, EpdFontFamily::BOLD);
+    drawCentered(currentY, safeHeading.c_str(), EpdFontFamily::BOLD);
     currentY += lineHeight + spacing;
   }
 
   // Draw Body
   if (!safeBody.empty()) {
-    renderer.drawCenteredText(fontId, currentY, safeBody.c_str(), true, EpdFontFamily::REGULAR);
+    drawCentered(currentY, safeBody.c_str(), EpdFontFamily::REGULAR);
   }
 
   // Draw UI Elements

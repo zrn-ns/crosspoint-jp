@@ -21,6 +21,10 @@ class UITheme {
   void setTheme(CrossPointSettings::UI_THEME type);
   static int getNumberOfItemsPerPage(const GfxRenderer& renderer, bool hasHeader, bool hasTabBar, bool hasButtonHints,
                                      bool hasSubtitle, int extraReservedHeight = 0);
+  // 画面からボタンヒントの領域（BaseTheme::getButtonHintInsets）を除いた矩形。
+  // UI 画面はこの矩形を基準にレイアウトする。縦持ちでは下端、反転では上端、
+  // 横向きではボタンのある短辺側が除かれるので、横向きで高さを余分に空けずに済む。
+  static Rect getContentArea(const GfxRenderer& renderer);
   static std::string getCoverThumbPath(std::string coverBmpPath, int coverHeight);
   static UIIcon getFileIcon(const std::string& filename);
   static UIIcon getFileIcon(const std::string& filename, ReadingStatus status);

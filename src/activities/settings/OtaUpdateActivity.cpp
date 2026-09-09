@@ -85,19 +85,26 @@ void OtaUpdateActivity::drawChannelDiagnostics(const int y) {
   char buf[64];
   snprintf(buf, sizeof(buf), "ch=%d built=%s scan=%u", static_cast<int>(updater.getChannel()), CROSSPOINT_BUILD_TIME,
            static_cast<unsigned>(updater.getReleasesScanned()));
-  renderer.drawCenteredText(UI_10_FONT_ID, y, buf);
+  const Rect area = UITheme::getContentArea(renderer);
+  renderer.drawText(UI_10_FONT_ID, area.x + (area.width - renderer.getTextWidth(UI_10_FONT_ID, buf)) / 2, y, buf);
 }
 
 void OtaUpdateActivity::render(RenderLock&&) {
   const auto& metrics = UITheme::getInstance().getMetrics();
-  const auto pageWidth = renderer.getScreenWidth();
-  const auto pageHeight = renderer.getScreenHeight();
+  // ボタンヒント領域を除いたコンテンツ矩形（横向きではヒントが短辺側に来る）
+  const Rect area = UITheme::getContentArea(renderer);
+  // ヒント領域を除いた幅で中央揃えする
+  auto drawCentered = [&](const int fontId, const int y, const char* text,
+                          const EpdFontFamily::Style style = EpdFontFamily::REGULAR) {
+    renderer.drawText(fontId, area.x + (area.width - renderer.getTextWidth(fontId, text, style)) / 2, y, text, true,
+                      style);
+  };
 
   renderer.clearScreen();
 
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_UPDATE));
+  GUI.drawHeader(renderer, Rect{area.x, area.y + metrics.topPadding, area.width, metrics.headerHeight}, tr(STR_UPDATE));
   const auto height = renderer.getLineHeight(UI_10_FONT_ID);
-  const auto top = (pageHeight - height) / 2;
+  const auto top = (renderer.getScreenHeight() - height) / 2;
 
   float updaterProgress = 0;
   if (state == UPDATE_IN_PROGRESS) {
@@ -111,58 +118,56 @@ void OtaUpdateActivity::render(RenderLock&&) {
   }
 
   if (state == CHECKING_FOR_UPDATE) {
-    renderer.drawCenteredText(UI_10_FONT_ID, top, tr(STR_CHECKING_UPDATE));
+    drawCentered(UI_10_FONT_ID, top, tr(STR_CHECKING_UPDATE));
   } else if (state == WAITING_CONFIRMATION) {
-    renderer.drawCenteredText(UI_10_FONT_ID, top, tr(STR_NEW_UPDATE), true, EpdFontFamily::BOLD);
-    renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, top + height + metrics.verticalSpacing,
+    drawCentered(UI_10_FONT_ID, top, tr(STR_NEW_UPDATE), EpdFontFamily::BOLD);
+    renderer.drawText(UI_10_FONT_ID, area.x + metrics.contentSidePadding, top + height + metrics.verticalSpacing,
                       (std::string(tr(STR_CURRENT_VERSION)) + CROSSPOINT_VERSION).c_str());
-    renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, top + height * 2 + metrics.verticalSpacing * 2,
+    renderer.drawText(UI_10_FONT_ID, area.x + metrics.contentSidePadding,
+                      top + height * 2 + metrics.verticalSpacing * 2,
                       (std::string(tr(STR_NEW_VERSION)) + updater.getLatestVersion()).c_str());
     drawChannelDiagnostics(top + height * 3 + metrics.verticalSpacing * 3);
 
     const auto labels = mappedInput.mapLabels(tr(STR_CANCEL), tr(STR_UPDATE), "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else if (state == UPDATE_IN_PROGRESS) {
-    renderer.drawCenteredText(UI_10_FONT_ID, top, tr(STR_UPDATING));
+    drawCentered(UI_10_FONT_ID, top, tr(STR_UPDATING));
 
     int y = top + height + metrics.verticalSpacing;
-    GUI.drawProgressBar(
-        renderer,
-        Rect{metrics.contentSidePadding, y, pageWidth - metrics.contentSidePadding * 2, metrics.progressBarHeight},
-        static_cast<int>(updaterProgress * 100), 100);
+    GUI.drawProgressBar(renderer,
+                        Rect{area.x + metrics.contentSidePadding, y, area.width - metrics.contentSidePadding * 2,
+                             metrics.progressBarHeight},
+                        static_cast<int>(updaterProgress * 100), 100);
 
     y += metrics.progressBarHeight + metrics.verticalSpacing;
-    renderer.drawCenteredText(UI_10_FONT_ID, y,
-                              (std::to_string(static_cast<int>(updaterProgress * 100)) + "%").c_str());
+    drawCentered(UI_10_FONT_ID, y, (std::to_string(static_cast<int>(updaterProgress * 100)) + "%").c_str());
     y += height + metrics.verticalSpacing;
-    renderer.drawCenteredText(
-        UI_10_FONT_ID, y,
-        (std::to_string(updater.getProcessedSize()) + " / " + std::to_string(updater.getTotalSize())).c_str());
+    drawCentered(UI_10_FONT_ID, y,
+                 (std::to_string(updater.getProcessedSize()) + " / " + std::to_string(updater.getTotalSize())).c_str());
   } else if (state == NO_UPDATE) {
-    renderer.drawCenteredText(UI_10_FONT_ID, top, tr(STR_NO_UPDATE), true, EpdFontFamily::BOLD);
+    drawCentered(UI_10_FONT_ID, top, tr(STR_NO_UPDATE), EpdFontFamily::BOLD);
     drawChannelDiagnostics(top + height + metrics.verticalSpacing);
     const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else if (state == FAILED) {
-    renderer.drawCenteredText(UI_10_FONT_ID, top, tr(STR_UPDATE_FAILED), true, EpdFontFamily::BOLD);
+    drawCentered(UI_10_FONT_ID, top, tr(STR_UPDATE_FAILED), EpdFontFamily::BOLD);
     // シリアルが取れない環境向け診断: '|' 区切りで2行に分割して描画 (画面幅に収まるよう)
     const auto& detail = updater.getLastErrorDetail();
     if (!detail.empty()) {
       const auto pipe = detail.find('|');
       const int row1 = top + height + metrics.verticalSpacing;
       if (pipe == std::string::npos) {
-        renderer.drawCenteredText(UI_10_FONT_ID, row1, detail.c_str());
+        drawCentered(UI_10_FONT_ID, row1, detail.c_str());
       } else {
-        renderer.drawCenteredText(UI_10_FONT_ID, row1, detail.substr(0, pipe).c_str());
-        renderer.drawCenteredText(UI_10_FONT_ID, row1 + height + metrics.verticalSpacing,
-                                  detail.substr(pipe + 1).c_str());
+        drawCentered(UI_10_FONT_ID, row1, detail.substr(0, pipe).c_str());
+        drawCentered(UI_10_FONT_ID, row1 + height + metrics.verticalSpacing, detail.substr(pipe + 1).c_str());
       }
     }
     const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else if (state == FINISHED) {
-    renderer.drawCenteredText(UI_10_FONT_ID, top, tr(STR_UPDATE_COMPLETE), true, EpdFontFamily::BOLD);
-    renderer.drawCenteredText(UI_10_FONT_ID, top + height + metrics.verticalSpacing, tr(STR_RESTARTING_HINT));
+    drawCentered(UI_10_FONT_ID, top, tr(STR_UPDATE_COMPLETE), EpdFontFamily::BOLD);
+    drawCentered(UI_10_FONT_ID, top + height + metrics.verticalSpacing, tr(STR_RESTARTING_HINT));
   }
 
   renderer.displayBuffer();

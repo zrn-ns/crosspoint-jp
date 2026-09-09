@@ -17,11 +17,18 @@
 #include "CrossPointState.h"
 #include "activities/reader/ReaderUtils.h"
 #include "components/UITheme.h"
+#include "components/themes/HintOrientationScope.h"
 #include "fontIds.h"
 #include "images/Logo120.h"
 
 void SleepActivity::onEnter() {
   Activity::onEnter();
+
+  // スリープ画面（壁紙・表紙・ロゴ）は縦持ち前提の画像なので、UI の向きが横向きでも
+  // 縦向きで描く（本家も Portrait 固定）。反転はそのまま尊重する。
+  if (HintOrientationScope::isLandscape(renderer.getOrientation())) {
+    renderer.setOrientation(GfxRenderer::Orientation::Portrait);
+  }
 
   // Show popup with reader orientation only when going to sleep from reader.
   // ActivityManager は Sleep 進入時に UI の向き（Portrait/Inverted）を適用済みなので、

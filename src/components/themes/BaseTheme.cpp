@@ -19,7 +19,6 @@
 namespace {
 constexpr int homeMenuMargin = 20;
 constexpr int homeMarginTop = 30;
-constexpr int subtitleY = 738;
 
 // Helper: draw battery icon at given position
 void drawBatteryIcon(const GfxRenderer& renderer, int x, int y, int battWidth, int rectHeight, uint16_t percentage) {
@@ -134,9 +133,11 @@ void BaseTheme::drawProgressBar(const GfxRenderer& renderer, Rect rect, const si
     renderer.fillRect(rect.x + 2, rect.y + 2, fillWidth, rect.height - 4);
   }
 
-  // Draw percentage text centered below bar
+  // Draw percentage text centered below bar（画面ではなくバーの中央に揃える。横向きでは
+  // バーがヒント帯を避けて置かれるので、画面中央とは一致しない）
   const std::string percentText = std::to_string(percent) + "%";
-  renderer.drawCenteredText(UI_10_FONT_ID, rect.y + rect.height + 15, percentText.c_str());
+  const int textX = rect.x + (rect.width - renderer.getTextWidth(UI_10_FONT_ID, percentText.c_str())) / 2;
+  renderer.drawText(UI_10_FONT_ID, textX, rect.y + rect.height + 15, percentText.c_str());
 }
 
 ButtonHintInsets BaseTheme::getButtonHintInsets(const GfxRenderer& renderer) const {
@@ -193,6 +194,11 @@ void BaseTheme::drawButtonHints(GfxRenderer& renderer, const char* btn1, const c
 }
 
 void BaseTheme::drawSideButtonHints(const GfxRenderer& renderer, const char* topBtn, const char* bottomBtn) const {
+  // 側面ボタンは長辺側にあり、横向きでは画面の上下端（本文の真上）に相当する。
+  // 縦持ち前提の y 位置で描くと横向きでは画面外か本文と重なるので、横向きでは描かない。
+  if (HintOrientationScope::isLandscape(renderer.getOrientation())) {
+    return;
+  }
   const int screenWidth = renderer.getScreenWidth();
   constexpr int buttonWidth = BaseMetrics::values.sideButtonHintsWidth;  // Width on screen (height when rotated)
   constexpr int buttonHeight = 80;                                       // Height on screen (width when rotated)
@@ -296,7 +302,8 @@ void BaseTheme::drawList(const GfxRenderer& renderer, Rect rect, int itemCount, 
   // Draw selection
   int contentWidth = rect.width - 5;
   if (selectedIndex >= 0) {
-    renderer.fillRect(0, rect.y + selectedIndex % pageItems * rowHeight - 2, rect.width, rowHeight);
+    // 横向きでは rect.x がヒント帯ぶんずれるので、画面左端ではなく rect の左端から塗る
+    renderer.fillRect(rect.x, rect.y + selectedIndex % pageItems * rowHeight - 2, rect.width, rowHeight);
   }
   // Draw all items
   const auto pageStartIndex = selectedIndex / pageItems * pageItems;
@@ -367,6 +374,10 @@ void BaseTheme::drawHeader(const GfxRenderer& renderer, Rect rect, const char* t
     auto truncatedSubtitle = renderer.truncatedText(
         SMALL_FONT_ID, subtitle, rect.width - BaseMetrics::values.contentSidePadding * 2, EpdFontFamily::REGULAR);
     int truncatedSubtitleWidth = renderer.getTextWidth(SMALL_FONT_ID, truncatedSubtitle.c_str());
+    // 設定画面のバージョン表示。ボタンヒントを除いたコンテンツ領域の下端に寄せる
+    // （縦持ちでは従来とほぼ同じ y≈738、横向きでは 480 の下端に接する）
+    const Rect area = UITheme::getContentArea(renderer);
+    const int subtitleY = area.y + area.height - renderer.getLineHeight(SMALL_FONT_ID);
     renderer.drawText(SMALL_FONT_ID,
                       rect.x + rect.width - BaseMetrics::values.contentSidePadding - truncatedSubtitleWidth, subtitleY,
                       truncatedSubtitle.c_str(), true);
@@ -426,6 +437,10 @@ void BaseTheme::drawTabBar(const GfxRenderer& renderer, const Rect rect, const s
 
 // Draw the "Recent Book" cover card on the home screen
 // TODO: Refactor method to make it cleaner, split into smaller methods
+int BaseTheme::getHomeRecentBooksCount(const GfxRenderer& /*renderer*/) const {
+  return UITheme::getInstance().getMetrics().homeRecentBooksCount;
+}
+
 void BaseTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std::vector<RecentBook>& recentBooks,
                                     const std::vector<ReadingStatus>& bookStatuses, const int selectorIndex,
                                     bool& coverRendered, bool& coverBufferStored, bool& bufferRestored,
@@ -611,7 +626,9 @@ void BaseTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std:
 
       const int boxWidth = maxTextWidth + boxPadding * 2;
       const int boxHeight = totalTextHeight + boxPadding * 2;
-      const int boxX = rect.x + (rect.width - boxWidth) / 2;
+      // 文字はカードの中央に揃える（縦持ちではカードが画面中央にあるので従来と同じ位置。
+      // 横向きはカードが左寄りなので、画面中央だとカードから外れる）
+      const int boxX = bookX + (bookWidth - boxWidth) / 2;
       const int boxY = titleYStart - boxPadding;
 
       // Draw box (inverted when selected: black box instead of white)
@@ -620,14 +637,18 @@ void BaseTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std:
       renderer.drawRect(boxX, boxY, boxWidth, boxHeight, !bookSelected);
     }
 
+    auto drawCardCentered = [&](const int fontId, const int y, const char* text) {
+      const int x = bookX + (bookWidth - renderer.getTextWidth(fontId, text)) / 2;
+      renderer.drawText(fontId, x, y, text, !bookSelected);
+    };
     for (const auto& line : lines) {
-      renderer.drawCenteredText(UI_12_FONT_ID, titleYStart, line.c_str(), !bookSelected);
+      drawCardCentered(UI_12_FONT_ID, titleYStart, line.c_str());
       titleYStart += renderer.getLineHeight(UI_12_FONT_ID);
     }
 
     if (!truncatedAuthor.empty()) {
       titleYStart += renderer.getLineHeight(UI_10_FONT_ID) / 2;
-      renderer.drawCenteredText(UI_10_FONT_ID, titleYStart, truncatedAuthor.c_str(), !bookSelected);
+      drawCardCentered(UI_10_FONT_ID, titleYStart, truncatedAuthor.c_str());
     }
 
     // "Continue Reading" label at the bottom
@@ -639,20 +660,23 @@ void BaseTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std:
       constexpr int continuePadding = 6;
       const int continueBoxWidth = continueTextWidth + continuePadding * 2;
       const int continueBoxHeight = renderer.getLineHeight(UI_10_FONT_ID) + continuePadding;
-      const int continueBoxX = rect.x + (rect.width - continueBoxWidth) / 2;
+      const int continueBoxX = bookX + (bookWidth - continueBoxWidth) / 2;
       const int continueBoxY = continueY - continuePadding / 2;
       renderer.fillRect(continueBoxX, continueBoxY, continueBoxWidth, continueBoxHeight, bookSelected);
       renderer.drawRect(continueBoxX, continueBoxY, continueBoxWidth, continueBoxHeight, !bookSelected);
-      renderer.drawCenteredText(UI_10_FONT_ID, continueY, continueText, !bookSelected);
+      drawCardCentered(UI_10_FONT_ID, continueY, continueText);
     } else {
-      renderer.drawCenteredText(UI_10_FONT_ID, continueY, tr(STR_CONTINUE_READING), !bookSelected);
+      drawCardCentered(UI_10_FONT_ID, continueY, tr(STR_CONTINUE_READING));
     }
   } else {
-    // No book to continue reading
+    // No book to continue reading（カード中央に揃える）
     const int y =
         bookY + (bookHeight - renderer.getLineHeight(UI_12_FONT_ID) - renderer.getLineHeight(UI_10_FONT_ID)) / 2;
-    renderer.drawCenteredText(UI_12_FONT_ID, y, "No open book");
-    renderer.drawCenteredText(UI_10_FONT_ID, y + renderer.getLineHeight(UI_12_FONT_ID), "Start reading below");
+    const char* l1 = "No open book";
+    const char* l2 = "Start reading below";
+    renderer.drawText(UI_12_FONT_ID, bookX + (bookWidth - renderer.getTextWidth(UI_12_FONT_ID, l1)) / 2, y, l1);
+    renderer.drawText(UI_10_FONT_ID, bookX + (bookWidth - renderer.getTextWidth(UI_10_FONT_ID, l2)) / 2,
+                      y + renderer.getLineHeight(UI_12_FONT_ID), l2);
   }
 }
 

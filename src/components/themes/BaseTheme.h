@@ -175,6 +175,9 @@ class BaseTheme {
                              const char* rightLabel = nullptr) const;
   virtual void drawTabBar(const GfxRenderer& renderer, Rect rect, const std::vector<TabInfo>& tabs,
                           bool selected) const;
+  // Home に並べる「最近の本」の枚数。テーマ既定は metrics.homeRecentBooksCount だが、
+  // 横向きで幅が足りないテーマは少なくできる（Lyra 3 Covers は横向きで 2 枚）。
+  virtual int getHomeRecentBooksCount(const GfxRenderer& renderer) const;
   virtual void drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std::vector<RecentBook>& recentBooks,
                                    const std::vector<ReadingStatus>& bookStatuses, const int selectorIndex,
                                    bool& coverRendered, bool& coverBufferStored, bool& bufferRestored,
