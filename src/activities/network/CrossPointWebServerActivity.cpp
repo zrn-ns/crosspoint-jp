@@ -407,9 +407,14 @@ void CrossPointWebServerActivity::renderServerRunning() const {
     const Rect qrBoundsWifi(leftX, startY, QR_CODE_WIDTH, QR_CODE_HEIGHT);
     QrUtils::drawQrCode(renderer, qrBoundsWifi, wifiConfig);
 
-    // Show network name
-    renderer.drawText(UI_10_FONT_ID, leftX + QR_CODE_WIDTH + metrics.verticalSpacing, startY + 80,
-                      connectedSSID.c_str());
+    // Show network name（2 段組みでは列幅に QR と並べる余地が無いので QR の下に置く）
+    if (sideBySide) {
+      renderer.drawText(UI_10_FONT_ID, leftX, startY + QR_CODE_HEIGHT + metrics.verticalSpacing / 2,
+                        connectedSSID.c_str());
+    } else {
+      renderer.drawText(UI_10_FONT_ID, leftX + QR_CODE_WIDTH + metrics.verticalSpacing, startY + 80,
+                        connectedSSID.c_str());
+    }
 
     // 2 つ目のブロックの位置: 2 段組みなら右列の同じ高さ、縦積みなら 1 つ目の下
     int urlX = leftX;
@@ -431,9 +436,16 @@ void CrossPointWebServerActivity::renderServerRunning() const {
     const Rect qrBoundsUrl(urlX, startY, QR_CODE_WIDTH, QR_CODE_HEIGHT);
     QrUtils::drawQrCode(renderer, qrBoundsUrl, hostnameUrl);
 
-    // Show IP address as fallback
-    renderer.drawText(UI_10_FONT_ID, urlX + QR_CODE_WIDTH + metrics.verticalSpacing, startY + 80, hostnameUrl.c_str());
-    renderer.drawText(SMALL_FONT_ID, urlX + QR_CODE_WIDTH + metrics.verticalSpacing, startY + 100, ipUrl.c_str());
+    // Show IP address as fallback（2 段組みでは QR の下に 2 行で置く）
+    if (sideBySide) {
+      const int textY = startY + QR_CODE_HEIGHT + metrics.verticalSpacing / 2;
+      renderer.drawText(UI_10_FONT_ID, urlX, textY, hostnameUrl.c_str());
+      renderer.drawText(SMALL_FONT_ID, urlX, textY + height10, ipUrl.c_str());
+    } else {
+      renderer.drawText(UI_10_FONT_ID, urlX + QR_CODE_WIDTH + metrics.verticalSpacing, startY + 80,
+                        hostnameUrl.c_str());
+      renderer.drawText(SMALL_FONT_ID, urlX + QR_CODE_WIDTH + metrics.verticalSpacing, startY + 100, ipUrl.c_str());
+    }
   } else if (area.width >= area.height) {
     // STA mode, 横向き: 文言 2 行 + QR (198px) + URL 2 行を縦に積むと 480 に収まらないので、
     // 左に QR、右に文言と URL を置く
