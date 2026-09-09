@@ -3,7 +3,7 @@
 // スクリーンショットとログ要約を残すためのランナー。
 //
 //   deno run -A scripts/sim_run.ts --build --sd-font BIZUDGothic \
-//     --open /Books/ja_vertical.epub --script '2500:LEFT' --shot 2000:confirm --shot 8000:page
+//     --open /Books/ja_vertical.epub --shot 6000:page
 //
 // やること:
 //   1. SD ディレクトリを用意する（既定: .pio/sim-sd/ に test/epubs と .cpfont を集める）
@@ -48,8 +48,7 @@ SD カード（既定は .pio/sim-sd/ を組み立てる）:
   # Home のスクリーンショットだけ
   deno run -A scripts/sim_run.ts --shot 1500:home
   # 縦書き EPUB を SD フォントで開いて本文まで
-  deno run -A scripts/sim_run.ts --sd-font BIZUDGothic --open /Books/ja_vertical.epub \\
-      --script '2500:LEFT' --shot 2000:confirm --shot 8000:page
+  deno run -A scripts/sim_run.ts --sd-font BIZUDGothic --open /Books/ja_vertical.epub --shot 6000:page
 `;
 
 const args = parseArgs(Deno.args, {

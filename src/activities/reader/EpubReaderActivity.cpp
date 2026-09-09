@@ -9,7 +9,6 @@
 #include <GfxRenderer.h>
 #include <HalStorage.h>
 #include <I18n.h>
-#include <JpegToBmpConverter.h>
 #include <Logging.h>
 #include <esp_system.h>
 
@@ -52,125 +51,6 @@ int clampPercent(int percent) {
 }
 
 }  // namespace
-
-void EpubReaderActivity::pregenerateCache() {
-  if (!epub) return;
-
-  const int spineCount = epub->getSpineItemsCount();
-  if (spineCount <= 0) return;
-
-  // Resolve writing mode first (needed for direction-specific settings)
-  bool isVertical = false;
-  if (SETTINGS.writingMode == CrossPointSettings::WM_VERTICAL) {
-    isVertical = true;
-  } else if (SETTINGS.writingMode == CrossPointSettings::WM_HORIZONTAL) {
-    isVertical = false;
-  } else {
-    isVertical = epub && epub->isPageProgressionRtl() &&
-                 (epub->getLanguage() == "ja" || epub->getLanguage() == "jpn" || epub->getLanguage() == "zh" ||
-                  epub->getLanguage() == "zho");
-  }
-
-  const auto& ds = SETTINGS.getDirectionSettings(isVertical);
-  ensureSdFontLoaded(isVertical);
-
-  // Calculate viewport dimensions (same logic as render())
-  int orientedMarginTop = 0, orientedMarginRight = 0, orientedMarginBottom = 0, orientedMarginLeft = 0;
-  renderer.getOrientedViewableTRBL(&orientedMarginTop, &orientedMarginRight, &orientedMarginBottom,
-                                   &orientedMarginLeft);
-  orientedMarginTop += ds.screenMargin;
-  orientedMarginRight += ds.screenMargin;
-  orientedMarginLeft += ds.screenMargin;
-
-  const uint8_t statusBarHeight = UITheme::getInstance().getStatusBarHeight();
-  orientedMarginBottom += std::max(ds.screenMargin, statusBarHeight);
-
-  const uint16_t viewportWidth = renderer.getScreenWidth() - orientedMarginLeft - orientedMarginRight;
-  const uint16_t viewportHeight = renderer.getScreenHeight() - orientedMarginTop - orientedMarginBottom;
-
-  const float lineCompression = SETTINGS.getReaderLineCompression(isVertical);
-  renderer.setVerticalCharSpacing(SETTINGS.getVerticalCharSpacingPercent());
-
-  // Free font cache to maximize heap for section building
-  auto* fcm = renderer.getFontCacheManager();
-  if (fcm) {
-    fcm->clearCache();
-    fcm->freeKernLigatureData();
-  }
-
-  const int headingFontIds[6] = {
-      SETTINGS.getHeadingFontId(1, isVertical), SETTINGS.getHeadingFontId(2, isVertical), 0, 0, 0, 0};
-
-  // Show initial popup
-  Rect popupRect = GUI.drawPopup(renderer, tr(STR_GENERATING_CACHE));
-  GUI.fillPopupProgress(renderer, popupRect, 0);
-  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
-
-  for (int i = 0; i < spineCount; i++) {
-    // Check for cancel by reading raw ADC values directly.
-    // The InputManager's debounce mechanism requires multiple update() calls
-    // spaced apart, which doesn't work well in a tight loop. Reading ADC
-    // directly bypasses debounce — acceptable here since we only need a
-    // coarse "any button pressed?" check, not precise button identification.
-    {
-      const int adc1 = analogRead(1);  // Front buttons (ADC pin 1)
-      const int adc2 = analogRead(2);  // Side buttons (ADC pin 2)
-      constexpr int ADC_NO_BUTTON = 3800;
-      if (adc1 < ADC_NO_BUTTON || adc2 < ADC_NO_BUTTON) {
-        LOG_DBG("ERS", "Pregenerate cancelled at section %d/%d", i, spineCount);
-        break;
-      }
-    }
-
-    // Update progress
-    const int progress = (i * 100) / spineCount;
-    GUI.fillPopupProgress(renderer, popupRect, progress);
-    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
-
-    // Create section cache
-    Section sec(epub, i, renderer);
-    if (sec.loadSectionFile(SETTINGS.getReaderFontId(isVertical), lineCompression, ds.extraParagraphSpacing,
-                            ds.paragraphAlignment, viewportWidth, viewportHeight, ds.hyphenationEnabled,
-                            ds.firstLineIndent, SETTINGS.embeddedStyle, SETTINGS.imageRendering, isVertical,
-                            ds.charSpacing)) {
-      continue;  // Already cached
-    }
-
-    if (!sec.createSectionFile(SETTINGS.getReaderFontId(isVertical), lineCompression, ds.extraParagraphSpacing,
-                               ds.paragraphAlignment, viewportWidth, viewportHeight, ds.hyphenationEnabled,
-                               ds.firstLineIndent, SETTINGS.embeddedStyle, SETTINGS.imageRendering, isVertical,
-                               ds.charSpacing, nullptr, headingFontIds, SETTINGS.getTableFontId(isVertical))) {
-      LOG_ERR("ERS", "Pregenerate: failed section %d (heap: %d)", i, ESP.getFreeHeap());
-      continue;
-    }
-
-    // Generate image BMP caches for this section
-    const std::string imgPrefix = epub->getCachePath() + "/img_" + std::to_string(i) + "_";
-    for (int j = 0;; j++) {
-      std::string jpgPath = imgPrefix + std::to_string(j) + ".jpg";
-      if (!Storage.exists(jpgPath.c_str())) {
-        jpgPath = imgPrefix + std::to_string(j) + ".jpeg";
-        if (!Storage.exists(jpgPath.c_str())) break;
-      }
-
-      const size_t dotPos = jpgPath.rfind('.');
-      const std::string bmpCachePath = jpgPath.substr(0, dotPos) + ".pxc.bmp";
-      if (Storage.exists(bmpCachePath.c_str())) continue;
-
-      FsFile jpegFile, bmpFile;
-      if (Storage.openFileForRead("PRE", jpgPath, jpegFile) && Storage.openFileForWrite("PRE", bmpCachePath, bmpFile)) {
-        JpegToBmpConverter::jpegFileToBmpStreamWithSize(jpegFile, bmpFile, viewportWidth, viewportHeight);
-        jpegFile.close();
-        bmpFile.close();
-      }
-    }
-  }
-
-  // Final progress
-  GUI.fillPopupProgress(renderer, popupRect, 100);
-  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
-  delay(500);
-}
 
 void EpubReaderActivity::onEnter() {
   Activity::onEnter();
@@ -215,36 +95,6 @@ void EpubReaderActivity::onEnter() {
   APP_STATE.openEpubPath = epub->getPath();
   APP_STATE.saveToFile();
   RECENT_BOOKS.addBook(epub->getPath(), epub->getTitle(), epub->getAuthor(), epub->getThumbBmpPath());
-
-  // Check if section cache exists; offer to pregenerate if missing
-  const std::string firstSectionPath = epub->getCachePath() + "/sections/0.bin";
-  const std::string noCachePromptPath = epub->getCachePath() + "/.no_cache_prompt";
-  if (!Storage.exists(firstSectionPath.c_str()) && !Storage.exists(noCachePromptPath.c_str())) {
-    auto handler = [this, noCachePromptPath](const ActivityResult& res) {
-      if (!res.isCancelled) {
-        // "生成" — generate cache and continue
-        pregenerateCache();
-        requestUpdate();
-      } else if (auto* menu = std::get_if<MenuResult>(&res.data)) {
-        if (menu->action == ConfirmationActivity::RESULT_NEVER) {
-          // "しない" — write flag file so we never ask again, then continue
-          FsFile f;
-          if (Storage.openFileForWrite("ERS", noCachePromptPath, f)) {
-            f.close();
-          }
-          requestUpdate();
-        }
-      } else {
-        // "閉じる" — close the book and go home
-        onGoHome();
-      }
-    };
-    startActivityForResult(
-        std::make_unique<ConfirmationActivity>(renderer, mappedInput, tr(STR_GENERATE_CACHE),
-                                               tr(STR_GENERATE_CACHE_NOTE), tr(STR_SKIP_CACHE), tr(STR_GENERATE)),
-        handler);
-    return;
-  }
 
   // Trigger first update
   requestUpdate();
