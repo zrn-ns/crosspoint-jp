@@ -632,9 +632,7 @@ void FontDownloadActivity::render(RenderLock&&) {
                         Rect{area.x + metrics.contentSidePadding, barY, area.width - metrics.contentSidePadding * 2,
                              metrics.progressBarHeight},
                         static_cast<int>(progress * 100), 100);
-
-    int percentY = barY + metrics.progressBarHeight + metrics.verticalSpacing;
-    drawCentered(percentY, (std::to_string(static_cast<int>(progress * 100)) + "%").c_str());
+    // % はテーマの drawProgressBar がバーの下に描く（自前でも描くと二重になる）
   } else if (state_ == COMPLETE) {
     drawCentered(centerY, I18N.get(completeMessage_), EpdFontFamily::BOLD);
     const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");

@@ -1349,26 +1349,23 @@ void AozoraActivity::render(RenderLock&&) {
   } else if (state_ == DOWNLOADING) {
     drawCentered(centerY - lineHeight, tr(STR_DOWNLOADING_BOOK));
 
-    float progress = 0;
-    if (downloadTotal_ > 0) {
-      progress = static_cast<float>(downloadProgress_) / static_cast<float>(downloadTotal_);
-    }
-
     int barY = centerY + metrics.verticalSpacing;
     GUI.drawProgressBar(renderer,
                         Rect{sideX, barY, area.width - metrics.contentSidePadding * 2, metrics.progressBarHeight},
                         downloadProgress_, downloadTotal_);
 
-    int percentY = barY + metrics.progressBarHeight + metrics.verticalSpacing;
-    char buf[32];
-    if (downloadTotal_ > 0) {
-      snprintf(buf, sizeof(buf), "%d%%", static_cast<int>(progress * 100));
-    } else if (downloadProgress_ > 0) {
-      snprintf(buf, sizeof(buf), "%d KB", static_cast<int>(downloadProgress_ / 1024));
-    } else {
-      snprintf(buf, sizeof(buf), "...");
+    // 総量が分かるときの % はテーマの drawProgressBar がバーの下に描くので、ここでは
+    // 総量不明（Content-Length 無し）のときだけ受信量を出す。両方描くと % が二重になる
+    if (downloadTotal_ == 0) {
+      int percentY = barY + metrics.progressBarHeight + metrics.verticalSpacing;
+      char buf[32];
+      if (downloadProgress_ > 0) {
+        snprintf(buf, sizeof(buf), "%d KB", static_cast<int>(downloadProgress_ / 1024));
+      } else {
+        snprintf(buf, sizeof(buf), "...");
+      }
+      drawCentered(percentY, buf);
     }
-    drawCentered(percentY, buf);
 
   } else if (state_ == FAVORITE_AUTHORS) {
     const auto& favEntries = favoritesManager_.entries();

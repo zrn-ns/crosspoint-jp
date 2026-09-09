@@ -224,34 +224,6 @@ void HomeActivity::render(RenderLock&&) {
 
   GUI.drawHeader(renderer, Rect{area.x, area.y + metrics.topPadding, area.width, metrics.homeTopPadding}, nullptr);
 
-  // レイアウト: 縦持ちは表紙タイルの下にメニューを積む。横向き（高さ 480）では
-  // 両方を縦に積むと収まらないので、左に表紙・右にメニューの 2 段組みにする。
-  const bool twoColumn = area.width > area.height;
-  const int contentTop = area.y + metrics.homeTopPadding;
-  Rect coverRect;
-  Rect menuRect;
-  if (twoColumn) {
-    const int contentHeight = area.y + area.height - contentTop - metrics.verticalSpacing;
-    const int coverWidth = area.width / 2;
-    coverRect = Rect{area.x, contentTop, coverWidth, std::min(contentHeight, metrics.homeCoverTileHeight)};
-    menuRect = Rect{area.x + coverWidth, contentTop, area.width - coverWidth, contentHeight};
-  } else {
-    coverRect = Rect{area.x, contentTop, area.width, metrics.homeCoverTileHeight};
-    const int menuTop = contentTop + metrics.homeCoverTileHeight + metrics.verticalSpacing;
-    menuRect = Rect{area.x, menuTop, area.width, area.y + area.height - menuTop - metrics.verticalSpacing};
-  }
-
-  // Record the tile rect so storeCoverBuffer (called from the theme) knows
-  // which sub-region of the framebuffer to snapshot. ~16 KB in Portrait
-  // instead of the 48 KB full framebuffer the previous bind captured.
-  coverRectX = coverRect.x;
-  coverRectY = coverRect.y;
-  coverRectW = coverRect.width;
-  coverRectH = coverRect.height;
-
-  GUI.drawRecentBookCover(renderer, coverRect, recentBooks, recentBookStatuses, selectorIndex, coverRendered,
-                          coverBufferStored, bufferRestored, std::bind(&HomeActivity::storeCoverBuffer, this));
-
   // Build menu items dynamically
   std::vector<const char*> menuItems = {tr(STR_BROWSE_FILES), tr(STR_MENU_RECENT_BOOKS), tr(STR_FILE_TRANSFER),
                                         tr(STR_SETTINGS_TITLE)};
@@ -269,6 +241,42 @@ void HomeActivity::render(RenderLock&&) {
     menuItems.insert(menuItems.begin() + aozoraPos, tr(STR_AOZORA_BUNKO));
     menuIcons.insert(menuIcons.begin() + aozoraPos, Book);
   }
+
+  // レイアウト: 縦持ちは表紙タイルの下にメニューを積む。横向き（高さ 480）では
+  // 両方を縦に積むと収まらないので、左に表紙・右にメニューの 2 段組みにする。
+  const bool twoColumn = area.width > area.height;
+  const int contentTop = area.y + metrics.homeTopPadding;
+  Rect coverRect;
+  Rect menuRect;
+  if (twoColumn) {
+    const int contentHeight = area.y + area.height - contentTop - metrics.verticalSpacing;
+    // 表紙側を広めに取る（Lyra 3 Covers は 3 枚横並びなので半分では細くなりすぎる）。
+    // メニュー側は 4〜6 行の短いラベルなので 40% で足りる
+    const int coverWidth = area.width * 3 / 5;
+    const int coverHeight = std::min(contentHeight, metrics.homeCoverTileHeight);
+    const int menuHeight =
+        static_cast<int>(menuItems.size()) * (metrics.menuRowHeight + metrics.menuSpacing) + metrics.verticalSpacing;
+    // 上寄せだと下が空くので、表紙・メニューともコンテンツ領域の縦中央に置く
+    const int coverTop = contentTop + std::max(0, (contentHeight - coverHeight) / 2);
+    const int menuTop = contentTop + std::max(0, (contentHeight - menuHeight) / 2);
+    coverRect = Rect{area.x, coverTop, coverWidth, coverHeight};
+    menuRect = Rect{area.x + coverWidth, menuTop, area.width - coverWidth, contentHeight - (menuTop - contentTop)};
+  } else {
+    coverRect = Rect{area.x, contentTop, area.width, metrics.homeCoverTileHeight};
+    const int menuTop = contentTop + metrics.homeCoverTileHeight + metrics.verticalSpacing;
+    menuRect = Rect{area.x, menuTop, area.width, area.y + area.height - menuTop - metrics.verticalSpacing};
+  }
+
+  // Record the tile rect so storeCoverBuffer (called from the theme) knows
+  // which sub-region of the framebuffer to snapshot. ~16 KB in Portrait
+  // instead of the 48 KB full framebuffer the previous bind captured.
+  coverRectX = coverRect.x;
+  coverRectY = coverRect.y;
+  coverRectW = coverRect.width;
+  coverRectH = coverRect.height;
+
+  GUI.drawRecentBookCover(renderer, coverRect, recentBooks, recentBookStatuses, selectorIndex, coverRendered,
+                          coverBufferStored, bufferRestored, std::bind(&HomeActivity::storeCoverBuffer, this));
 
   GUI.drawButtonMenu(
       renderer, menuRect, static_cast<int>(menuItems.size()), selectorIndex - recentBooks.size(),

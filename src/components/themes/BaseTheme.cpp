@@ -133,9 +133,11 @@ void BaseTheme::drawProgressBar(const GfxRenderer& renderer, Rect rect, const si
     renderer.fillRect(rect.x + 2, rect.y + 2, fillWidth, rect.height - 4);
   }
 
-  // Draw percentage text centered below bar
+  // Draw percentage text centered below bar（画面ではなくバーの中央に揃える。横向きでは
+  // バーがヒント帯を避けて置かれるので、画面中央とは一致しない）
   const std::string percentText = std::to_string(percent) + "%";
-  renderer.drawCenteredText(UI_10_FONT_ID, rect.y + rect.height + 15, percentText.c_str());
+  const int textX = rect.x + (rect.width - renderer.getTextWidth(UI_10_FONT_ID, percentText.c_str())) / 2;
+  renderer.drawText(UI_10_FONT_ID, textX, rect.y + rect.height + 15, percentText.c_str());
 }
 
 ButtonHintInsets BaseTheme::getButtonHintInsets(const GfxRenderer& renderer) const {
