@@ -437,6 +437,10 @@ void BaseTheme::drawTabBar(const GfxRenderer& renderer, const Rect rect, const s
 
 // Draw the "Recent Book" cover card on the home screen
 // TODO: Refactor method to make it cleaner, split into smaller methods
+int BaseTheme::getHomeRecentBooksCount(const GfxRenderer& /*renderer*/) const {
+  return UITheme::getInstance().getMetrics().homeRecentBooksCount;
+}
+
 void BaseTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std::vector<RecentBook>& recentBooks,
                                     const std::vector<ReadingStatus>& bookStatuses, const int selectorIndex,
                                     bool& coverRendered, bool& coverBufferStored, bool& bufferRestored,
@@ -622,7 +626,9 @@ void BaseTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std:
 
       const int boxWidth = maxTextWidth + boxPadding * 2;
       const int boxHeight = totalTextHeight + boxPadding * 2;
-      const int boxX = rect.x + (rect.width - boxWidth) / 2;
+      // 文字はカードの中央に揃える（縦持ちではカードが画面中央にあるので従来と同じ位置。
+      // 横向きはカードが左寄りなので、画面中央だとカードから外れる）
+      const int boxX = bookX + (bookWidth - boxWidth) / 2;
       const int boxY = titleYStart - boxPadding;
 
       // Draw box (inverted when selected: black box instead of white)
@@ -631,14 +637,18 @@ void BaseTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std:
       renderer.drawRect(boxX, boxY, boxWidth, boxHeight, !bookSelected);
     }
 
+    auto drawCardCentered = [&](const int fontId, const int y, const char* text) {
+      const int x = bookX + (bookWidth - renderer.getTextWidth(fontId, text)) / 2;
+      renderer.drawText(fontId, x, y, text, !bookSelected);
+    };
     for (const auto& line : lines) {
-      renderer.drawCenteredText(UI_12_FONT_ID, titleYStart, line.c_str(), !bookSelected);
+      drawCardCentered(UI_12_FONT_ID, titleYStart, line.c_str());
       titleYStart += renderer.getLineHeight(UI_12_FONT_ID);
     }
 
     if (!truncatedAuthor.empty()) {
       titleYStart += renderer.getLineHeight(UI_10_FONT_ID) / 2;
-      renderer.drawCenteredText(UI_10_FONT_ID, titleYStart, truncatedAuthor.c_str(), !bookSelected);
+      drawCardCentered(UI_10_FONT_ID, titleYStart, truncatedAuthor.c_str());
     }
 
     // "Continue Reading" label at the bottom
@@ -650,20 +660,23 @@ void BaseTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std:
       constexpr int continuePadding = 6;
       const int continueBoxWidth = continueTextWidth + continuePadding * 2;
       const int continueBoxHeight = renderer.getLineHeight(UI_10_FONT_ID) + continuePadding;
-      const int continueBoxX = rect.x + (rect.width - continueBoxWidth) / 2;
+      const int continueBoxX = bookX + (bookWidth - continueBoxWidth) / 2;
       const int continueBoxY = continueY - continuePadding / 2;
       renderer.fillRect(continueBoxX, continueBoxY, continueBoxWidth, continueBoxHeight, bookSelected);
       renderer.drawRect(continueBoxX, continueBoxY, continueBoxWidth, continueBoxHeight, !bookSelected);
-      renderer.drawCenteredText(UI_10_FONT_ID, continueY, continueText, !bookSelected);
+      drawCardCentered(UI_10_FONT_ID, continueY, continueText);
     } else {
-      renderer.drawCenteredText(UI_10_FONT_ID, continueY, tr(STR_CONTINUE_READING), !bookSelected);
+      drawCardCentered(UI_10_FONT_ID, continueY, tr(STR_CONTINUE_READING));
     }
   } else {
-    // No book to continue reading
+    // No book to continue reading（カード中央に揃える）
     const int y =
         bookY + (bookHeight - renderer.getLineHeight(UI_12_FONT_ID) - renderer.getLineHeight(UI_10_FONT_ID)) / 2;
-    renderer.drawCenteredText(UI_12_FONT_ID, y, "No open book");
-    renderer.drawCenteredText(UI_10_FONT_ID, y + renderer.getLineHeight(UI_12_FONT_ID), "Start reading below");
+    const char* l1 = "No open book";
+    const char* l2 = "Start reading below";
+    renderer.drawText(UI_12_FONT_ID, bookX + (bookWidth - renderer.getTextWidth(UI_12_FONT_ID, l1)) / 2, y, l1);
+    renderer.drawText(UI_10_FONT_ID, bookX + (bookWidth - renderer.getTextWidth(UI_10_FONT_ID, l2)) / 2,
+                      y + renderer.getLineHeight(UI_12_FONT_ID), l2);
   }
 }
 

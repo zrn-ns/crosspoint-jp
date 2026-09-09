@@ -122,8 +122,7 @@ void HomeActivity::onEnter() {
 
   selectorIndex = 0;
 
-  const auto& metrics = UITheme::getInstance().getMetrics();
-  loadRecentBooks(metrics.homeRecentBooksCount);
+  loadRecentBooks(GUI.getHomeRecentBooksCount(renderer));
 
   // Trigger first update
   requestUpdate();
@@ -256,9 +255,9 @@ void HomeActivity::render(RenderLock&&) {
     const int coverHeight = std::min(contentHeight, metrics.homeCoverTileHeight);
     const int menuHeight =
         static_cast<int>(menuItems.size()) * (metrics.menuRowHeight + metrics.menuSpacing) + metrics.verticalSpacing;
-    // 上寄せだと下が空くので、表紙・メニューともコンテンツ領域の縦中央に置く
-    const int coverTop = contentTop + std::max(0, (contentHeight - coverHeight) / 2);
-    const int menuTop = contentTop + std::max(0, (contentHeight - menuHeight) / 2);
+    // 上寄せだと下が空き、真ん中だと下がり過ぎるので、空きの 1/4 だけ下げた位置に置く
+    const int coverTop = contentTop + std::max(0, (contentHeight - coverHeight) / 4);
+    const int menuTop = contentTop + std::max(0, (contentHeight - menuHeight) / 4);
     coverRect = Rect{area.x, coverTop, coverWidth, coverHeight};
     menuRect = Rect{area.x + coverWidth, menuTop, area.width - coverWidth, contentHeight - (menuTop - contentTop)};
   } else {
@@ -321,7 +320,6 @@ void HomeActivity::onAozoraOpen() {
     coverBufferStored = false;
     recentsLoaded = false;
     recentsLoading = false;
-    const auto& metrics = UITheme::getInstance().getMetrics();
-    loadRecentBooks(metrics.homeRecentBooksCount);
+    loadRecentBooks(GUI.getHomeRecentBooksCount(renderer));
   });
 }
