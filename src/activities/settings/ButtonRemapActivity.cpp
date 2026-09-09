@@ -141,12 +141,19 @@ void ButtonRemapActivity::render(RenderLock&&) {
   }
 
   // Provide side button actions at the bottom of the screen (split across two lines).
+  // 側面ボタンの呼び方（上下 / 左右）は機種と向きで変わるので、位置の文言を差し込む
+  char resetHint[96];
+  char cancelHint[96];
+  snprintf(resetHint, sizeof(resetHint), tr(STR_REMAP_RESET_HINT),
+           I18N.get(mappedInput.sideButtonPositionLabel(MappedInputManager::Button::Up)));
+  snprintf(cancelHint, sizeof(cancelHint), tr(STR_REMAP_CANCEL_HINT),
+           I18N.get(mappedInput.sideButtonPositionLabel(MappedInputManager::Button::Down)));
   GUI.drawHelpText(renderer,
                    Rect{area.x, topOffset + 4 * metrics.listRowHeight + 4 * metrics.verticalSpacing, area.width, 20},
-                   tr(STR_REMAP_RESET_HINT));
+                   resetHint);
   GUI.drawHelpText(
       renderer, Rect{area.x, topOffset + 4 * metrics.listRowHeight + 5 * metrics.verticalSpacing + 20, area.width, 20},
-      tr(STR_REMAP_CANCEL_HINT));
+      cancelHint);
 
   // Live preview of logical labels under front buttons.
   // This mirrors the on-device front button order: Back, Confirm, Left, Right.

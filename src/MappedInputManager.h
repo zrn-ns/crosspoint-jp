@@ -1,6 +1,7 @@
 #pragma once
 
 #include <HalGPIO.h>
+#include <I18n.h>
 
 class MappedInputManager {
  public:
@@ -40,6 +41,11 @@ class MappedInputManager {
   bool wasAnyReleased() const;
   unsigned long getHeldTime() const;
   Labels mapLabels(const char* back, const char* confirm, const char* previous, const char* next) const;
+
+  // 側面ボタン（Button::Up / Button::Down）が、現在の向きで画面から見てどこにあるかを表す
+  // 文言（STR_DIR_UP/DOWN/LEFT/RIGHT）を返す。X3 は側面ボタンが左右の端に 1 つずつ、
+  // X4 は右端に縦 2 つなので、同じ論理ボタンでも機種と向きで呼び方が変わる。
+  StrId sideButtonPositionLabel(Button button) const;
   // Returns the raw front button index that was pressed this frame (or -1 if none).
   int getPressedFrontButton() const;
 
