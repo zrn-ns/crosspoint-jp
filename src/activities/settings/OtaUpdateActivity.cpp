@@ -128,7 +128,8 @@ void OtaUpdateActivity::render(RenderLock&&) {
                       (std::string(tr(STR_NEW_VERSION)) + updater.getLatestVersion()).c_str());
     drawChannelDiagnostics(top + height * 3 + metrics.verticalSpacing * 3);
 
-    const auto labels = mappedInput.mapLabels(tr(STR_CANCEL), tr(STR_UPDATE), "", "");
+    // 画面見出しの STR_UPDATE（アップデート）はボタン枠に収まらないので、ボタンは短い別文言を使う
+    const auto labels = mappedInput.mapLabels(tr(STR_CANCEL), tr(STR_UPDATE_BUTTON), "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else if (state == UPDATE_IN_PROGRESS) {
     drawCentered(UI_10_FONT_ID, top, tr(STR_UPDATING));
