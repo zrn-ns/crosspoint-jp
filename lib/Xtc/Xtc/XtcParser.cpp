@@ -180,9 +180,16 @@ uint64_t XtcParser::metadataBase() {
   if (base < MIN_HEADER_SIZE || base + METADATA_SIZE > fileSize) {
     return 0;
   }
-  // ページインデックスに食い込む位置は不正。
-  // 48 バイトヘッダ形式のようにメタデータ領域自体が存在しないファイルを弾く。
-  if (m_header.pageTableOffset > base && base + METADATA_SIZE > m_header.pageTableOffset) {
+
+  // 既知のどの形式でもメタデータはページインデックスより前に置かれる。
+  // そこに収まらない位置はメタデータ領域ではないとみなし、読まない。
+  //
+  // 48 バイトヘッダ形式は metadataOffset=0 かつ pageTableOffset=48 なので、
+  // フォールバック先の 56 がインデックスの内側を指してしまう。
+  // hasMetadata=1 で出力されるファイルがあるため、ここで弾かないと
+  // インデックスのバイト列をタイトル・著者として読んでしまう。
+  // pageTableOffset=0（壊れたヘッダ）もこの条件で 0 になる。
+  if (base + METADATA_SIZE > m_header.pageTableOffset) {
     return 0;
   }
   return base;
