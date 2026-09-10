@@ -257,6 +257,12 @@ def generate_font_header(font_path, pixel_size, output_path, translations_dir=No
         if cp < 0x80:
             # ASCII: use actual width + small padding
             widths.append(min(char_width + 2, pixel_size))
+        elif 0xFF61 <= cp <= 0xFF9F:
+            # Halfwidth katakana: the glyph is rasterised into the left half of
+            # the cell, so advancing a full cell leaves a 10px gap after every
+            # character. GfxRenderer applies the same rule at runtime
+            # (builtinCjkAdvance) so measurement and drawing stay in step.
+            widths.append(pixel_size // 2)
         else:
             # CJK: use full width
             widths.append(pixel_size)
