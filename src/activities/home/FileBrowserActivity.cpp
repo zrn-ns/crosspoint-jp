@@ -24,55 +24,57 @@
 namespace {
 constexpr unsigned long GO_HOME_MS = 1000;
 
-// 指定ディレクトリ以下の空ディレクトリを再帰的に削除する。
-// リーフ（末端）から順に削除するため、ネストした空ディレクトリも連鎖的に削除される。
-// 戻り値: 引数のディレクトリ自身が空になり削除された場合 true
-bool removeEmptyDirsRecursive(const std::string& dirPath) {
-  auto dir = Storage.open(dirPath.c_str());
-  if (!dir || !dir.isDirectory()) {
-    if (dir) dir.close();
-    return false;
-  }
+// 空ディレクトリの掃除はSDカード全体の再帰走査になるため、ファイル一覧を開くたびに
+// 走らせると蔵書が増えるほどルート表示が遅くなる（Issue #136）。
+// Issue #33 は「リアルタイムでなくてよい」としているので、起動後1回だけ実行する。
+// 削除・アーカイブで新たに空ディレクトリが生まれ得るので、そのときだけ再度立てる。
+bool cleanupPending = true;
 
+// dir 以下の空ディレクトリを再帰的に削除する。
+// リーフ（末端）から順に削除するため、ネストした空ディレクトリも連鎖的に削除される。
+// 戻り値: dir 自身が空になったか（dir 自体の削除は、ハンドルを閉じられる呼び出し側が行う）
+bool cleanupDirRecursive(FsFile& dir, const std::string& dirPath) {
   char name[256];
   bool hasEntries = false;
 
-  // まずサブディレクトリを再帰処理
   dir.rewindDirectory();
   for (auto entry = dir.openNextFile(); entry; entry = dir.openNextFile()) {
     entry.getName(name, sizeof(name));
-    if (entry.isDirectory()) {
-      entry.close();
-      std::string subPath = dirPath + "/" + name;
-      // サブディレクトリを再帰処理。削除されなかったらエントリが残っている
-      if (!removeEmptyDirsRecursive(subPath)) {
-        hasEntries = true;
-      }
-    } else {
+
+    if (!entry.isDirectory()) {
       // ファイルが存在する → 空ではない
       entry.close();
+      hasEntries = true;
+      yield();
+      esp_task_wdt_reset();
+      continue;
+    }
+
+    // 開いているハンドルからそのまま再帰する。パス指定で開き直すと
+    // ルートからのディレクトリ検索がサブディレクトリごとに走ってしまう（Issue #136）
+    const std::string subPath = dirPath + "/" + name;
+    const bool subEmpty = cleanupDirRecursive(entry, subPath);
+    entry.close();  // rmdir はパス指定なので、削除前に必ず閉じる
+
+    if (subEmpty && Storage.rmdir(subPath.c_str())) {
+      LOG_DBG("CLN", "Removed empty directory: %s", subPath.c_str());
+    } else {
       hasEntries = true;
     }
     yield();
     esp_task_wdt_reset();
   }
-  dir.close();
 
-  if (!hasEntries) {
-    if (Storage.rmdir(dirPath.c_str())) {
-      LOG_DBG("CLN", "Removed empty directory: %s", dirPath.c_str());
-      return true;
-    }
-  }
-  return false;
+  return !hasEntries;
 }
 
-// SDカードルート直下のユーザーディレクトリから空ディレクトリを削除する
-void cleanupEmptyDirectories() {
+// SDカードルート直下のユーザーディレクトリから空ディレクトリを削除する。
+// 戻り値: 1つでも削除したか（一覧を作り直す必要があるか）
+bool cleanupEmptyDirectories() {
   auto root = Storage.open("/");
   if (!root || !root.isDirectory()) {
     if (root) root.close();
-    return;
+    return false;
   }
 
   char name[256];
@@ -92,9 +94,21 @@ void cleanupEmptyDirectories() {
   }
   root.close();
 
+  bool removedAny = false;
   for (const auto& dirPath : dirs) {
-    removeEmptyDirsRecursive(dirPath);
+    auto dir = Storage.open(dirPath.c_str());
+    if (!dir || !dir.isDirectory()) {
+      if (dir) dir.close();
+      continue;
+    }
+    const bool empty = cleanupDirRecursive(dir, dirPath);
+    dir.close();
+    if (empty && Storage.rmdir(dirPath.c_str())) {
+      LOG_DBG("CLN", "Removed empty directory: %s", dirPath.c_str());
+      removedAny = true;
+    }
   }
+  return removedAny;
 }
 
 }  // namespace
@@ -201,11 +215,6 @@ void FileBrowserActivity::loadFiles() {
 void FileBrowserActivity::onEnter() {
   Activity::onEnter();
 
-  // ルートディレクトリ表示時のみ、空ディレクトリを削除する
-  if (basepath == "/") {
-    cleanupEmptyDirectories();
-  }
-
   selectorIndex = 0;
 
   auto root = Storage.open(basepath.c_str());
@@ -226,6 +235,11 @@ void FileBrowserActivity::onEnter() {
     loadFiles();
   }
 
+  // ルート表示時のみ、空ディレクトリの掃除を予約する。
+  // SDカード全体の再帰走査になるので、一覧の描画を待たせないよう
+  // 実行は初回描画のあと（loop() の先頭）に回す（Issue #136）。
+  pendingCleanup = (basepath == "/") && cleanupPending;
+
   requestUpdate();
 }
 
@@ -235,6 +249,21 @@ void FileBrowserActivity::onExit() {
 }
 
 void FileBrowserActivity::loop() {
+  // 予約されていれば空ディレクトリを掃除する（Issue #33）。
+  // onEnter() で requestUpdate() 済みなので、描画タスクと並行して走る。
+  if (pendingCleanup) {
+    pendingCleanup = false;
+    cleanupPending = false;
+    if (cleanupEmptyDirectories()) {
+      // 実際に消えたときだけ一覧を作り直す
+      const std::string selected = files.empty() ? std::string() : files[selectorIndex];
+      loadFiles();
+      selectorIndex = selected.empty() ? 0 : findEntry(selected);
+      requestUpdate(true);
+    }
+    return;
+  }
+
   // Long press BACK (1s+) goes to root folder
   // but Long press BACK (1s+) from ReaderActivity sends us here with the MappedInput already set.
   // So ignore it the first time.
@@ -293,6 +322,9 @@ void FileBrowserActivity::loop() {
           LOG_DBG("FileBrowser", "Action cancelled by user");
           return;
         }
+        // 削除・アーカイブで空ディレクトリが生まれ得るので、次にルートを開いたときに掃除する
+        cleanupPending = true;
+
         // 操作成功後、ファイル一覧を更新（アイコン状態反映のため）
         loadFiles();
         if (files.empty()) {
