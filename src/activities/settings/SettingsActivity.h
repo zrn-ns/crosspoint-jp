@@ -24,7 +24,6 @@ enum class SettingAction {
   Language,
   DownloadFonts,
   SelectUiFont,
-  GenerateAllCache,
   AozoraBunko,
   HorizontalSettings,
   VerticalSettings,
