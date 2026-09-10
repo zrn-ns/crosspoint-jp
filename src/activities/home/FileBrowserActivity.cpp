@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <iterator>
 #include <variant>
 
 #include "../util/ConfirmationActivity.h"
@@ -184,17 +185,17 @@ void FileBrowserActivity::loadFiles() {
   }
   sortFileList(files);
 
-  // 各書籍ファイルの読書状態を取得
+  // 各書籍ファイルの読書状態を取得。
+  // 1冊ずつ progress.bin を開くと /.crosspoint のディレクトリ検索が
+  // ファイル数×キャッシュ数ぶん走って一覧表示が極端に遅くなるため、
+  // キャッシュを1回だけ走査したインデックスから引く（Issue #136）。
+  // インデックスはこのスコープを抜けた時点で解放される。
+  const ReadingStatusIndex statusIndex("/.crosspoint");
   std::string fullBase = basepath;
   if (fullBase.back() != '/') fullBase += '/';
   fileStatuses.reserve(files.size());
-  for (const auto& file : files) {
-    if (FsHelpers::hasEpubExtension(file) || FsHelpers::hasXtcExtension(file)) {
-      fileStatuses.push_back(getReadingStatus(fullBase + file, "/.crosspoint"));
-    } else {
-      fileStatuses.push_back(ReadingStatus::Unread);
-    }
-  }
+  std::transform(files.begin(), files.end(), std::back_inserter(fileStatuses),
+                 [&](const std::string& file) { return statusIndex.lookup(fullBase + file); });
 }
 
 void FileBrowserActivity::onEnter() {
