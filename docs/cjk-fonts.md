@@ -168,8 +168,10 @@ pio run                                  # flash usage
 
 ### Known limitations
 
-- Halfwidth katakana (U+FF61–FF9F) render at full width — `generate_cjk_ui_font.py`
-  treats everything above U+007F as full width
+- Halfwidth katakana (U+FF61–FF9F) are rasterised into the left half of the 20px
+  cell but the shipped width table still reports 20px, so `GfxRenderer` overrides
+  their advance to 10px at runtime (`builtinCjkAdvance`). The generator now emits
+  10px directly, so the override becomes a no-op after the next regeneration
 - `＾` (U+FF3E) and `｀` (U+FF40) come out blank: they sit above the 20px cell at
   baseline 17 and get clipped
 - `hasCjkUiGlyph()` returns false above U+FFFF (the lookup table is `uint16_t`),

@@ -19,6 +19,26 @@
 // Reader font IDs (from fontIds.h) - used to determine when to use external
 // Chinese font UI fonts should NOT use external font
 namespace {
+
+// 内蔵 CJK UI フォントの送り幅。
+//
+// 半角カナ (U+FF61-FF9F) のグリフは 20px セルの左半分にだけ描かれているのに、
+// 生成された幅テーブルは CJK と同じ 20px を返す（generate_cjk_ui_font.py が
+// U+007F 超を一律全角として扱っていたため）。そのままだと 1 文字ごとに
+// 10px の空きができ、半角カナが全角と同じ幅で間延びして見える。
+// 測定と描画の両方がこの関数を通るようにして、ズレを作らない。
+constexpr uint32_t HALFWIDTH_FORMS_BEGIN = 0xFF61;
+constexpr uint32_t HALFWIDTH_FORMS_END = 0xFF9F;
+
+uint8_t builtinCjkAdvance(const uint32_t cp) {
+  const uint8_t tableWidth = CjkUiFont20::getCjkUiGlyphWidth(cp);
+  if (tableWidth == 0) return 0;  // グリフ無し
+  if (cp >= HALFWIDTH_FORMS_BEGIN && cp <= HALFWIDTH_FORMS_END) {
+    return CjkUiFont20::CJK_UI_FONT_WIDTH / 2;
+  }
+  return tableWidth;
+}
+
 // UI font IDs that should NOT use external reader font
 // Values must match src/fontIds.h
 constexpr int UI_FONT_IDS[] = {
@@ -408,7 +428,7 @@ int GfxRenderer::getTextWidth(const int fontId, const char* text, const EpdFontF
         // First check built-in CJK UI font (Flash access is fast)
         if (CjkUiFont20::hasCjkUiGlyph(cp)) {
           // Same rule as renderBuiltinCjkGlyph(): advance by the glyph's actual width
-          width += CjkUiFont20::getCjkUiGlyphWidth(cp);
+          width += builtinCjkAdvance(cp);
           hasChar = true;
         }
 
@@ -507,7 +527,7 @@ int GfxRenderer::getTextWidth(const int fontId, const char* text, const EpdFontF
       uint32_t cp;
       while ((cp = utf8NextCodepoint(reinterpret_cast<const uint8_t**>(&ptr)))) {
         // Check if character is in our UI font (includes CJK and English)
-        uint8_t actualWidth = CjkUiFont20::getCjkUiGlyphWidth(cp);
+        uint8_t actualWidth = builtinCjkAdvance(cp);
 
         if (actualWidth > 0) {
           // Character is in UI font: use actual proportional width.
@@ -607,7 +627,7 @@ void GfxRenderer::drawText(const int fontId, const int x, const int y, const cha
         if (CjkUiFont20::hasCjkUiGlyph(cp)) {
           const uint8_t* bitmap = CjkUiFont20::getCjkUiGlyph(cp);
           // Same rule as renderBuiltinCjkGlyph(): advance by the glyph's actual width
-          const uint8_t advanceWidth = CjkUiFont20::getCjkUiGlyphWidth(cp);
+          const uint8_t advanceWidth = builtinCjkAdvance(cp);
           const uint8_t height = CjkUiFont20::CJK_UI_FONT_HEIGHT;
           const uint8_t bytesPerRow = CjkUiFont20::CJK_UI_FONT_BYTES_PER_ROW;
           const uint8_t glyphWidth = CjkUiFont20::CJK_UI_FONT_WIDTH;
@@ -2070,7 +2090,7 @@ void GfxRenderer::drawTextRotated90CW(const int fontId, const int x, const int y
       while ((cp = utf8NextCodepoint(reinterpret_cast<const uint8_t**>(&ptr)))) {
         if (CjkUiFont20::hasCjkUiGlyph(cp)) {
           const uint8_t* bitmap = CjkUiFont20::getCjkUiGlyph(cp);
-          const uint8_t width = CjkUiFont20::getCjkUiGlyphWidth(cp);
+          const uint8_t width = builtinCjkAdvance(cp);
           const uint8_t height = CjkUiFont20::CJK_UI_FONT_HEIGHT;
           const uint8_t bytesPerRow = CjkUiFont20::CJK_UI_FONT_BYTES_PER_ROW;
 
@@ -2137,7 +2157,7 @@ void GfxRenderer::drawTextRotated90CW(const int fontId, const int x, const int y
         fontHeight = CjkUiFont20::CJK_UI_FONT_HEIGHT;
         bytesPerRow = CjkUiFont20::CJK_UI_FONT_BYTES_PER_ROW;
         bytesPerChar = CjkUiFont20::CJK_UI_FONT_BYTES_PER_CHAR;
-        advance = CjkUiFont20::getCjkUiGlyphWidth(cp);
+        advance = builtinCjkAdvance(cp);
       }
 
       if (bitmap && advance > 0) {
@@ -2785,7 +2805,7 @@ void GfxRenderer::renderBuiltinCjkGlyph(const uint32_t cp, int* x, const int y, 
   const uint8_t fontHeight = CjkUiFont20::CJK_UI_FONT_HEIGHT;
   const uint8_t bytesPerRow = CjkUiFont20::CJK_UI_FONT_BYTES_PER_ROW;
   const uint8_t bytesPerChar = CjkUiFont20::CJK_UI_FONT_BYTES_PER_CHAR;
-  const uint8_t actualWidth = CjkUiFont20::getCjkUiGlyphWidth(cp);
+  const uint8_t actualWidth = builtinCjkAdvance(cp);
 
   if (!bitmap || actualWidth == 0) {
     return;
