@@ -64,6 +64,10 @@ ReadingStatus readStatusFromCacheDir(FsFile& bookDir, bool isEpub) {
     child.getName(name, sizeof(name));
     if (strcmp(name, "progress.bin") != 0) {
       child.close();
+      // 通常このループは数件で終わるが、エントリ数の多いディレクトリを
+      // 掴んだ場合に外側のループまでウォッチドッグを待たせないようにする
+      yield();
+      esp_task_wdt_reset();
       continue;
     }
 

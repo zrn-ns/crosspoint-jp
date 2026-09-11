@@ -16,6 +16,7 @@
 #include "../util/ConfirmationActivity.h"
 #include "BookFileHelper.h"
 #include "CrossPointSettings.h"
+#include "EmptyDirCleanup.h"
 #include "MappedInputManager.h"
 #include "ReadingStatusHelper.h"
 #include "components/UITheme.h"
@@ -23,12 +24,6 @@
 
 namespace {
 constexpr unsigned long GO_HOME_MS = 1000;
-
-// 空ディレクトリの掃除はSDカード全体の再帰走査になるため、ファイル一覧を開くたびに
-// 走らせると蔵書が増えるほどルート表示が遅くなる（Issue #136）。
-// Issue #33 は「リアルタイムでなくてよい」としているので、起動後1回だけ実行する。
-// 削除・アーカイブで新たに空ディレクトリが生まれ得るので、そのときだけ再度立てる。
-bool cleanupPending = true;
 
 // dir 以下の空ディレクトリを再帰的に削除する。
 // リーフ（末端）から順に削除するため、ネストした空ディレクトリも連鎖的に削除される。
@@ -199,6 +194,16 @@ void FileBrowserActivity::loadFiles() {
   }
   sortFileList(files);
 
+  // 書籍が1冊も無いディレクトリ（画像だけ、サブディレクトリだけ等）では
+  // キャッシュを走査しても全件 Unread にしかならないので、作らない
+  const bool hasBooks = std::any_of(files.begin(), files.end(), [](const std::string& file) {
+    return FsHelpers::hasEpubExtension(file) || FsHelpers::hasXtcExtension(file);
+  });
+  if (!hasBooks) {
+    fileStatuses.assign(files.size(), ReadingStatus::Unread);
+    return;
+  }
+
   // 各書籍ファイルの読書状態を取得。
   // 1冊ずつ progress.bin を開くと /.crosspoint のディレクトリ検索が
   // ファイル数×キャッシュ数ぶん走って一覧表示が極端に遅くなるため、
@@ -238,7 +243,7 @@ void FileBrowserActivity::onEnter() {
   // ルート表示時のみ、空ディレクトリの掃除を予約する。
   // SDカード全体の再帰走査になるので、一覧の描画を待たせないよう
   // 実行は初回描画のあと（loop() の先頭）に回す（Issue #136）。
-  pendingCleanup = (basepath == "/") && cleanupPending;
+  pendingCleanup = (basepath == "/") && consumeEmptyDirCleanupRequest();
 
   requestUpdate();
 }
@@ -253,15 +258,20 @@ void FileBrowserActivity::loop() {
   // onEnter() で requestUpdate() 済みなので、描画タスクと並行して走る。
   if (pendingCleanup) {
     pendingCleanup = false;
-    cleanupPending = false;
     if (cleanupEmptyDirectories()) {
-      // 実際に消えたときだけ一覧を作り直す
-      const std::string selected = files.empty() ? std::string() : files[selectorIndex];
-      loadFiles();
-      selectorIndex = selected.empty() ? 0 : findEntry(selected);
+      // 実際に消えたときだけ一覧を作り直す。
+      // 描画タスクが走っている最中なので、files / fileStatuses を
+      // 作り直す間は必ずロックを取る（render() は両者を添字で遅延参照する）
+      {
+        RenderLock lock;
+        const std::string selected = files.empty() ? std::string() : files[selectorIndex];
+        loadFiles();
+        selectorIndex = selected.empty() ? 0 : findEntry(selected);
+      }
       requestUpdate(true);
     }
-    return;
+    // ここで return すると、この周回で拾ったボタンの離しイベントを取りこぼすので
+    // そのまま入力処理へ抜ける
   }
 
   // Long press BACK (1s+) goes to root folder
@@ -323,7 +333,7 @@ void FileBrowserActivity::loop() {
           return;
         }
         // 削除・アーカイブで空ディレクトリが生まれ得るので、次にルートを開いたときに掃除する
-        cleanupPending = true;
+        requestEmptyDirCleanup();
 
         // 操作成功後、ファイル一覧を更新（アイコン状態反映のため）
         loadFiles();
