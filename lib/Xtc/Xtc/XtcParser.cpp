@@ -151,6 +151,19 @@ XtcError XtcParser::readHeader() {
     return XtcError::CORRUPTED_HEADER;
   }
 
+  // 48 バイトヘッダ形式（xtcjs.app など）への対応。
+  // この形式には chapterOffset/padding が無く、ページインデックスが
+  // オフセット 48 から直接始まる。上で 56 バイト読み込んでいるため、
+  // 末尾 8 バイトにはインデックス先頭のバイト列が入ってしまっている。
+  // 章情報として解釈すると誤動作するので、ここで無効化しておく。
+  if (m_header.pageTableOffset >= MIN_HEADER_SIZE && m_header.pageTableOffset < sizeof(XtcHeader)) {
+    LOG_DBG("XTC", "Compact %u-byte header detected; chapter fields discarded",
+            static_cast<unsigned>(m_header.pageTableOffset));
+    m_header.chapterOffset = 0;
+    m_header.padding = 0;
+    m_header.hasChapters = 0;
+  }
+
   LOG_DBG("XTC", "Header: magic=0x%08X (%s), ver=%u.%u, pages=%u, bitDepth=%u", m_header.magic,
           (m_header.magic == XTCH_MAGIC) ? "XTCH" : "XTC", m_header.versionMajor, m_header.versionMinor,
           m_header.pageCount, m_bitDepth);
@@ -158,13 +171,43 @@ XtcError XtcParser::readHeader() {
   return XtcError::OK;
 }
 
+uint64_t XtcParser::metadataBase() {
+  // メタデータ位置はヘッダの metadataOffset に従う。
+  // 0 の場合のみ、従来の固定配置（56 バイトヘッダの直後 = 0x38）にフォールバックする。
+  const uint64_t base = m_header.metadataOffset != 0 ? m_header.metadataOffset : sizeof(XtcHeader);
+
+  const uint64_t fileSize = m_file.size();
+  if (base < MIN_HEADER_SIZE || base + METADATA_SIZE > fileSize) {
+    return 0;
+  }
+
+  // 既知のどの形式でもメタデータはページインデックスより前に置かれる。
+  // そこに収まらない位置はメタデータ領域ではないとみなし、読まない。
+  //
+  // 48 バイトヘッダ形式は metadataOffset=0 かつ pageTableOffset=48 なので、
+  // フォールバック先の 56 がインデックスの内側を指してしまう。
+  // hasMetadata=1 で出力されるファイルがあるため、ここで弾かないと
+  // インデックスのバイト列をタイトル・著者として読んでしまう。
+  // pageTableOffset=0（壊れたヘッダ）もこの条件で 0 になる。
+  if (base + METADATA_SIZE > m_header.pageTableOffset) {
+    return 0;
+  }
+  return base;
+}
+
 XtcError XtcParser::readTitle() {
-  constexpr auto titleOffset = 0x38;
-  if (!m_file.seek(titleOffset)) {
+  const uint64_t base = metadataBase();
+  if (base == 0) {
+    LOG_DBG("XTC", "No usable metadata area; skipping title");
+    m_title.clear();
+    return XtcError::OK;
+  }
+
+  if (!m_file.seek(static_cast<size_t>(base))) {
     return XtcError::READ_ERROR;
   }
 
-  char titleBuf[128] = {0};
+  char titleBuf[TITLE_SIZE] = {0};
   m_file.read(titleBuf, sizeof(titleBuf) - 1);
   m_title = titleBuf;
 
@@ -174,12 +217,17 @@ XtcError XtcParser::readTitle() {
 
 XtcError XtcParser::readAuthor() {
   // Read author as null-terminated UTF-8 string with max length 64, directly following title
-  constexpr auto authorOffset = 0xB8;
-  if (!m_file.seek(authorOffset)) {
+  const uint64_t base = metadataBase();
+  if (base == 0) {
+    m_author.clear();
+    return XtcError::OK;
+  }
+
+  if (!m_file.seek(static_cast<size_t>(base + TITLE_SIZE))) {
     return XtcError::READ_ERROR;
   }
 
-  char authorBuf[64] = {0};
+  char authorBuf[AUTHOR_SIZE] = {0};
   m_file.read(authorBuf, sizeof(authorBuf) - 1);
   m_author = authorBuf;
 
@@ -196,7 +244,7 @@ XtcError XtcParser::readFirstPageInfo() {
   // Verify the file is large enough to contain the full page table
   const uint64_t fileSize = m_file.size();
   const uint64_t pageTableSize = static_cast<uint64_t>(m_header.pageCount) * sizeof(PageTableEntry);
-  if (m_header.pageTableOffset < sizeof(XtcHeader) || m_header.pageTableOffset > fileSize ||
+  if (m_header.pageTableOffset < MIN_HEADER_SIZE || m_header.pageTableOffset > fileSize ||
       pageTableSize > fileSize - m_header.pageTableOffset) {
     LOG_DBG("XTC", "Page table exceeds file bounds");
     return XtcError::CORRUPTED_HEADER;
@@ -262,32 +310,20 @@ XtcError XtcParser::readChapters() {
     return XtcError::READ_ERROR;
   }
 
-  uint8_t hasChaptersFlag = 0;
-  if (!m_file.seek(0x0B)) {
-    return XtcError::READ_ERROR;
-  }
-  if (m_file.read(&hasChaptersFlag, sizeof(hasChaptersFlag)) != sizeof(hasChaptersFlag)) {
-    return XtcError::READ_ERROR;
-  }
-
-  if (hasChaptersFlag != 1) {
+  // 章情報の有無とオフセットは readHeader() で読み込み済みのヘッダを使う。
+  // ファイルから読み直すと、48 バイトヘッダ形式で無効化したはずの
+  // chapterOffset がページインデックスのバイト列として復活してしまう。
+  if (m_header.hasChapters != 1) {
     return XtcError::OK;
   }
 
-  uint64_t chapterOffset = 0;
-  if (!m_file.seek(0x30)) {
-    return XtcError::READ_ERROR;
-  }
-  if (m_file.read(reinterpret_cast<uint8_t*>(&chapterOffset), sizeof(chapterOffset)) != sizeof(chapterOffset)) {
-    return XtcError::READ_ERROR;
-  }
-
+  const uint64_t chapterOffset = m_header.chapterOffset;
   if (chapterOffset == 0) {
     return XtcError::OK;
   }
 
   const uint64_t fileSize = m_file.size();
-  if (chapterOffset < sizeof(XtcHeader) || chapterOffset >= fileSize || chapterOffset + 96 > fileSize) {
+  if (chapterOffset < MIN_HEADER_SIZE || chapterOffset >= fileSize || chapterOffset + 96 > fileSize) {
     return XtcError::OK;
   }
 

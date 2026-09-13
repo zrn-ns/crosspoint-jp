@@ -31,6 +31,17 @@ constexpr uint32_t XTH_MAGIC = 0x00485458;  // "XTH\0" for 2-bit page data
 constexpr uint16_t DISPLAY_WIDTH = 480;
 constexpr uint16_t DISPLAY_HEIGHT = 800;
 
+// 一部の生成ツール（xtcjs.app など）は chapterOffset/padding を持たない
+// 48 バイトのヘッダを出力し、ページインデックスをオフセット 48 から直接始める。
+// ヘッダとして受け付ける最小サイズであり、各種オフセットの下限チェックに使う。
+constexpr uint64_t MIN_HEADER_SIZE = 48;
+
+// メタデータ領域のレイアウト（title 128 + author 64 + publisher 32 + language 16 + その他 16）
+constexpr size_t TITLE_SIZE = 128;
+constexpr size_t AUTHOR_SIZE = 64;
+// パーサが実際に読むのはタイトルと著者だけなので、範囲チェックもその分だけ行う
+constexpr uint64_t METADATA_SIZE = TITLE_SIZE + AUTHOR_SIZE;
+
 // XTC file header (56 bytes)
 #pragma pack(push, 1)
 struct XtcHeader {

@@ -101,6 +101,8 @@ class XtcParser {
   // Internal helper functions
   XtcError readHeader();
   XtcError readFirstPageInfo();
+  // メタデータ（タイトル + 著者）の先頭オフセット。読める領域が無ければ 0
+  uint64_t metadataBase();
   XtcError readTitle();
   XtcError readAuthor();
   XtcError readChapters();
