@@ -17,6 +17,9 @@ class FileBrowserActivity final : public Activity {
 
   bool lockLongPressBack = false;
 
+  // 初回描画のあとに空ディレクトリの掃除を走らせるためのフラグ（Issue #136）
+  bool pendingCleanup = false;
+
   // Files state
   std::string basepath = "/";
   std::vector<std::string> files;

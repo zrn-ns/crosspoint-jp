@@ -6,6 +6,8 @@
 #include <Logging.h>
 #include <esp_task_wdt.h>
 
+#include "EmptyDirCleanup.h"
+
 namespace {
 const char* HIDDEN_ITEMS[] = {"System Volume Information", "XTCache"};
 constexpr size_t HIDDEN_ITEMS_COUNT = sizeof(HIDDEN_ITEMS) / sizeof(HIDDEN_ITEMS[0]);
@@ -436,6 +438,8 @@ void WebDAVHandler::handleDelete(WebServer& s) {
     file.close();
     clearEpubCacheIfNeeded(path);
     if (Storage.remove(path.c_str())) {
+      // 親ディレクトリが空になったかもしれないので掃除を予約する（Issue #33 / #136）
+      requestEmptyDirCleanup();
       s.send(204);
     } else {
       s.send(500, "text/plain", "Failed to delete file");
@@ -548,6 +552,8 @@ void WebDAVHandler::handleMove(WebServer& s) {
   file.close();
 
   if (success) {
+    // 移動元のディレクトリが空になったかもしれないので掃除を予約する（Issue #33 / #136）
+    requestEmptyDirCleanup();
     s.send(dstExists ? 204 : 201);
   } else {
     s.send(500, "text/plain", "Move failed");

@@ -16,6 +16,7 @@
 #include <map>
 
 #include "CrossPointSettings.h"
+#include "EmptyDirCleanup.h"
 #include "FontInstaller.h"
 #include "SdCardFontGlobals.h"
 #include "SettingsList.h"
@@ -1178,7 +1179,10 @@ void CrossPointWebServer::handleDelete() const {
       clearEpubCacheIfNeeded(itemPath);
     }
 
-    if (!success) {
+    if (success) {
+      // 親ディレクトリが空になったかもしれないので掃除を予約する（Issue #33 / #136）
+      requestEmptyDirCleanup();
+    } else {
       failedItems += itemPath + " (deletion failed); ";
       allSuccess = false;
     }
