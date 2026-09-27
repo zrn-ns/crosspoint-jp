@@ -104,7 +104,7 @@ if (parsedSize != fileSize) {
 
 ## `section.bin`
 
-> 現在の形式は **Version 42**（`lib/Epub/Epub/Section.cpp` の `SECTION_FILE_VERSION`。
+> 現在の形式は **Version 43**（`lib/Epub/Epub/Section.cpp` の `SECTION_FILE_VERSION`。
 > バージョンごとの変更理由は同ファイル冒頭のコメントにある）。以下の ImHex パターンは
 > Version 8 のときのもので、ブロックスタイルなど以降に追加されたフィールドを含まない。
 

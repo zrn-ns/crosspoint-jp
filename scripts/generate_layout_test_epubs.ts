@@ -7,6 +7,7 @@
 //   → test/epubs/ja_inline.epub   <hr> / <sup> / <sub> / CJK 間の半角スペース
 //   → test/epubs/ja_headings.epub h1〜h6 と本文の間のアキ
 //   → test/epubs/ja_pre.epub      コードブロック（枠・行間・br・ページまたぎ）
+//   → test/epubs/ja_aozora_ruby.epub 青空文庫の〔〕付きルビ（issue #154）。_vertical は同じ内容の縦書き
 //
 // ja_kinsoku.epub の各段落は約物を一定周期で含むので、1 行あたりの文字数が何文字でも
 // どこかの行で「行頭に約物が来る」状態が必ず発生する。修正前後の比較用。
@@ -297,6 +298,45 @@ ${hl(Array.from({ length: 40 }, (_, i) => `line ${String(i + 1).padStart(2, "0")
   },
 ];
 
+// --- ja_aozora_ruby.epub ----------------------------------------------------
+// 青空文庫の新字旧仮名作品（夏目漱石『三四郎』作品ID 58842 など）では、底本の編集部が
+// 補ったルビが「〔　〕」で括られて <rt> に入っている（issue #154）。
+// 本文は同作品の XHTML から抜粋し、マークアップも青空文庫の形式（rb / rp / rt）に揃える。
+
+// 青空文庫 XHTML の形式
+function aoRuby(base: string, ruby: string): string {
+  return `<ruby><rb>${esc(base)}</rb><rp>（</rp><rt>${ruby}</rt><rp>）</rp></ruby>`;
+}
+// AozoraEpub3 などの変換ツールが出す rb / rp の無い形式
+function plainRuby(base: string, ruby: string): string {
+  return `<ruby>${esc(base)}<rt>${ruby}</rt></ruby>`;
+}
+
+const aozoraRubyChapters: { title: string; body: string }[] = [
+  {
+    title: "一 〔〕で括られたルビ",
+    body: [
+      `<p>此爺さんは${aoRuby("慥", "〔たし〕")}かに前の前の駅から乗つた${
+        aoRuby("田舎者", "いなかもの")
+      }である。</p>`,
+      `<p>${aoRuby("傍", "そば")}を離れるのが大いに${aoRuby("難有", "〔ありがた〕")}かつた。</p>`,
+      `<p>顔は${aoRuby("生憎", "〔あいにく〕")}列車の${aoRuby("外", "そと")}に出てゐた。</p>`,
+      `<p>通り掛りの${aoRuby("群集", "〔くん〕じゆ")}を眺めた。（ルビの途中に〔〕）</p>`,
+      `<p>${plainRuby("屹度", "〔きっと〕")}帰つて来る。（rb / rp 無しの形式）</p>`,
+    ].join("\n"),
+  },
+  {
+    title: "二 ルビ以外の〔〕・注記入りルビ",
+    body: [
+      `<p>本文中の〔亀甲括弧〕と［角括弧］と[半角]はそのまま表示されること。</p>`,
+      `<p>${
+        aoRuby("vérité vraie", '※<span class="notes">［＃濁点付き片仮名エ、514-9］</span>リテ、ヴレイ')
+      }と云ふ。</p>`,
+      `<p>${aoRuby("記号", "［きごう］")}と${aoRuby("括弧", "[かっこ]")}のルビ。</p>`,
+    ].join("\n"),
+  },
+];
+
 // --- EPUB 組み立て ----------------------------------------------------------
 
 type Chapter = { title: string; body: string };
@@ -455,4 +495,27 @@ await writeZip(
 await writeZip(
   `${repoRoot}/test/epubs/ja_pre.epub`,
   buildEpub("コードブロック テスト", "pre-test-0001", preChapters, preCss),
+);
+await writeZip(
+  `${repoRoot}/test/epubs/ja_aozora_ruby.epub`,
+  buildEpub("青空文庫ルビ テスト", "aozora-ruby-test-0001", aozoraRubyChapters),
+);
+// 縦書きはリーダーが spine の page-progression-direction="rtl" で判定するので、それも付ける
+await writeZip(
+  `${repoRoot}/test/epubs/ja_aozora_ruby_vertical.epub`,
+  buildEpub(
+    "青空文庫ルビ テスト（縦書き）",
+    "aozora-ruby-test-0002",
+    aozoraRubyChapters,
+    "body { writing-mode: vertical-rl; }\n",
+  ).map((e) =>
+    e.name === "OEBPS/content.opf"
+      ? {
+        ...e,
+        data: new TextEncoder().encode(
+          new TextDecoder().decode(e.data).replace("<spine>", '<spine page-progression-direction="rtl">'),
+        ),
+      }
+      : e
+  ),
 );

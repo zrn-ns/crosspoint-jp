@@ -94,6 +94,23 @@ bool isCjkCodepointForSplit(const uint32_t cp) {
   return false;
 }
 
+// 青空文庫では、底本の編集部が補ったルビを亀甲括弧「〔　〕」で括ったまま <rt> に入れている
+// （例: 『三四郎』の <rt>〔たし〕</rt>、<rt>〔くん〕じゆ</rt>）。ルビとして描くときは括弧を落とす。
+// 0xE3 は UTF-8 のリードバイトで継続バイトには現れないので、バイト列のまま探して詰めてよい。
+void stripAozoraRubyBrackets(std::string& ruby) {
+  constexpr char OPEN[] = "\xE3\x80\x94";   // 〔 U+3014
+  constexpr char CLOSE[] = "\xE3\x80\x95";  // 〕 U+3015
+  size_t out = 0;
+  for (size_t i = 0; i < ruby.size();) {
+    if (ruby.compare(i, 3, OPEN) == 0 || ruby.compare(i, 3, CLOSE) == 0) {
+      i += 3;
+      continue;
+    }
+    ruby[out++] = ruby[i++];
+  }
+  ruby.resize(out);
+}
+
 // Get UTF-8 byte length for a lead byte
 int getUtf8ByteLength(unsigned char leadByte) {
   if ((leadByte & 0x80) == 0) return 1;     // ASCII: 0xxxxxxx
@@ -1502,6 +1519,8 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
   if (strcmp(name, "ruby") == 0 && self->inRuby && self->currentTextBlock) {
     const int currentWordCount = static_cast<int>(self->currentTextBlock->size());
     const int baseWordCount = currentWordCount - self->rubyStartWordIndex;
+    // 括弧を除いた文字数で親文字に配分する（配分後に消すと、括弧の分だけ配分が偏る）
+    stripAozoraRubyBrackets(self->rubyTextBuffer);
     if (baseWordCount > 0 && !self->rubyTextBuffer.empty()) {
       // Count UTF-8 characters in ruby text
       std::vector<size_t> charOffsets;
